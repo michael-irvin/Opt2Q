@@ -1,0 +1,13 @@
+pysb == 1.6.0
+pandas
+cython
+nose
+sphinx_rtd_theme
+numpy
+scipy
+decorator
+sympy
+networkx
+matplotlib
+scikit-learn
+mord

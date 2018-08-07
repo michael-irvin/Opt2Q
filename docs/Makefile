@@ -23,5 +23,5 @@ html-noplot:
     $(SPHINXBUILD) -D plot_gallery=0 -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
 
 clean:
-    rm -rf $(BUILDDIR)/*
-    rm -rf auto_examples/
+	-rm -rf $(BUILDDIR)/*
+	-rm -rf $(SOURCEDIR)/auto_examples/*

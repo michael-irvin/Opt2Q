@@ -6,7 +6,7 @@ SPHINXOPTS    =
 SPHINXBUILD   = sphinx-build
 SPHINXPROJ    = Opt2Q
 SOURCEDIR     = .
-BUILDDIR      = ../../opt2q-docs
+BUILDDIR      = .
 
 # Put it first so that "make" without argument is like "make help".
 help:
@@ -23,5 +23,5 @@ html-noplot:
     $(SPHINXBUILD) -D plot_gallery=0 -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
 
 clean:
-	-rm -rf $(BUILDDIR)/*
-	-rm -rf $(SOURCEDIR)/auto_examples/*
+    rm -rf $(BUILDDIR)/*
+    rm -rf auto_examples/

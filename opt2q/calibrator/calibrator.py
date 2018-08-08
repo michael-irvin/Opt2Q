@@ -80,7 +80,7 @@ class ObjectiveFunction(object):
         # Combine new_df with self.lookup
         # Group self.lookup by measurement_model_name
         # For each group update the self._lookup['measurement_model_name']
-        #   with {param_name:xid}. 
+        #   with {param_name:xid}.
         pass
 
     def _assign_values(self, x):

@@ -16,9 +16,11 @@ class ObjectiveFunction(object):
     """
 
     def __init__(self, f):
-        # self.noise_model = Get noise model from f
+        # self.noise_model(s) = Get noise model from f
+        #   ..note:: multiple noise models could be used to construct a mixture models
+        #   |-- name the Noise Models
         # Get Simulator from f
-        # Get all Measurement Models from f
+        # Get all Measurement Model(s) from f
         #   |-- name the Measurement models
         pass
 
@@ -44,15 +46,16 @@ class ObjectiveFunction(object):
 
     def _create_lookups(self):
         """
-        Creates a dictionaries of lookup tables. The dictionaries' keys are 'param_mean' and 'param_cov' (from the noise
-        model) and 'measurement_models' (for *all* the measurement models).
+        Creates a dictionaries of lookup tables. The dictionaries' keys are the names fo the noise models, and within is
+        a dictionary with 'param_mean' and 'param_cov' (from the noise model) and 'measurement_models' (for *all* the
+        measurement models).
 
         Creates self.lookup with a dictionary of DataFrames that contain an additional 'xid' column.
         Creates self._lookup with a the same DataFrames mentioned above, for 'param_mean' and 'param_cov'. And a
         dictionary for the measurement model.
 
-        View using ``obj_fn.lookup['param_mean']``
-        Access via ``obj_fn._lookup['param_mean']``
+        View using ``obj_fn.lookup['noise_model']['param_mean']``
+        Access via ``obj_fn._lookup['noise_model']['param_mean']``
         """
         pass
 
@@ -88,7 +91,8 @@ class ObjectiveFunction(object):
         Assign values of x to the parameters in the noise model and measurement models.
         """
 
-        # merge self._lookup[param_mean or param_cov] with DF(|'values'=x[xid] | xid |) updates values
+        # merge self._lookup['noise_model_name'][param_mean or param_cov] with DF(|'values'=x[xid] | xid |)
+        #   updates values
         # update noise.param_mean with the updated self._lookup
 
         # for measurement_model_name in self._lookup['measurement_models'].iteritems():

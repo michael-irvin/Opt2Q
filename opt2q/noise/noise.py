@@ -75,6 +75,7 @@ class NoiseModel(object):
 
         _param_mean = self._check_required_columns(param_mean, var_name='param_mean')
         _param_mean = self._add_apply_noise_col(_param_mean)
+        self._param_mean = _param_mean
 
         _param_covariance = self._check_required_columns(param_covariance, var_name='param_covariance')
 
@@ -118,7 +119,7 @@ class NoiseModel(object):
                 mean_df['apply_noise'].fillna(False, inplace=True)
             except KeyError:
                 mean_df['apply_noise'] = False
-            return mean_df
+        return mean_df
 
     def run(self):
         """
@@ -127,11 +128,17 @@ class NoiseModel(object):
         """
         pass
 
+    @property
+    def param_mean(self):
+        return self._param_mean
 
-input_arg = pd.concat([pd.DataFrame([[1, 2]],columns=['param', 'value']),
-                               pd.DataFrame([[3, 4, True]], columns=['param', 'value', 'apply_noise'])],
-                              ignore_index=True, sort=False)
-target = pd.DataFrame([[1, 2, False],[3, 4, True]], columns=['param', 'value', 'apply_noise'])
-nm = NoiseModel()
-test = nm._add_apply_noise_col(input_arg)
-print(test)
+    @param_mean.setter
+    def param_mean(self, val):
+        self._param_mean = val
+
+    def update_param_mean(self):
+        """
+        Updates the param_mean DataFrame with values from a similarly shaped column (i.e. same columns). This method is
+        intended for the :class:`~opt2q.calibrator.ObjectiveFunction`, primarily.
+        """
+        pass

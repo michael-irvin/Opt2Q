@@ -16,3 +16,7 @@ def _list_the_errors(iterable_arg):
     else:
         note = "'{}'".format(iterable_arg[0])
     return note
+
+
+class MissingParametersErrors(Exception):
+    pass

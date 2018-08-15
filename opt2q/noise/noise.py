@@ -3,10 +3,70 @@ Tools for Simulating Extrinsic Noise and Experimental Conditions
 """
 
 # MW Irvin -- Lopez Lab -- 2018-08-08
-from opt2q.utils import _list_the_errors, MissingParametersErrors
+from opt2q.utils import _list_the_errors, MissingParametersErrors, UnsupportedSimulator
 from pysb.bng import generate_equations
 import pandas as pd
 import numpy as np
+
+
+def multivariate_log_normal_fn(mean, covariance, n, atol=1e-8, names_column='param', *args, **kwargs):
+    """
+    Simulates extrinsic noise by applying random log-normal variation to a set of values.
+
+    Parameters
+    ----------
+    mean: :class:`pandas.DataFrame`
+        Object names and their mean values in a DataFrame with the following columns:
+
+        `param_name` (required column)
+            The name of this column can be changed by passing an argument to this function's ``name_column`` parameter.
+            The names or the objects.
+        `value` (required column)
+            Mean (average) value (float) of the objects
+
+    covariance: :class:`pandas.DataFrame`
+        Object names and their covariance values.
+
+            Column and index names must only be the names of parameters.
+            These names must also be present in the `param_name` column of this function's ``mean`` parameter.
+
+    n: `int`
+        number of samples from the distribution
+
+    names_column: `str` (optional)
+        name of the column in this function's ``mean`` parameter that has the names of the objects
+        that will have noise applied to them. Defaults to "param_name".
+
+    atol: 'float` (optional)
+        Minimum value for means and values along the diagonal. This avoids nans. Defaults to 1.0e-8.
+
+
+    Returns
+    -------
+    A :class:`pandas.DataFrame` whose columns are the object names and each row contains a sample of the objects' values.
+
+    """
+
+    # clip zeros to prevent breaking log-norm function
+    _mean = mean.clip_lower(atol).set_index(names_column)
+    _mean = _mean.astype(float, errors='ignore')
+
+    _cov = covariance[_mean.index].reindex(_mean.index)
+
+    _cov_diagonal = pd.DataFrame([np.clip(np.diag(_cov), atol, np.inf)], columns=_mean.index)
+    for cov_i in _mean.index:
+        _cov.at[cov_i, cov_i] = _cov_diagonal[cov_i]
+
+    # mu = np.log(_mean.values[:, 0]) - 0.5 * np.log((1 + np.diag(_cov.values) / (_mean.values.T[:, 0]) ** 2))
+    # mu = 1 * np.log(_mean.values[:, 0]) - 0.25 * np.log(np.diag(_cov.values) + _mean.values.T[:, 0] ** 2)
+    mu = np.log(_mean.values[:, 0])/(np.sqrt(np.diag(_cov.values)/(_mean.values.T[:, 0] ** 2)+1))
+
+    mean_t_mean = np.product(np.meshgrid(_mean.values, _mean.values), axis=0)
+    cov = np.log((_cov / mean_t_mean) + 1)
+
+    return pd.DataFrame(
+        np.exp(np.random.multivariate_normal(mu, cov, n)),
+        columns=_mean.index.values)
 
 
 class NoiseModel(object):
@@ -69,11 +129,25 @@ class NoiseModel(object):
         Dictionary of keyword arguments:
 
         ``noise_simulator``: Function that applies noise for the parameters. Defaults to :func:`~opt2q.noise.multivariate_log_normal_fn`
+
+    Attributes
+    ----------
+    default_param_values:(dict)
+        The dictionary of parameter names and values. Any parameters named in param_covariance must appear in param_mean. If not, they can be retrieved here.
+
+    default_sample_size: (int)
+        Class attribute dictates num of simulations of a noisy value when not specified via the ``num_sim`` column of the ``param_means`` parameter.
+
+    default_coefficient_of_variation: (float)
+        Between 0 and 1. Default coefficient of variation, used when a value has noise applied to it but a variance value is not set.
     """
-    required_columns = {'param_mean':{'param', 'value'},
-                        'param_covariance':{'param_i', 'param_j', 'value'}}
+    supported_noise_simulators = {'multivariate_log_norm': multivariate_log_normal_fn}
+    required_columns = {'param_mean':{'param', 'value'}, 'param_covariance':{'param_i', 'param_j', 'value'}}
     other_useful_columns = {'simulation', 'num_sims', 'apply_noise'}
+
     default_param_values = None  # Use dict to designated defaults for 'param' and 'value'.
+    default_sample_size = 50  # int only
+    default_coefficient_of_variation = 0.2
 
     def __init__(self, param_mean=None, param_covariance=None, model=None):
         _param_mean = self._check_required_columns(param_mean, var_name='param_mean')
@@ -87,6 +161,7 @@ class NoiseModel(object):
         if _param_mean.shape[0] != 0 and _param_mean['value'].isnull().values.any():
             _param_mean = self._add_missing_param_values(_param_mean, model=model)
 
+        self._exp_cols_df = self._add_num_sims_col_to_experimental_conditions_df(_param_mean, _exp_con_df, _exp_con_cols)
         self._param_mean = _param_mean
         self._param_covariance = _param_covariance
 
@@ -166,10 +241,12 @@ class NoiseModel(object):
                 expanded_df_without_cols[exp_cols] = pd.DataFrame(np.repeat(
                     exp_cols_only_df.values, len_df_without_cols, axis=0),
                     columns=exp_cols)
-                return [(expanded_df_without_cols, df_with_cols)[i] for i in _cols_ != set([])]\
-                       + [exp_cols, exp_cols_only_df]
-            except ValueError:
-                return tuple((pd.DataFrame(columns=exp_cols), df_with_cols)[i] for i in _cols_ != set([]))
+                return tuple([(expanded_df_without_cols, df_with_cols)[i] for i in _cols_ != set([])]
+                             + [exp_cols, exp_cols_only_df])
+
+            except ValueError:   # breaks when df_with_out_columns is of len 0.
+                return tuple([(pd.DataFrame(columns=list(set(exp_cols)|set(df_without_cols.columns))), df_with_cols)[i]
+                              for i in _cols_ != set([])] + [exp_cols, exp_cols_only_df])
         else:
             return self._combine_experimental_conditions(df1, df1_cols, df2, df2_cols)
 
@@ -185,7 +262,7 @@ class NoiseModel(object):
             combined_exp_idx = pd.concat([df1_exp_idx, df2_exp_idx], ignore_index=True).drop_duplicates()
             return df1, df2, exp_cols, combined_exp_idx
         else:
-            raise AttributeError("Means and Covariances must have the same experiment indices")
+            raise AttributeError("Means and Covariances use the same columns to index experiments")
 
     @staticmethod
     def _combine_param_i_j(param_c):
@@ -245,6 +322,76 @@ class NoiseModel(object):
     def _get_parameters_from_model(_model):
         generate_equations(_model)
         return {p.name: p.value for p in _model.parameters}
+
+    def _add_num_sims_col_to_experimental_conditions_df(self, param_mean, exp_con_df, exp_con_cols):
+        """
+        Adds num_sims column (i.e. sample size) to the dataframe. If not already there.
+
+        Group by experimental conditions then apply num_sims, as either max of the ``num_sims`` or default for if
+        ``apply_noise`` is True or Not.
+
+        Requires an ``apply_noise`` column which is added (if not already present by self._add_apply_noise_col).
+
+        Parameters
+        ----------
+        param_mean: :class:`~pandas.DataFrame`
+
+            - Must have column named ``apply_noise``.
+            - The columns annotating the experimental conditions must be the same as exp_con_df.columns.
+            - There should be the same number of unique e experimental conditions rows as there are rows in exp_con_df
+
+        exp_con_df: :class:`~pandas.DataFrame`
+            The experimental conditions in the measurement.
+            Must be the same length as the number of unique experimental conditions rows in exp_con_df param_mean
+            Or pd.DataFrame() (if exp_con_cols is an empty set)
+            This is created by self._check_experimental_condition_cols
+
+        exp_con_cols: set
+            The columns designating experimental conditions. This is created by self._check_experimental_condition_cols
+        """
+
+        if param_mean.shape[0] is 0:
+            return pd.DataFrame()
+
+        if 'num_sims' in param_mean.columns:
+            if len(exp_con_cols) > 0:
+                param_num_sims = param_mean.groupby(list(exp_con_cols)).apply(self._set_num_sims_as_max)
+                return self._merge_num_sims_w_ec(param_num_sims, exp_con_cols, exp_con_df)
+            else:
+                param_num_sims = self._set_num_sims_as_max(param_mean)
+        else:
+            if len(exp_con_cols) > 0:
+                param_num_sims = param_mean.groupby(list(exp_con_cols)).apply(self._set_num_sims_as_default)
+                return self._merge_num_sims_w_ec(param_num_sims, exp_con_cols, exp_con_df)
+            else:
+                param_num_sims = self._set_num_sims_as_default(param_mean)
+
+        return param_num_sims[['num_sims']].drop_duplicates()
+
+    @staticmethod
+    def _set_num_sims_as_max(group):
+        group['num_sims'] = group['num_sims'].max()
+        return group
+
+    def _set_num_sims_as_default(self, group):
+        """
+        Define the ``num_sims`` of the ``param_mean`` :class:`~pandas.DataFrame` or group as the default based on if
+        ``apply_noise`` is True or not.
+        """
+        group['num_sims'] = [1, self.default_sample_size][group.apply_noise.any()]
+        return group
+
+    @staticmethod
+    def _merge_num_sims_w_ec(params_num_sims , exp_con_cols, exp_con_df):
+        exp_cols = list({'num_sims'} | exp_con_cols)
+        num_sims = params_num_sims[exp_cols].drop_duplicates()
+        return exp_con_df.merge(num_sims, how='outer')
+
+    def _get_noise_simulator(self, _simulator_name):
+        try:
+            return self.supported_noise_simulators[_simulator_name]
+        except KeyError:
+            raise UnsupportedSimulator("{} is not a supported noise simulator".format(_simulator_name))
 
     @property
     def param_mean(self):

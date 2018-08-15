@@ -161,6 +161,11 @@ class TestNoise(unittest.TestCase):
         test = nm._combine_param_i_j(cov_)
         pd_testing.assert_frame_equal(test, target)
 
+    @raises(AttributeError)
+    def test_combine_experimental_conditions(self):
+        nm = NoiseModel()
+        nm._combine_experimental_conditions(pd.DataFrame(), {'a', 'b'}, pd.DataFrame(), {'a'})
+
     def test_add_params_from_param_covariance_empty_mean_and_cov(self):
         mean = pd.DataFrame()
         cov_ = pd.DataFrame()
@@ -344,3 +349,79 @@ class TestNoise(unittest.TestCase):
         pd_testing.assert_frame_equal(target.sort_values(by=cols).reset_index(drop=True)[cols],
                                       test.sort_values(by=cols).reset_index(drop=True)[cols],
                                       check_dtype=False)
+
+    def test_add_num_sims_col_to_experimental_conditions_df_w_num_sims_exp_c(self):
+        in0 = pd.DataFrame([[1,      'a', 'a', 0.0, False],
+                            [2,      'a', 'a', 0.0, False],
+                            [3,      'b', 'a', 0.0, False],
+                            [3,      'b', 'a', 0.0, False],
+                            [1,      'b', 'c', 0.0, False],
+                            [np.NaN, 'b', 'c', 0.0, False]],
+                           columns=['num_sims', 'ec1', 'ec2', 'values', 'apply_noise'])
+        in1 = pd.DataFrame([['a', 'a'],
+                            ['b', 'c'],
+                            ['b', 'a']], columns=['ec1', 'ec2'])
+        in2 = {'ec1', 'ec2'}
+        target = pd.DataFrame([['a', 'a', 2],
+                               ['b', 'c', 1],
+                               ['b', 'a', 3]], columns=['ec1', 'ec2', 'num_sims'])
+        nm=NoiseModel()
+        test = nm._add_num_sims_col_to_experimental_conditions_df(in0, in1, in2)
+        pd_testing.assert_frame_equal(test, target, check_dtype=False)
+
+    def test_add_num_sims_col_to_experimental_conditions_df_w_num_sims_no_exp_c(self):
+        in0 = pd.DataFrame([[1, 0.0, False],
+                            [2, 0.0, True],
+                            [3, 0.0, False],
+                            [3, 0.0, False],
+                            [1, 0.0, False],
+                            [np.NaN, 0.0, True]],
+                           columns=['num_sims', 'values', 'apply_noise'])
+        in1 = pd.DataFrame()
+        in2 = set([])
+        target = pd.DataFrame([3], columns=['num_sims'])
+        nm = NoiseModel()
+        test = nm._add_num_sims_col_to_experimental_conditions_df(in0, in1, in2)
+        pd_testing.assert_frame_equal(test, target, check_dtype=False)
+
+    def test_add_num_sims_col_to_experimental_conditions_df_no_num_sims_exp_c(self):
+        in0 = pd.DataFrame([['a', 'a', 0.0, True],
+                            ['a', 'a', 0.0, False],
+                            ['b', 'a', 0.0, False],
+                            ['b', 'a', 0.0, True],
+                            ['b', 'c', 0.0, False],
+                            ['b', 'c', 0.0, False]],
+                           columns=['ec1', 'ec2', 'values', 'apply_noise'])
+        in1 = pd.DataFrame([['a', 'a'],
+                            ['b', 'c'],
+                            ['b', 'a']], columns=['ec1', 'ec2'])
+        in2 = {'ec1', 'ec2'}
+        target = pd.DataFrame([['a', 'a', NoiseModel.default_sample_size],
+                               ['b', 'c', 1],
+                               ['b', 'a', NoiseModel.default_sample_size]],
+                              columns=['ec1', 'ec2', 'num_sims'])
+        nm = NoiseModel()
+        test = nm._add_num_sims_col_to_experimental_conditions_df(in0, in1, in2)
+        pd_testing.assert_frame_equal(test, target, check_dtype=False)
+
+    def test_add_num_sims_col_to_experimental_conditions_df_no_num_sims_no_exp_c(self):
+        in0 = pd.DataFrame([[0.0, False],
+                            [0.0, True],
+                            [0.0, False],
+                            [0.0, False],
+                            [0.0, False],
+                            [0.0, True]],
+                           columns=['values', 'apply_noise'])
+        in1 = pd.DataFrame()
+        in2 = set([])
+        target = pd.DataFrame([NoiseModel.default_sample_size], columns=['num_sims'])
+        nm = NoiseModel()
+        test = nm._add_num_sims_col_to_experimental_conditions_df(in0, in1, in2)
+        pd_testing.assert_frame_equal(test, target, check_dtype=False)
+
+    def test_unsupported_simulator_error(self):
+        pass
+
+    def test_log_normal_distribution_fn(self):
+        # Test the average and std of the resulting distribution
+        pass

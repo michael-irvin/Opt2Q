@@ -20,3 +20,10 @@ def _list_the_errors(iterable_arg):
 
 class MissingParametersErrors(Exception):
     pass
+
+
+class UnsupportedSimulator(Exception):
+    """
+    Raised when unsupported simulator is supplied.
+    """
+    pass

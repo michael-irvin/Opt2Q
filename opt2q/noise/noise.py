@@ -3,7 +3,7 @@ Tools for Simulating Extrinsic Noise and Experimental Conditions
 """
 
 # MW Irvin -- Lopez Lab -- 2018-08-08
-from opt2q.utils import _list_the_errors, MissingParametersErrors, UnsupportedSimulator
+from opt2q.utils import _list_the_errors, MissingParametersErrors, UnsupportedSimulator, DuplicateParameterError
 from pysb.bng import generate_equations
 import pandas as pd
 import numpy as np
@@ -155,6 +155,9 @@ class NoiseModel(object):
         _param_mean, _param_covariance, \
             _exp_con_cols, _exp_con_df = self._check_experimental_condition_cols(_param_mean, _param_covariance)
 
+        self._check_for_duplicate_rows(_param_mean, _exp_con_cols, var_name='param_mean')
+        self._check_for_duplicate_rows(_param_covariance, _exp_con_cols, var_name='param_covariance')
+
         _param_mean = self._add_params_from_param_covariance(_param_mean, _param_covariance)
         _param_mean = self._add_apply_noise_col(_param_mean)
 
@@ -162,11 +165,12 @@ class NoiseModel(object):
             _param_mean = self._add_missing_param_values(_param_mean, model=model)
 
         self._exp_cols_df = self._add_num_sims_col_to_experimental_conditions_df(_param_mean, _exp_con_df, _exp_con_cols)
+        self._exp_con_cols = _exp_con_cols
         self._param_mean = _param_mean
         self._param_covariance = _param_covariance
 
     # setup
-    def _check_required_columns(self, param_df, var_name ='param_mean'):
+    def _check_required_columns(self, param_df, var_name='param_mean'):
         """
         First check of param_mean and param_covariance. Checks that the DataFrame as the required column names.
 
@@ -200,6 +204,16 @@ class NoiseModel(object):
                 raise ValueError(note)
         except KeyError:
             raise KeyError("'{}' is not supported".format(var_name))
+
+    def _check_for_duplicate_rows(self, param_df, exp_col, var_name='param_mean'):
+        """
+        Raises ValueError the same parameter appears in the same experiment twice
+        """
+        if param_df.shape[0] is 0:
+            return
+        pertinent_cols = list(exp_col | self.required_columns[var_name]-{'value'})
+        if param_df[pertinent_cols].drop_duplicates().shape[0] != param_df.shape[0]:
+            raise DuplicateParameterError("'{}' contains a duplicate parameter.".format(var_name))
 
     def _check_experimental_condition_cols(self, param_m, param_c):
         not_exp_cols = self._these_columns_cannot_annotate_exp_cons()
@@ -242,11 +256,11 @@ class NoiseModel(object):
                     exp_cols_only_df.values, len_df_without_cols, axis=0),
                     columns=exp_cols)
                 return tuple([(expanded_df_without_cols, df_with_cols)[i] for i in _cols_ != set([])]
-                             + [exp_cols, exp_cols_only_df])
+                             + [set(exp_cols), exp_cols_only_df])
 
             except ValueError:   # breaks when df_with_out_columns is of len 0.
                 return tuple([(pd.DataFrame(columns=list(set(exp_cols)|set(df_without_cols.columns))), df_with_cols)[i]
-                              for i in _cols_ != set([])] + [exp_cols, exp_cols_only_df])
+                              for i in _cols_ != set([])] + [set(exp_cols), exp_cols_only_df])
         else:
             return self._combine_experimental_conditions(df1, df1_cols, df2, df2_cols)
 
@@ -260,7 +274,7 @@ class NoiseModel(object):
             df1_exp_idx = df1[exp_cols].drop_duplicates()
             df2_exp_idx = df2[exp_cols].drop_duplicates()
             combined_exp_idx = pd.concat([df1_exp_idx, df2_exp_idx], ignore_index=True).drop_duplicates()
-            return df1, df2, exp_cols, combined_exp_idx
+            return df1, df2, set(exp_cols), combined_exp_idx
         else:
             raise AttributeError("Means and Covariances use the same columns to index experiments")
 
@@ -382,31 +396,118 @@ class NoiseModel(object):
         return group
 
     @staticmethod
-    def _merge_num_sims_w_ec(params_num_sims , exp_con_cols, exp_con_df):
+    def _merge_num_sims_w_ec(params_num_sims , exp_con_cols, exp_con_df, how='outer'):
         exp_cols = list({'num_sims'} | exp_con_cols)
         num_sims = params_num_sims[exp_cols].drop_duplicates()
-        return exp_con_df.merge(num_sims, how='outer')
+        return exp_con_df.merge(num_sims, how=how)
 
-    def _get_noise_simulator(self, _simulator_name):
-        try:
-            return self.supported_noise_simulators[_simulator_name]
-        except KeyError:
-            raise UnsupportedSimulator("{} is not a supported noise simulator".format(_simulator_name))
+    # Methods used by the calibrator.objective_function
+    def update_values(self, param_mean=None, param_covariance=None):
+        """
+        Replaces rows of the DataFrame
+
+        .. note:: Updates cannot introduce new values in the 'param' and experimental conditions columns.
+
+        Examples
+        --------
+        >>> from opt2q.noise import NoiseModel
+        >>> mean_values = pd.DataFrame([['A', 1.0, 'KO'], ['B', 1.0, 'WT'], ['A', 1.0, 'WT']],
+        ...                            columns=['param', 'value', 'ec'])
+        >>> noise_model = NoiseModel(param_mean=mean_values)
+        >>> noise_model.update_values(param_mean=pd.DataFrame([['A', 2]], columns=['param', 'value']))
+        >>> print(noise_model.param_mean)
+            param   value   'ec'
+        0   'A'     2.0     'KO'
+        1   'A'     2.0     'WT'
+        2   'B'     1.0     'WT'
+
+        Notice how the DataFrame in update_values does not mention 'ec'. In this case *all* 'A' take the updated value.
+
+        >>> from opt2q.noise import NoiseModel
+        >>> mean_values = pd.DataFrame([['A', 1.0, 'KO'], ['B', 1.0, 'WT'], ['A', 1.0, 'WT']],
+        ...                            columns=['param', 'value', 'ec'])
+        >>> noise_model = NoiseModel(param_mean=mean_values)
+        >>> noise_model.update_values(param_mean=pd.DataFrame([['KO', 2]], columns=['ec', 'num_sims']))
+        >>> print(noise_model.param_mean)
+            param   value   ec      num_sims
+        0   'A'     2.0     'KO'    2
+        1   'A'     2.0     'WT'    1
+        2   'B'     1.0     'WT'    1
+
+        >>> print(noise_model._exp_con_cols)
+            ec      num_sims
+        0   'KO'    2
+        1   'WT'    1
+        """
+        if param_mean is not None:
+            updated_param_mean = self._update_param_mean(param_mean)
+            if 'num_sims' in updated_param_mean.columns:
+                _exp_cols = self._update_exp_con_df(updated_param_mean, self._exp_con_cols, self._exp_cols_df)
+                if 'num_sims' not in self._param_mean.columns:
+                    updated_param_mean.drop(columns=['num_sims'])
+                self._check_updated_df(updated_param_mean, "param_mean")
+                self._param_mean = updated_param_mean
+                self._exp_cols_df = _exp_cols
+            else:
+                self._check_updated_df(updated_param_mean, "param_mean")
+                self._param_mean = updated_param_mean
+
+        if param_covariance is not None:
+            updated_param_covariance = self._update_param_covariance(param_covariance)
+            try:
+                self._check_updated_df(updated_param_covariance, "param_covariance")
+            except ValueError:  # Try switching the param axes
+                param_covariance = param_covariance.rename(columns={'param_i':'param_j', 'param_j':'param_i'})
+                updated_param_covariance = self._update_param_covariance(param_covariance)
+                self._check_updated_df(updated_param_covariance, "param_covariance")
+            self._param_covariance = updated_param_covariance
+
+    def _update_param_mean(self, param_mean):
+        """
+        Updates the param_mean DataFrame with values from a similarly shaped column (i.e. same columns). This method is
+        intended for the :class:`~opt2q.calibrator.ObjectiveFunction`, primarily.
+        """
+        index_for_update = list((self._exp_con_cols | {'param'}).intersection(set(param_mean.columns)))
+        old_means = self._param_mean.set_index(index_for_update)
+        updates = param_mean.set_index(index_for_update)
+        new_means = updates.combine_first(old_means).reset_index()
+        new_means['apply_noise'] = new_means['apply_noise'].astype(bool)
+        return new_means
+
+    def _update_param_covariance(self, param_covariance):
+        """
+        Updates the param_mean DataFrame with values from a similarly shaped column (i.e. same columns). This method is
+        intended for the :class:`~opt2q.calibrator.ObjectiveFunction`, primarily.
+        """
+        index_for_update = list((self._exp_con_cols | {'param_i', 'param_j'}).intersection(set(param_covariance.columns)))
+        old_cov = self._param_covariance.set_index(index_for_update)
+        updates = param_covariance.set_index(index_for_update)
+        return updates.combine_first(old_cov).reset_index()
+
+    def _update_exp_con_df(self, param_mean, exp_con_cols, exp_con_df):
+        if len(exp_con_cols) > 0:
+            param_num_sims = param_mean.groupby(list(exp_con_cols)).apply(self._set_num_sims_as_max)
+            return self._merge_num_sims_w_ec(param_num_sims, exp_con_cols, exp_con_df, how='right')
+        else:
+            param_num_sims = self._set_num_sims_as_max(param_mean)[['num_sims']].astype(int)
+            return param_num_sims.drop_duplicates()
+
+    def _check_updated_df(self, df, var_name):
+        if df.shape != self.__getattribute__(var_name).shape:
+            raise ValueError("Your update includes experimental conditions and 'param' not present in 'param_mean'."
+                             "Updates to 'params' and experimental conditions columns are forbidden.")
 
     @property
     def param_mean(self):
         return self._param_mean
 
-    @param_mean.setter
-    def param_mean(self, val):
-        self._param_mean = val
+    @property
+    def param_covariance(self):
+        return self._param_covariance
 
-    def update_param_mean(self):
-        """
-        Updates the param_mean DataFrame with values from a similarly shaped column (i.e. same columns). This method is
-        intended for the :class:`~opt2q.calibrator.ObjectiveFunction`, primarily.
-        """
-        pass
+    @property
+    def experimental_conditions_dataframe(self):
+        return self._exp_cols_df
 
     def run(self):
         """
@@ -414,3 +515,9 @@ class NoiseModel(object):
         :class:`~pysb.core.Parameter` and/or :class:`~pysb.core.ComplexPattern` (model species).
         """
         pass
+
+    def _get_noise_simulator(self, _simulator_name):
+        try:
+            return self.supported_noise_simulators[_simulator_name]
+        except KeyError:
+            raise UnsupportedSimulator("{} is not a supported noise simulator".format(_simulator_name))

@@ -4,6 +4,7 @@ Tools for calibrating an Opt2Q Model
 
 
 # MW Irvin -- Lopez Lab -- 2018-08-07
+
 class ObjectiveFunction(object):
     """
     Behaves like a function but has additional features that support its implementation as an objective function in
@@ -12,6 +13,21 @@ class ObjectiveFunction(object):
     Parameters
     ----------
     f: Not sure yet what this will be. But it has to contain the noise, sim and measurement models.
+
+    Examples
+    --------
+    Create lookup tables
+    >>> # obj_fun.create_lookup['noise_model_name'](param_mean=pd.DataFrame)
+
+    >>> # obj_fun.create_lookup['all_measurements'](pd.DataFrame)
+
+    Update lookup tables
+    >>> # obj_fun.update_lookup['noise_model_name'](param_mean=pd.DataFrame)
+
+    Display lookup tables
+    >>> # obj_fun.lookup --> Dictionary or DataFrames
+    >>> # obj_fun.lookup['noise_model_name'] --> param_mean and (if present) param_cov lookups
+    >>> # obj_fun.lookup['measurements'] --> DataFrame of measurement_models | attr_name | xid
 
     """
 
@@ -102,7 +118,7 @@ class ObjectiveFunction(object):
         pass
 
 
-def objective_function(func):
+class objective_function(object):
     """
     Decorator that creates an objective function using an Opt2Q noise and simulation model, and Opt2Q measurement
     model(s)
@@ -114,6 +130,17 @@ def objective_function(func):
     Returns
     -------
     :class:`~opt2q.calibrator.ObjectiveFunction` instance
-    """
-    pass
 
+    Example
+    -------
+    >>> from opt2q.calibrator import objective_function
+
+
+    """
+    def __init__(self, noise=None):
+        # Process Decorator arguments
+        pass
+
+    def __call__(self, f):
+        # presents decorated function
+        return f

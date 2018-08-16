@@ -27,3 +27,10 @@ class UnsupportedSimulator(Exception):
     Raised when unsupported simulator is supplied.
     """
     pass
+
+
+class DuplicateParameterError(Exception):
+    """
+    Raised when NoiseModel detects duplicated parameter
+    """
+    pass

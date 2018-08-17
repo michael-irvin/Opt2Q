@@ -35,5 +35,6 @@ Set up objective function with Opt2Q :class:`~opt2q.calibrator.objective_functio
 >>> from opt2q.calibrator import objective_function
 >>> @objective_function(noise=noise_models)
 >>> def obj_f(x):
-...     obj_f.noise['model1'].update_values(pd.DataFrame())
-...     obj_f.noise['model2'].update_values(pd.DataFrame())
+...     obj_f.noise['model1'].update_values(pd.DataFrame([['vol', x[0]]], columns=['param', 'value']))
+...     obj_f.noise['model2'].update_values(pd.DataFrame([['vol', x[1]]], columns=['param', 'value']))
+

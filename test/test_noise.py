@@ -1,6 +1,6 @@
 from pysb.examples.michment import model as pysb_model
 from opt2q.noise import NoiseModel
-from opt2q.utils import MissingParametersErrors, DuplicateParameterError
+from opt2q.utils import MissingParametersErrors, DuplicateParameterError, UnsupportedSimulator
 from nose.tools import *
 import numpy as np
 import pandas.util.testing as pd_testing
@@ -555,9 +555,72 @@ class TestNoise(unittest.TestCase):
         test_exp = noise_model_1.experimental_conditions_dataframe
         pd_testing.assert_frame_equal(test_exp[test_exp.columns], target_exp[test_exp.columns])
 
-
+    @raises(UnsupportedSimulator)
     def test_unsupported_simulator_error(self):
-        pass
+        NoiseModel(noise_simulator="an unsupported simulator")
+
+    def test_simulate_exp_empty_param_mean_no_cov(self):
+        nm = NoiseModel()
+        test = nm._simulate(pd.DataFrame(), pd.DataFrame(), pd.DataFrame())
+        target = pd.DataFrame()
+        pd_testing.assert_frame_equal(test, target)
+
+    def test_simulate_exp_empty_param_mean_w_conditions(self):
+        nm = NoiseModel(param_mean=pd.DataFrame([[1, 2, 3]], columns=['param', 'value', 'exp_condition']))
+        test = nm._simulate(pd.DataFrame(), pd.DataFrame(), pd.DataFrame())
+        target = pd.DataFrame(columns=['exp_condition'])
+        pd_testing.assert_frame_equal(test, target)
+
+    def test_simulate_exp_empty_param_mean_w_numeric_conditions(self):
+        nm = NoiseModel(param_mean=pd.DataFrame([[1, 2, 3]], columns=['param', 'value', 1]))
+        test = nm._simulate(pd.DataFrame(), pd.DataFrame(), pd.DataFrame())
+        target = pd.DataFrame(columns=[1])
+        pd_testing.assert_frame_equal(test, target)
+
+    def test_add_fixed_values(self):
+        param_mean = pd.DataFrame([['a', 2.0, 3, True],
+                                   ['b', 1.0, 1, False]],
+                                  columns=['param', 'value', 'num_sims', 'apply_noise'])
+        nm = NoiseModel(param_mean=param_mean)
+        test=pd.DataFrame()
+        fix_params_df = nm._add_fixed_values(param_mean, nm.experimental_conditions_dataframe)
+        test[fix_params_df.columns] = fix_params_df
+        target = pd.DataFrame([1.0, 1.0, 1.0], columns=['b'])
+        pd_testing.assert_frame_equal(test, target)
+
+    def test_add_noisy_values_no_noise_applied(self):
+        param_mean = pd.DataFrame([['b', 1.0, 1, False]],
+                                  columns=['param', 'value', 'num_sims', 'apply_noise'])
+        nm = NoiseModel(param_mean=param_mean)
+        test = nm._add_noisy_values(param_mean, pd.DataFrame(), nm.experimental_conditions_dataframe)
+        target = pd.DataFrame()
+        pd_testing.assert_frame_equal(test, target)
+
+    def test_add_noisy_values_create_covariance_matrix(self):
+        param_mean = pd.DataFrame([['a', 2.0, 3, True],
+                                   ['b', 1.0, 1, False]],
+                                  columns=['param', 'value', 'num_sims', 'apply_noise'])
+        param_cov = pd.DataFrame([['a', 'c', 0.1]], columns=['param_i', 'param_j', 'value'])
+        NoiseModel.default_param_values = {'c': 3.0}
+        nm = NoiseModel(param_mean=param_mean, param_covariance=param_cov)
+        varied_terms = nm.param_mean[nm.param_mean['apply_noise'] == True]
+        test = nm._create_covariance_matrix(varied_terms, nm.param_covariance)
+        target = pd.DataFrame([[0.16, 0.1], [0.1, 0.36]], columns=['a', 'c'], index=['a', 'c'])
+        pd_testing.assert_frame_equal(test, target)
+
+    def test_add_noisy_values_create_covariance_matrix_case2(self):
+        param_mean = pd.DataFrame([['a', 2.0, 3, True],
+                                   ['b', 1.0, 1, True]],
+                                  columns=['param', 'value', 'num_sims', 'apply_noise'])
+        param_cov = pd.DataFrame([['a', 'c', 0.1]], columns=['param_i', 'param_j', 'value'])
+        NoiseModel.default_param_values = {'c': 3.0}
+        nm = NoiseModel(param_mean=param_mean, param_covariance=param_cov)
+        varied_terms = nm.param_mean[nm.param_mean['apply_noise'] == True]
+        test = nm._create_covariance_matrix(varied_terms, nm.param_covariance)
+        target = pd.DataFrame([[0.16, 0.1, 0.0],
+                               [0.1, 0.36, 0.0],
+                               [0.0, 0.0, 0.04]], columns=['a', 'c', 'b'], index=['a', 'c', 'b'])
+        pd_testing.assert_frame_equal(test, target)
 
     def test_log_normal_distribution_fn(self):
         # Test the average and std of the resulting distribution

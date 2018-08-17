@@ -18,10 +18,10 @@ def multivariate_log_normal_fn(mean, covariance, n, atol=1e-8, names_column='par
     mean: :class:`pandas.DataFrame`
         Object names and their mean values in a DataFrame with the following columns:
 
-        `param_name` (required column)
+        'param' (required column)
             The name of this column can be changed by passing an argument to this function's ``name_column`` parameter.
             The names or the objects.
-        `value` (required column)
+        'value' (required column)
             Mean (average) value (float) of the objects
 
     covariance: :class:`pandas.DataFrame`
@@ -48,25 +48,20 @@ def multivariate_log_normal_fn(mean, covariance, n, atol=1e-8, names_column='par
     """
 
     # clip zeros to prevent breaking log-norm function
-    _mean = mean.clip_lower(atol).set_index(names_column)
-    _mean = _mean.astype(float, errors='ignore')
-
+    _mean = mean.set_index(names_column).clip_lower(atol).astype(float, errors='ignore')
     _cov = covariance[_mean.index].reindex(_mean.index)
 
     _cov_diagonal = pd.DataFrame([np.clip(np.diag(_cov), atol, np.inf)], columns=_mean.index)
     for cov_i in _mean.index:
         _cov.at[cov_i, cov_i] = _cov_diagonal[cov_i]
 
-    # mu = np.log(_mean.values[:, 0]) - 0.5 * np.log((1 + np.diag(_cov.values) / (_mean.values.T[:, 0]) ** 2))
-    # mu = 1 * np.log(_mean.values[:, 0]) - 0.25 * np.log(np.diag(_cov.values) + _mean.values.T[:, 0] ** 2)
-    mu = np.log(_mean.values[:, 0])/(np.sqrt(np.diag(_cov.values)/(_mean.values.T[:, 0] ** 2)+1))
+    mu = np.log(_mean.values[:, 0]) - 0.5 * np.log((1 + np.diag(_cov.values) / (_mean.values.T[:, 0]) ** 2))
+    # mu = np.log(_mean.values[:, 0])/(np.sqrt(np.diag(_cov.values)/(_mean.values.T[:, 0] ** 2)+1))
 
     mean_t_mean = np.product(np.meshgrid(_mean.values, _mean.values), axis=0)
     cov = np.log((_cov / mean_t_mean) + 1)
 
-    return pd.DataFrame(
-        np.exp(np.random.multivariate_normal(mu, cov, n)),
-        columns=_mean.index.values)
+    return pd.DataFrame(np.exp(np.random.multivariate_normal(mu, cov, n)), columns=_mean.index.values)
 
 
 class NoiseModel(object):
@@ -125,7 +120,7 @@ class NoiseModel(object):
 
     model: `PySB` :class:`~pysb.core.Model` (optional)
 
-    kwargs: dict, (optional)
+    options: dict, (optional)
         Dictionary of keyword arguments:
 
         ``noise_simulator``: Function that applies noise for the parameters. Defaults to :func:`~opt2q.noise.multivariate_log_normal_fn`
@@ -140,6 +135,9 @@ class NoiseModel(object):
 
     default_coefficient_of_variation: (float)
         Between 0 and 1. Default coefficient of variation, used when a value has noise applied to it but a variance value is not set.
+
+    supported_noise_simulators: (dict)
+        Dictionary of supported noise simulator names and functions
     """
     supported_noise_simulators = {'multivariate_log_norm': multivariate_log_normal_fn}
     required_columns = {'param_mean':{'param', 'value'}, 'param_covariance':{'param_i', 'param_j', 'value'}}
@@ -149,7 +147,8 @@ class NoiseModel(object):
     default_sample_size = 50  # int only
     default_coefficient_of_variation = 0.2
 
-    def __init__(self, param_mean=None, param_covariance=None, model=None):
+    def __init__(self, param_mean=None, param_covariance=None, model=None, **options):
+        # input settings
         _param_mean = self._check_required_columns(param_mean, var_name='param_mean')
         _param_covariance = self._check_required_columns(param_covariance, var_name='param_covariance')
         _param_mean, _param_covariance, \
@@ -159,15 +158,23 @@ class NoiseModel(object):
         self._check_for_duplicate_rows(_param_covariance, _exp_con_cols, var_name='param_covariance')
 
         _param_mean = self._add_params_from_param_covariance(_param_mean, _param_covariance)
-        _param_mean = self._add_apply_noise_col(_param_mean)
 
         if _param_mean.shape[0] != 0 and _param_mean['value'].isnull().values.any():
             _param_mean = self._add_missing_param_values(_param_mean, model=model)
+
+        _param_mean = self._add_apply_noise_col(_param_mean)
 
         self._exp_cols_df = self._add_num_sims_col_to_experimental_conditions_df(_param_mean, _exp_con_df, _exp_con_cols)
         self._exp_con_cols = _exp_con_cols
         self._param_mean = _param_mean
         self._param_covariance = _param_covariance
+
+        # simulator setting
+        noise_simulator = options.get('noise_simulator', 'multivariate_log_norm')
+        self._noise_simulator = self._check_noise_simulator(noise_simulator)
+        self._noise_simulator_kwargs = options.get('noise_simulator_kwargs', {})
+
+        self._run = "simulator (depends on len _exp_col_df)"
 
     # setup
     def _check_required_columns(self, param_df, var_name='param_mean'):
@@ -327,7 +334,8 @@ class NoiseModel(object):
         elif model is not None:
             self.default_param_values = self._get_parameters_from_model(model)
             mean['value'] = mean['value'].fillna(mean['param'].map(self.default_param_values))
-        if mean.isnull().values.any():
+
+        if mean[['value']].isnull().values.any():
             raise MissingParametersErrors("'param_covariance' contains parameters that are absent from 'param_mean'."
                                           " Please add these parameters to 'param_mean' or include a PySB model")
         return mean
@@ -501,6 +509,7 @@ class NoiseModel(object):
             raise ValueError("Your update includes experimental conditions and 'param' not present in 'param_mean'."
                              "Updates to 'params' and experimental conditions columns are forbidden.")
 
+    # Accessing Attributes from the Outside
     @property
     def param_mean(self):
         return self._param_mean
@@ -513,7 +522,8 @@ class NoiseModel(object):
     def experimental_conditions_dataframe(self):
         return self._exp_cols_df
 
-    def _get_noise_simulator(self, _simulator_name):
+    # Run Method and Assoc.
+    def _check_noise_simulator(self, _simulator_name):
         try:
             return self.supported_noise_simulators[_simulator_name]
         except KeyError:
@@ -525,3 +535,112 @@ class NoiseModel(object):
         :class:`~pysb.core.Parameter` and/or :class:`~pysb.core.ComplexPattern` (model species).
         """
         pass
+
+    def _simulate(self, mean, cov, exp):
+        """
+        Generates a DataFrame of parameter values formatted for use in the Opt2Q simulator.
+
+        The column names are taken from `param` and the experimental conditions columns.
+
+        Parameters
+        ----------
+        mean: :class:`~pandas.DataFrame`
+            Mean param values. This class's :attr:`~opt2q.noise.NoiseModel.param_means` attribute or a group thereof.
+        cov: :class:`~pandas.DataFrame`
+            Param covariance values. This class's :attr:`~opt2q.noise.NoiseModel.param_covariance` attribute or a group
+            thereof.
+        exp: :class:`~pandas.DataFrame`
+            Experimental Conditions index This class's :attr:`~opt2q.noise.NoiseModel.param_covariance` attribute or a
+            group thereof.
+        """
+        if mean.shape[0] == 0:
+            return pd.DataFrame(columns=self._exp_con_cols)
+        else:
+            fixed_params = self._add_fixed_values(mean, exp)
+            noisy_params = self._add_noisy_values(mean, cov, exp)
+
+    @staticmethod
+    def _add_fixed_values(_mean, exp, names_col='param'):
+        """
+        Repeats the values in ``_mean`` for which 'apply_noise' is False. The column is the param name.
+
+        .. note:: returns an index named 'param'. This is resolved by the method that calls this method.
+
+        Parameters
+        ----------
+        _mean: :class:`~pandas.DataFrame`
+            Mean param values. This class's :attr:`~opt2q.noise.NoiseModel.param_means` attribute or a group thereof.
+        exp: :class:`~pandas.DataFrame`
+            Experimental Conditions index This class's :attr:`~opt2q.noise.NoiseModel.param_covariance` attribute or a
+            group thereof.
+        names_col: (str), optional
+            Defaults to 'param'. This will become useful when Opt2Q supports PySB model components (e.g. initials).
+
+        Return
+        ------
+        :class:`~pandas.DataFrame`
+        """
+        n = exp['num_sims'].values[0]
+
+        fixed_terms = _mean[_mean['apply_noise'] == False]
+        fixed_terms = fixed_terms[[names_col, 'value']].set_index(names_col).T
+        fixed_terms = pd.DataFrame(np.repeat(fixed_terms.values, n, axis=0), columns=fixed_terms.columns)
+        return fixed_terms
+
+    def _add_noisy_values(self, _mean, _cov, exp, names_col='param'):
+        """
+        Applies noise to parameters.
+
+        Parameters
+        ----------
+        _mean: :class:`~pandas.DataFrame`
+            Mean param values. This class's :attr:`~opt2q.noise.NoiseModel.param_means` attribute or a group thereof.
+
+        .. note::
+
+            It is essential that _mean includes parameters mentioned in _cov. The
+            :class:`~opt2q.noise.NoiseModel._add_params_from_param_covariance` method makes sure
+        """
+        n = int(exp['num_sims'].values[0])
+        varied_terms = _mean[_mean['apply_noise'] == True]
+
+        if varied_terms.shape[0] is 0:
+            return pd.DataFrame()
+
+        cov_mat = self._create_covariance_matrix(varied_terms, _cov)
+        return self._noise_simulator(varied_terms[['param', 'value']], cov_mat, n, names_column=names_col, **self._noise_simulator_kwargs)
+
+    def _create_covariance_matrix(self, _means, _covariances):
+        """
+        Returns :class:`~pandas.DataFrame` covariance matrix the columns and indices are the parameter names
+        """
+        params_array = _means[['param', 'value']].values
+        len_cov_mat = params_array.shape[0]
+        cov_mat_diagonal = (np.asarray(params_array[:, 1], dtype=float) * self.default_coefficient_of_variation)**2
+
+        # square matrix of NaNs length of dict_means
+        raw_covariance_matrix = np.full((len_cov_mat, len_cov_mat), np.NaN)
+        np.fill_diagonal(raw_covariance_matrix, cov_mat_diagonal)
+        incomplete_cov_mat = pd.DataFrame(raw_covariance_matrix, index=params_array[:, 0], columns=params_array[:, 0])
+
+        complete_covariance_mat = self._update_covariance_matrix(params_array, _covariances, incomplete_cov_mat)
+        return complete_covariance_mat.fillna(0.)
+
+    @staticmethod
+    def _update_covariance_matrix(_mean_params_array, covariances_df, incomplete_covariance_matrix):
+        # Covariance updates
+        try:
+            covariance_updates = covariances_df.pivot('param_i', 'param_j', 'value')
+            covariance_updates = covariance_updates.reindex(index=_mean_params_array[:, 0],
+                                                            columns=_mean_params_array[:, 0])
+            covariance_updates.update(covariance_updates.transpose())  # Todo: Make sure p_i, p_j == p_j, p_i
+        except KeyError:
+            covariance_updates = pd.DataFrame()
+
+        # Complete the covariance matrix here.
+        incomplete_covariance_matrix.update(covariance_updates)
+        complete_covariance_matrix = incomplete_covariance_matrix
+        return complete_covariance_matrix
+
+# todo: MVLN distribution is returning inaccurate results.. round-off error, perhaps.
+

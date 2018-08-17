@@ -3,24 +3,19 @@ import numpy as np
 
 from opt2q.noise import NoiseModel
 from opt2q.calibrator import objective_function
+param_mean = pd.DataFrame([['a', 2.0, 3, True],
+                           ['b', 0.0, 1, True]],
+                          columns=['param', 'value', 'num_sims', 'apply_noise'])
+param_cov = pd.DataFrame([['a', 'c', 0.1]], columns=['param_i', 'param_j', 'value'])
+NoiseModel.default_param_values = {'c':3.0}
+NoiseModel.default_sample_size=10000000000000000000000000000000000000000
 
-mean_values = pd.DataFrame([['A', 1.0, 3, 'KO'],
-                                    ['B', 1.0, 1, 'WT'],
-                                    ['A', 1.0, 1, 'WT']],
-                                   columns=['param', 'value', 'num_sims', 'ec'])
-noise_model = NoiseModel(param_mean=mean_values)
-noise_model.update_values(param_mean=pd.DataFrame([['B', 2, 10]], columns=['param', 'value', 'num_sims']))
-target_mean = pd.DataFrame([['A', 1.0,  3, False, 'KO'],
-                            ['A', 1.0,  1, False, 'WT'],
-                            ['B', 2.0, 10, False, 'WT']],
-                           columns=['param', 'value', 'num_sims', 'apply_noise', 'ec'])
-pertinent_cols = ['param', 'value', 'apply_noise', 'ec']
-target_exp_cols = pd.DataFrame([[3,'KO'],[10, 'WT']], columns=['num_sims', 'ec'])
-test_mean = noise_model.param_mean
-test_exp_cos = noise_model._exp_cols_df
-
-print(test_exp_cos)
+nm = NoiseModel(param_mean=param_mean, param_covariance=param_cov)
+test = nm._add_noisy_values(nm.param_mean, nm.param_covariance, nm.experimental_conditions_dataframe)
+print(test.mean())
+print(test.cov())
 quit()
+
 
 param_mean = pd.DataFrame([['vol',   10, 'wild_type',    False],
                            ['kr',   100, 'high_affinity', np.NaN],

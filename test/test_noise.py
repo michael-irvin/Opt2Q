@@ -423,8 +423,8 @@ class TestNoise(unittest.TestCase):
         mean_values = pd.DataFrame([['A', 1.0, 'KO'], ['B', 1.0, 'WT'], ['A', 1.0, 'WT']],
                                    columns=['param', 'value', 'ec'])
         noise_model = NoiseModel(param_mean=mean_values)
-        target = pd.DataFrame([['A', 1.0, 'KO', False, 1], ['B', 1.0, 'WT',False, 1], ['A', 1.0, 'WT',False, 1]],
-                              columns=['param', 'value', 'ec', 'apply_noise', 'num_sims'])
+        target = pd.DataFrame([['A', 1.0, 'KO', False], ['B', 1.0, 'WT',False], ['A', 1.0, 'WT',False]],
+                              columns=['param', 'value', 'ec', 'apply_noise'])
         test = noise_model.param_mean
         pd_testing.assert_frame_equal(test, target, check_dtype=False)
 
@@ -534,6 +534,27 @@ class TestNoise(unittest.TestCase):
         target = pd.DataFrame([['a', 'b', 0.1],
                                ['c', 'b', 0.01]], columns=['param_i', 'param_j', 'value'])
         pd_testing.assert_frame_equal(test[test.columns], target[test.columns])
+
+    def test_param_mean_num_sims_only(self):
+        param_mean = pd.DataFrame([['vol', 10, 'wild_type', False],
+                                   ['kr', 100, 'high_affinity', np.NaN],
+                                   ['kcat', 100, 'high_affinity', np.NaN],
+                                   ['vol', 10, 'pt_mutation', True],
+                                   ['kr', 1000, 'pt_mutation', False],
+                                   ['kcat', 10, 'pt_mutation', True]],
+                                  columns=['param', 'value', 'exp_condition', 'apply_noise'])
+        param_cov = pd.DataFrame([['kr', 'kcat', 0.1, 'high_affinity']],
+                                 columns=['param_i', 'param_j', 'value', 'exp_condition'])
+        noise_model_1 = NoiseModel(param_mean=param_mean, param_covariance=param_cov)
+        noise_model_1.update_values(param_mean=pd.DataFrame([['pt_mutation', 19]],
+                                                            columns=['exp_condition', 'num_sims']))
+        target_exp = pd.DataFrame([['high_affinity', 50],
+                                   ['pt_mutation',   19],
+                                   ['wild_type',      1]],
+                                  columns=['exp_condition',  'num_sims'])
+        test_exp = noise_model_1.experimental_conditions_dataframe
+        pd_testing.assert_frame_equal(test_exp[test_exp.columns], target_exp[test_exp.columns])
+
 
     def test_unsupported_simulator_error(self):
         pass

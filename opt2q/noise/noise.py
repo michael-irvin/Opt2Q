@@ -444,7 +444,7 @@ class NoiseModel(object):
             if 'num_sims' in updated_param_mean.columns:
                 _exp_cols = self._update_exp_con_df(updated_param_mean, self._exp_con_cols, self._exp_cols_df)
                 if 'num_sims' not in self._param_mean.columns:
-                    updated_param_mean.drop(columns=['num_sims'])
+                    updated_param_mean = updated_param_mean.drop(columns=['num_sims'])
                 self._check_updated_df(updated_param_mean, "param_mean")
                 self._param_mean = updated_param_mean
                 self._exp_cols_df = _exp_cols
@@ -487,10 +487,14 @@ class NoiseModel(object):
     def _update_exp_con_df(self, param_mean, exp_con_cols, exp_con_df):
         if len(exp_con_cols) > 0:
             param_num_sims = param_mean.groupby(list(exp_con_cols)).apply(self._set_num_sims_as_max)
-            return self._merge_num_sims_w_ec(param_num_sims, exp_con_cols, exp_con_df, how='right')
+            old_exp_cons = exp_con_df.set_index(list(exp_con_cols))
+            new_exp_cons = param_num_sims[list(exp_con_cols|{'num_sims'})].set_index(list(exp_con_cols))
+            new_exp_cons = new_exp_cons.combine_first(old_exp_cons).reset_index().drop_duplicates()
+            new_exp_cons['num_sims'] = new_exp_cons['num_sims'].astype(int)
+            return new_exp_cons.reset_index(drop=True)
         else:
             param_num_sims = self._set_num_sims_as_max(param_mean)[['num_sims']].astype(int)
-            return param_num_sims.drop_duplicates()
+            return param_num_sims.drop_duplicates().reset_index(drop=True)
 
     def _check_updated_df(self, df, var_name):
         if df.shape != self.__getattribute__(var_name).shape:
@@ -509,15 +513,15 @@ class NoiseModel(object):
     def experimental_conditions_dataframe(self):
         return self._exp_cols_df
 
+    def _get_noise_simulator(self, _simulator_name):
+        try:
+            return self.supported_noise_simulators[_simulator_name]
+        except KeyError:
+            raise UnsupportedSimulator("{} is not a supported noise simulator".format(_simulator_name))
+
     def run(self):
         """
         Returns a :class:`pandas.DataFrame` of noisy and/or static values of PySB` :class:`~pysb.core.Model`,
         :class:`~pysb.core.Parameter` and/or :class:`~pysb.core.ComplexPattern` (model species).
         """
         pass
-
-    def _get_noise_simulator(self, _simulator_name):
-        try:
-            return self.supported_noise_simulators[_simulator_name]
-        except KeyError:
-            raise UnsupportedSimulator("{} is not a supported noise simulator".format(_simulator_name))

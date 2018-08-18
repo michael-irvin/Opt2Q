@@ -1,8 +1,10 @@
 from pysb.examples.michment import model as pysb_model
 from opt2q.noise import NoiseModel
 from opt2q.utils import MissingParametersErrors, DuplicateParameterError, UnsupportedSimulator
+
 from nose.tools import *
 import numpy as np
+from numpy.testing import assert_array_almost_equal
 import pandas.util.testing as pd_testing
 import pandas as pd
 import unittest
@@ -622,9 +624,24 @@ class TestNoise(unittest.TestCase):
                                [0.0, 0.0, 0.04]], columns=['a', 'c', 'b'], index=['a', 'c', 'b'])
         pd_testing.assert_frame_equal(test, target)
 
-    def test_log_normal_distribution_fn(self):
-        # Test the average and std of the resulting distribution
-        pass
+    def test_mv_log_normal_distribution_fn(self):
+        # Average and cov of the resulting distribution should be app. what you started with
+        n = 100000
+        param_mean = pd.DataFrame([['a', 2.0, n, True],
+                                   ['b', 0.0, 1, True]],
+                                  columns=['param', 'value', 'num_sims', 'apply_noise'])
+        param_cov = pd.DataFrame([['a', 'c', 0.1]], columns=['param_i', 'param_j', 'value'])
+        NoiseModel.default_param_values = {'c': 3.0}
+        nm = NoiseModel(param_mean=param_mean, param_covariance=param_cov)
+        test = nm._add_noisy_values(nm.param_mean, nm.param_covariance, nm.experimental_conditions_dataframe)
+        target_mean = np.array([2, 3, 1.0e-2])
+        target_cov = np.array([[0.16,   0.1,    0.0],
+                               [ 0.1,  0.36,    0.0],
+                               [ 0.0,   0.0, 1.0e-2]])
+        test_mean = test.mean()
+        test_cov = test.cov()
+        assert_array_almost_equal(test_cov.values, target_cov, 1)
+        assert_array_almost_equal(test_mean.values, target_mean, 1)
 
     def test_topic_guide_modeling_experiment(self):
         experimental_treatments = NoiseModel(pd.DataFrame([['kcat', 500, 'high_activity'],

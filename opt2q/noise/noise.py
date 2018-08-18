@@ -9,7 +9,7 @@ import pandas as pd
 import numpy as np
 
 
-def multivariate_log_normal_fn(mean, covariance, n, atol=1e-8, names_column='param', *args, **kwargs):
+def multivariate_log_normal_fn(mean, covariance, n, atol=1e-4, names_column='param', *args, **kwargs):
     """
     Simulates extrinsic noise by applying random log-normal variation to a set of values.
 
@@ -55,13 +55,14 @@ def multivariate_log_normal_fn(mean, covariance, n, atol=1e-8, names_column='par
     for cov_i in _mean.index:
         _cov.at[cov_i, cov_i] = _cov_diagonal[cov_i]
 
-    mu = np.log(_mean.values[:, 0]) - 0.5 * np.log((1 + np.diag(_cov.values) / (_mean.values.T[:, 0]) ** 2))
+    mu = np.log(_mean.values[:, 0]) - 0.5 * np.log((1 + (np.diag(_cov.values) / (_mean.values.T[:, 0]) ** 2)))
     # mu = np.log(_mean.values[:, 0])/(np.sqrt(np.diag(_cov.values)/(_mean.values.T[:, 0] ** 2)+1))
 
     mean_t_mean = np.product(np.meshgrid(_mean.values, _mean.values), axis=0)
     cov = np.log((_cov / mean_t_mean) + 1)
 
     return pd.DataFrame(np.exp(np.random.multivariate_normal(mu, cov, n)), columns=_mean.index.values)
+    # return pd.DataFrame(np.random.multivariate_normal(_mean.values[:,0], _cov, n), columns=_mean.index.values)
 
 
 class NoiseModel(object):
@@ -641,6 +642,3 @@ class NoiseModel(object):
         incomplete_covariance_matrix.update(covariance_updates)
         complete_covariance_matrix = incomplete_covariance_matrix
         return complete_covariance_matrix
-
-# todo: MVLN distribution is returning inaccurate results.. round-off error, perhaps.
-

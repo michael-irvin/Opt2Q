@@ -3,17 +3,17 @@ import numpy as np
 
 from opt2q.noise import NoiseModel
 from opt2q.calibrator import objective_function
-param_mean = pd.DataFrame([['a', 2.0, 3, True],
+n = 100000
+param_mean = pd.DataFrame([['a', 2.0, n, True],
                            ['b', 0.0, 1, True]],
                           columns=['param', 'value', 'num_sims', 'apply_noise'])
 param_cov = pd.DataFrame([['a', 'c', 0.1]], columns=['param_i', 'param_j', 'value'])
 NoiseModel.default_param_values = {'c':3.0}
-NoiseModel.default_sample_size=10000000000000000000000000000000000000000
 
 nm = NoiseModel(param_mean=param_mean, param_covariance=param_cov)
 test = nm._add_noisy_values(nm.param_mean, nm.param_covariance, nm.experimental_conditions_dataframe)
-print(test.mean())
-print(test.cov())
+print(type(test.mean()))
+print(type(test.cov().values))
 quit()
 
 

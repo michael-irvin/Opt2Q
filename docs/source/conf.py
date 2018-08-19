@@ -44,7 +44,7 @@ extensions = ['sphinx.ext.autodoc',
 # Sphinx Gallery Conf
 sphinx_gallery_conf = {
      # path to your examples scripts
-     'examples_dirs': '../examples',
+     'examples_dirs': '../../examples',
      # path where to save gallery generated examples
      'gallery_dirs': 'auto_examples',
      'backreferences_dir':False
@@ -191,4 +191,10 @@ texinfo_documents = [
 
 
 # Example configuration for intersphinx: refer to the Python standard library.
-intersphinx_mapping = {'https://docs.python.org/': None}
+intersphinx_mapping = {'https://docs.python.org/': None,
+                       'scipy': ('http://docs.scipy.org/doc/scipy/reference/', None),
+                       'matplotlib': ('http://matplotlib.sourceforge.net/', None),
+                       'pysb': ('https://pysb.readthedocs.io/en/latest/', None),
+                       'pandas': ('http://pandas.pydata.org/pandas-docs/stable/', None),
+                       'numpy': ('http://docs.scipy.org/doc/numpy/', None)
+                       }

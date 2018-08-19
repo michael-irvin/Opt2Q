@@ -49,7 +49,7 @@ objective function are explained in the following documentation sections:
    :maxdepth: 2
    :caption: Contents:
 
-   tutorial_docs/index
+   tutorial_refs/index
    topic_guides/index
    module_refs/index
 

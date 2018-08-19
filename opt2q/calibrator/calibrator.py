@@ -53,25 +53,23 @@ class objective_function(object):
     Decorator that creates an objective function using an Opt2Q noise and simulation model, and Opt2Q measurement
     model(s)
 
-    Parameters:
-    -----------
-    func: not sure yet
-
-    Returns
-    -------
-    :class:`~opt2q.calibrator.ObjectiveFunction` instance
-
-    Example
-    -------
-    >>> from opt2q.calibrator import objective_function
-
     """
     def __init__(self, **kwargs):
         # Process Decorator arguments
         self.__dict__.update(kwargs)
 
     def __call__(self, _f):
-        # Presents decorated function
+        """
+        Parameters
+        ----------
+        _f: func
+            User Defined Objective Function
+
+        Returns
+        -------
+        :class:`~opt2q.calibrator.ObjectiveFunction` instance
+
+        """
         obj_f = ObjectiveFunction(_f)
         obj_f.__dict__.update(self.__dict__)
         return obj_f

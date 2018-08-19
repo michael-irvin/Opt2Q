@@ -55,10 +55,11 @@ def multivariate_log_normal_fn(mean, covariance, n, atol=1e-4, names_column='par
     for cov_i in _mean.index:
         _cov.at[cov_i, cov_i] = _cov_diagonal[cov_i]
 
-    mu = np.log(_mean.values[:, 0]) - 0.5 * np.log((1 + (np.diag(_cov.values) / (_mean.values.T[:, 0]) ** 2)))
-    # mu = np.log(_mean.values[:, 0])/(np.sqrt(np.diag(_cov.values)/(_mean.values.T[:, 0] ** 2)+1))
-
     mean_t_mean = np.product(np.meshgrid(_mean.values, _mean.values), axis=0)
+
+    mu = np.log(_mean.values[:, 0]) - 0.5 * np.log(1 + np.diag(_cov.values) / np.diag(mean_t_mean))
+    # mu = np.log(_mean.values[:, 0])/(np.sqrt(np.diag(_cov.values) / (np.diag(mean_t_mean))+1))
+
     cov = np.log((_cov / mean_t_mean) + 1)
 
     return pd.DataFrame(np.exp(np.random.multivariate_normal(mu, cov, n)), columns=_mean.index.values)
@@ -73,7 +74,7 @@ class NoiseModel(object):
     Generates a :class:`pandas.DataFrame` of noisy and/or static values. The generated values dictate values of `PySB`
     :class:`~pysb.core.Model` :class:`~pysb.core.Parameter` and/or :class:`~pysb.core.ComplexPattern` (model species).
 
-    The :run:`~opt2q.noise.NoiseModel.run` method returns a :class:`pandas.DataFrame` formatted for use in the Opt2Q
+    The :meth:`~opt2q.noise.NoiseModel.run` method returns a :class:`pandas.DataFrame` formatted for use in the Opt2Q
     :class:`opt2q.simulator.Simulator`.
 
     Parameters
@@ -125,6 +126,7 @@ class NoiseModel(object):
         Dictionary of keyword arguments:
 
         ``noise_simulator``: Function that applies noise for the parameters. Defaults to :func:`~opt2q.noise.multivariate_log_normal_fn`
+        ``noise_simulator_kwargs``: Dictionary of kwargs passed to the noise simulator
 
     Attributes
     ----------
@@ -175,9 +177,9 @@ class NoiseModel(object):
         self._noise_simulator = self._check_noise_simulator(noise_simulator)
         self._noise_simulator_kwargs = options.get('noise_simulator_kwargs', {})
 
-        self._run = "simulator (depends on len _exp_col_df)"
+        self._run = [self._simulate, self._simulate_groups][self._exp_cols_df.shape[0] > 1]
 
-    # setup
+    # Setup
     def _check_required_columns(self, param_df, var_name='param_mean'):
         """
         First check of param_mean and param_covariance. Checks that the DataFrame as the required column names.
@@ -534,8 +536,29 @@ class NoiseModel(object):
         """
         Returns a :class:`pandas.DataFrame` of noisy and/or static values of PySB` :class:`~pysb.core.Model`,
         :class:`~pysb.core.Parameter` and/or :class:`~pysb.core.ComplexPattern` (model species).
+
+        This serves as an input to the :class:`~opt2q.simulator.Simulator`.
         """
-        pass
+        simulated = self._run(self.param_mean, self.param_covariance, self.experimental_conditions_dataframe)
+        simulated = simulated.reset_index().rename(columns={'index': 'simulation'})
+        return simulated
+
+    def _simulate_groups(self, mean, cov, exp):
+        simulated = pd.DataFrame()
+        for idx, row in exp.iterrows():
+            exp_id = pd.DataFrame(row).T
+            mean_i = mean
+            cov_i = cov
+
+            for col in self._exp_con_cols:
+                mean_conditional = mean[col] == row[col]
+                cov_conditional = cov[col] == row[col]
+                mean_i = mean_i[mean_conditional]
+                cov_i = cov_i[cov_conditional]
+
+            sim_i = self._simulate(mean_i, cov_i, exp_id)
+            simulated = pd.concat((simulated, sim_i), ignore_index=True, sort=False)
+        return simulated
 
     def _simulate(self, mean, cov, exp):
         """
@@ -559,6 +582,13 @@ class NoiseModel(object):
         else:
             fixed_params = self._add_fixed_values(mean, exp)
             noisy_params = self._add_noisy_values(mean, cov, exp)
+            exp_indices = self._apply_exp_idx(exp)
+
+            simulated = pd.DataFrame()
+            simulated[fixed_params.columns] = fixed_params
+            simulated[noisy_params.columns] = noisy_params
+            simulated[list(self._exp_con_cols)] = exp_indices
+            return simulated
 
     @staticmethod
     def _add_fixed_values(_mean, exp, names_col='param'):
@@ -642,3 +672,8 @@ class NoiseModel(object):
         incomplete_covariance_matrix.update(covariance_updates)
         complete_covariance_matrix = incomplete_covariance_matrix
         return complete_covariance_matrix
+
+    def _apply_exp_idx(self, exp):
+        cols = list(self._exp_con_cols)
+        n = exp['num_sims'].values[0]
+        return pd.DataFrame(np.repeat(exp[cols].values, n, axis=0), columns=cols)

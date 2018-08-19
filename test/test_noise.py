@@ -640,11 +640,66 @@ class TestNoise(unittest.TestCase):
                                [ 0.0,   0.0, 1.0e-2]])
         test_mean = test.mean()
         test_cov = test.cov()
-        assert_array_almost_equal(test_cov.values, target_cov, 1)
-        assert_array_almost_equal(test_mean.values, target_mean, 1)
+        assert_array_almost_equal(test_cov.values, target_cov, 2)
+        assert_array_almost_equal(test_mean.values, target_mean, 2)
+
+    def test_simulate_exp(self):
+        target = pd.DataFrame([[1.0, 2.541798, 1.455033],
+                               [1.0, 3.804277, 2.540719],
+                               [1.0, 2.456074, 1.908849],
+                               [1.0, 2.846912, 1.854556]], columns=['b', 'c', 'a'])
+        np.random.seed(10)
+
+        n = 4
+        param_mean = pd.DataFrame([['a', 2.0, n, True],
+                                   ['b', 1.0, 1, False]],
+                                  columns=['param', 'value', 'num_sims', 'apply_noise'])
+        param_cov = pd.DataFrame([['a', 'c', 0.1]], columns=['param_i', 'param_j', 'value'])
+        NoiseModel.default_param_values = {'c': 3.0}
+        nm = NoiseModel(param_mean=param_mean, param_covariance=param_cov)
+        test = nm._simulate(nm.param_mean, nm.param_covariance, nm.experimental_conditions_dataframe)
+        pd_testing.assert_frame_equal(test[['b', 'c', 'a']], target[['b', 'c', 'a']])
+
+    def test_noise_run(self):
+        target = pd.DataFrame([[0, 1.0, 2.541798,  1.455033],
+                               [1, 1.0, 3.804277,  2.540719],
+                               [2, 1.0, 2.456074,  1.908849],
+                               [3, 1.0, 2.846912,  1.854556]], columns=['simulation','b', 'c', 'a'])
+        np.random.seed(10)
+
+        n = 4
+        param_mean = pd.DataFrame([['a', 2.0, n, True],
+                                   ['b', 1.0, 1, False]],
+                                  columns=['param', 'value', 'num_sims', 'apply_noise'])
+        param_cov = pd.DataFrame([['a', 'c', 0.1]], columns=['param_i', 'param_j', 'value'])
+        NoiseModel.default_param_values = {'c': 3.0}
+        nm = NoiseModel(param_mean=param_mean, param_covariance=param_cov)
+        test = nm.run()
+        pd_testing.assert_frame_equal(test[['b', 'c', 'a']], target[['b', 'c', 'a']])
+
+    def test_noise_run_multiple_exp(self):
+        target = pd.DataFrame([[ 0,  1.455033,  2.541798,        'ec1', np.NaN],
+                               [ 1,  2.540719,  3.804277,        'ec1', np.NaN],
+                               [ 2,  1.908849,  2.456074,        'ec1', np.NaN],
+                               [ 3,  1.854556,  2.846912,        'ec1', np.NaN],
+                               [ 4,    np.NaN,    np.NaN,        'ec2',    1.0]],
+                              columns=['simulation', 'a', 'c', 'experiment', 'b'])
+        np.random.seed(10)
+        n = 4
+        param_mean = pd.DataFrame([['a', 2.0, n, True, 'ec1'],
+                                   ['b', 1.0, 1, False, 'ec2']],
+                                  columns=['param', 'value', 'num_sims', 'apply_noise', 'experiment'])
+        param_cov = pd.DataFrame([['a', 'c', 0.1, 'ec1']], columns=['param_i', 'param_j', 'value', 'experiment'])
+        NoiseModel.default_param_values = {'c': 3.0}
+        nm = NoiseModel(param_mean=param_mean, param_covariance=param_cov)
+        test = nm.run()
+        pd_testing.assert_frame_equal(test[test.columns], target[test.columns])
 
     def test_topic_guide_modeling_experiment(self):
         experimental_treatments = NoiseModel(pd.DataFrame([['kcat', 500, 'high_activity'],
                                                            ['kcat', 100, 'low_activity']],
                                                           columns = ['param', 'value', 'experimental_treatment']))
-        # experimental_treatments.run()  # Method is not established yet.
+        test = experimental_treatments.run()
+        target = pd.DataFrame([[0,   500, 'high_activity'],
+                               [1,   100,  'low_activity']], columns=['simulation', 'kcat', 'experimental_treatment'])
+        pd_testing.assert_frame_equal(test[test.columns], target[target.columns])

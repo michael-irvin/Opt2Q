@@ -34,3 +34,10 @@ class DuplicateParameterError(Exception):
     Raised when NoiseModel detects duplicated parameter
     """
     pass
+
+
+class UnsupportedSimulatorError(Exception):
+    """
+    Raised when unsupported :mod:`~pysb.simulator` class is supplied.
+    """
+    pass

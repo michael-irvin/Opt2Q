@@ -1,6 +1,6 @@
-============
-Opt2Q Models
-============
+=====================
+Building Opt2Q Models
+=====================
 
 Opt2Q models dynamics. It also models experimental treatments, noise sources, measurement processes, etc. (i.e. factors
 that influence our observations of the biological system's dynamics). All together, these models constitute what I
@@ -20,13 +20,21 @@ Modelers represent various experimental treatments as variations in the dynamica
 :class:`~opt2q.simulator.Simulator` accepts a :class:`~pandas.DataFrame` of parameters and their values.
 
 >>> import pandas as pd
->>> pd.DataFrame([[0, 500, 'high_activity'],[1, 100, 'low_activity']],
-...              columns=['simulation', 'kcat', 'experimental_treatment'])
+>>> parameters = pd.DataFrame([[0, 500, 'high_activity'],
+...                           [1, 100, 'low_activity']],
+...                          columns=['simulation', 'kcat', 'experimental_treatment'])
+>>> print(parameters)
+   simulation  kcat experimental_treatment
+0           0   500          high_activity
+1           1   100           low_activity
+
 >>> # Example of supplying parameters directly Opt2Q simulator
 
 Notice the :class:`~pandas.DataFrame` can have additional columns annotating the different experimental conditions.
 
-The Opt2Q :class:`~opt2q.noise.NoiseModel` helps users create this :class:`~pandas.DataFrame` of parameters, and apply
+Noise Models
+------------
+The Opt2Q :class:`~opt2q.noise.NoiseModel` lets you create the above :class:`~pandas.DataFrame` of parameters, and apply
 extrinsic noise to it.
 
 >>> from opt2q.noise import NoiseModel
@@ -38,8 +46,8 @@ extrinsic noise to it.
 0           0   500          high_activity
 1           1   100           low_activity
 
-To apply default extrinsic noise (i.e. log-normal with a 20% coefficient of variation) to your parameters, include an
-'apply_noise' column.
+To apply default (i.e. log-normal distributed with a coefficient of variation of 0.2) extrinsic noise to your
+parameters, include an 'apply_noise' column.
 
 >>> experimental_treatments = NoiseModel(
 ...                            pd.DataFrame([['kcat', 500, 'high_activity', False],
@@ -55,30 +63,32 @@ To apply default extrinsic noise (i.e. log-normal with a 20% coefficient of vari
 3           3   500   9.969232          high_activity
 4           4   500   9.517106          high_activity
 
-In the above case, :class:`~opt2q.noise.NoiseModel` returns a noisy sample (of size 50) of parameters. You can change
-the sample size via the class variable, :attr:`~opt2q.noise.NoiseModel.default_sample_size`
+In the above case, :class:`~opt2q.noise.NoiseModel` returns a noisy sample (of size 50) of parameter values. You can
+change the sample size via the class variable, :attr:`~opt2q.noise.NoiseModel.default_sample_size`
 
->>> NoiseModel.default_sample_size = 50
+>>> NoiseModel.default_sample_size = 200
 
-You can set variance and covariance using a :class:`noise model's <~opt2q.noise.NoiseModel>` ``param_convariance``
-argument. You only need to assign values to parameters with non-zero covariance using 'param_i' and 'param_j' columns.
-Use the same parameter name for both 'param_i' and 'param_j' to assign variance terms.
+Or you can specify it via a 'num_sims' column in your ``param_means`` argument. Note: the sample size should be
+consistent for unique experimental condition.
 
->>> mean = pd.DataFrame([['kcat', 500, 'high_activity'],
-...                      ['kcat', 100, 'low_activity' ],
-...                      ['vol',   10, 'high_activity'],
-...                      ['vol',   10, 'low_activity' ]],
-...                     columns=['param', 'value', 'experimental_treatment'])
+>>> mean = pd.DataFrame([['kcat', 200, 'high_activity', 200],
+...                      ['kcat', 100, 'low_activity' , 200],
+...                      ['vol',   10, 'high_activity', 100],
+...                      ['vol',   10, 'low_activity' , 100]],
+...                     columns=['param', 'value', 'experimental_treatment', 'num_sims'])
 >>> cov = pd.DataFrame([['vol', 'kcat', 1.0], ['vol', 'vol', 3.0]], columns=['param_i', 'param_j', 'value'])
 >>> experimental_treatments = NoiseModel(param_mean=mean, param_covariance=cov)
 
-Notice the lack of experimental treatment columns in the covariance. The :class:`~opt2q.noise.NoiseModel` interprets
-this to mean the covariance settings apply to *all* the experimental treatments. Using the same parameter name for both
-'param_i' and 'param_j'.
+As also shown above, you can set variance and covariance using a :class:`~opt2q.noise.NoiseModel`'s
+``param_convariance`` argument. You only need to assign values to parameters with non-zero covariance using
+'param_i' and 'param_j' columns, as shown above. Use the same parameter name for both 'param_i' and 'param_j' to assign
+variance terms.
+
+Notice the lack of experimental treatment columns in the ``param_covariance``. They are optional. The
+:class:`~opt2q.noise.NoiseModel` interprets their absence to mean the covariance settings apply to *all* the
+experimental treatments. Using the same parameter name for both 'param_i' and 'param_j'.
 
 .. code-block:: python
-
-    # Code source: MWIrvin
 
     parameters = experimental_treatments.run()
 
@@ -94,12 +104,22 @@ this to mean the covariance settings apply to *all* the experimental treatments.
 .. image:: /auto_examples/images/sphx_glr_plot_simple_noise_model_001.png
     :class: sphx-glr-single-img
 
-If parameters in `param_covariance` do not also appear in `param_mean`, the Opt2Q noise model will look for them in its
-``default_param_values`` (dict) or in the PySB model, if supplied.
+Noise parameters in ``param_covariance`` must also appear in ``param_mean``. If not, the Opt2Q noise model will look
+for them in its ``default_param_values`` (dict) or in a PySB model, if either is supplied.
 
->>> #example using ``default_param_values`` to get missing params
+>>> NoiseModel.default_param_values = {'vol':10}  # missing parameter 'vol' is retrieved from ``default_param_values``
+>>> mean = pd.DataFrame([['kcat', 200, 'high_activity', 200],
+...                      ['kcat', 100, 'low_activity' , 200]]
+...                     columns=['param', 'value', 'experimental_treatment', 'num_sims'])
+>>> cov = pd.DataFrame([['vol', 'kcat', 1.0], ['vol', 'vol', 3.0]], columns=['param_i', 'param_j', 'value'])
+>>> experimental_treatments = NoiseModel(param_mean=mean, param_covariance=cov)
 
->>> #example using PySB model to get missing params
+Retrieve missing parameters from :class:`~pysb.core.Model`. Note: this approach will take to instantiate the model.
+
+>>> from pysb.examples.michment import model
+>>> experimental_treatments = NoiseModel(model=model, param_mean=mean, param_covariance=cov)
+
+.. note:: You can only use either the :class:`~pysb.core.Model` or ``default_param_values`` dict. Not both.
 
 
 Modeling Dynamics with PySB

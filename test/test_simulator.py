@@ -63,10 +63,6 @@ class TestSolver(TestSolverModel, unittest.TestCase):
         sim = Simulator(self.model)
         self.assertDictEqual(sim.solver_kwargs, {'integrator_options': {}})  # when None return empty dict
 
-    def test_add_integrator_options_dict_dict(self):
-        sim = Simulator(self.model, integrator_options={'test_option':42})
-        self.assertDictEqual(sim.solver_kwargs, {'integrator_options': {'test_option':42}})
-
     def test_custom_solver_options(self):
         sim = Simulator(self.model, solver_options={'integrator':'lsoda'}, integrator_options={'mxstep':2**10})
         assert sim.sim.opts == {'mxstep': 1024}

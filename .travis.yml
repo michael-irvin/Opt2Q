@@ -17,3 +17,10 @@ before_install:
 
 install:
   - python setup.py build --build-lib=build/lib
+
+script:
+  nosetests build/lib/opt2q --with-coverage
+  --cover-package=build/lib/opt2q
+
+after_success:
+  -coveralls

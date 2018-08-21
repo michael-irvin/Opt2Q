@@ -34,6 +34,4 @@ setup(name='Opt2Q',
                         'pandas',
                         'cython',
                         'matplotlib',],
-
-
       )

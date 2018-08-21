@@ -1,10 +1,12 @@
 from pysb.examples.michment import model as pysb_model
 from opt2q.noise import NoiseModel
 from opt2q.utils import MissingParametersErrors, DuplicateParameterError, UnsupportedSimulator
+from matplotlib import pyplot as plt
+from examples import plot_simple_noise_model
 
 from nose.tools import *
 import numpy as np
-from numpy.testing import assert_array_almost_equal
+from numpy.testing import assert_array_almost_equal, assert_array_equal
 import pandas.util.testing as pd_testing
 import pandas as pd
 import unittest
@@ -703,3 +705,26 @@ class TestNoise(unittest.TestCase):
         target = pd.DataFrame([[0,   500, 'high_activity'],
                                [1,   100,  'low_activity']], columns=['simulation', 'kcat', 'experimental_treatment'])
         pd_testing.assert_frame_equal(test[test.columns], target[target.columns])
+
+    def test_plot_simple_noise(self):
+        ax = plot_simple_noise_model.ax
+        cm = plt.get_cmap('tab10')
+
+        data = plot_simple_noise_model.parameters[['kcat', 'vol']].values
+        dt = [data[:200, :], data[200:, :]]
+
+        legend = ['high_activity', 'low_activity']
+
+        for i, cxn in enumerate(ax.collections):
+            # colors
+            test_color = cxn.get_facecolors()[0, :3]
+            target_color = cm.colors[i][:]
+            assert_array_equal(test_color, target_color)
+            # data
+            target_data = cxn.get_offsets()
+            test_data = dt[i]
+            assert_array_equal(test_data, target_data)
+            # legend
+            test_text = ax.get_legend().get_texts()[i].get_text()
+            target_text = legend[i]
+            self.assertEqual(test_text, target_text)

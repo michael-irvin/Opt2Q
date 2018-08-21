@@ -121,7 +121,6 @@ Retrieve missing parameters from :class:`~pysb.core.Model`. Note: this approach 
 
 .. note:: You can only use either the :class:`~pysb.core.Model` or ``default_param_values`` dict. Not both.
 
-
 Modeling Dynamics with PySB
 ===========================
 

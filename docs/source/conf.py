@@ -31,29 +31,29 @@ import sphinx_rtd_theme
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = ['sphinx.ext.autodoc',
-    'sphinx.ext.doctest',
-    'sphinx.ext.intersphinx',
-    'sphinx.ext.todo',
-    'sphinx.ext.coverage',
-    'sphinx.ext.mathjax',
-    'sphinx.ext.ifconfig',
-    'sphinx.ext.viewcode',
-    'sphinx.ext.githubpages',
-    'sphinx_gallery.gen_gallery',]
+              'sphinx.ext.doctest',
+              'sphinx.ext.intersphinx',
+              'sphinx.ext.todo',
+              'sphinx.ext.coverage',
+              'sphinx.ext.mathjax',
+              'sphinx.ext.ifconfig',
+              'sphinx.ext.viewcode',
+              'sphinx.ext.githubpages',
+              'sphinx_gallery.gen_gallery',]
 
 # Sphinx Gallery Conf
 sphinx_gallery_conf = {
-     # path to your examples scripts
-     'examples_dirs': '../../examples',
-     # path where to save gallery generated examples
-     'gallery_dirs': 'auto_examples',
-     'backreferences_dir':False
+                       # path to your examples scripts
+                       'examples_dirs': '../../examples',
+                       # path where to save gallery generated examples
+                       'gallery_dirs': 'auto_examples',
+                       'backreferences_dir': False
 }
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
 
-# The suffix(es) of source filenames.
+# The suffix(es) of source file names.
 # You can specify multiple suffix as a list of string:
 #
 # source_suffix = ['.rst', '.md']
@@ -186,8 +186,6 @@ texinfo_documents = [
      author, 'Opt2Q', 'One line description of project.',
      'Miscellaneous'),
 ]
-
-
 
 
 # Example configuration for intersphinx: refer to the Python standard library.

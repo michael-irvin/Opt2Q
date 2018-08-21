@@ -3,6 +3,33 @@ from opt2q.noise import NoiseModel
 from matplotlib import pyplot as plt
 import numpy as np
 
+from examples.plot_simple_noise_model import ax, parameters
+from matplotlib.text import Text
+
+# for k,v in ax.collections[0].__dict__.items():
+#     print(k, ax.collections[0].__dict__[k])
+
+# print(ax.collections[1].get_facecolors())
+# print(ax.collections[1].get_offsets().shape)
+# # cm = plt.get_cmap('tab10')
+# data = parameters[['kcat', 'vol']].values
+# print(data[200:, :].shape)
+# print(cm.colors[1])
+# print(np.array(list(cm.colors[0]))[:])
+
+# print(ax.collections[0].__dict__)
+# print(ax.legend_.legendHandles[0].__dict__)
+print(ax.get_legend().get_texts()[0].get_text())
+# for k, v in ax.legend_.texts[0].__dict__.items():
+#     print(k , ax.legend_.texts[0].__dict__[k])
+# for k, v in ax.legend_.legendHandles[0].__dict__.items():
+#     print(k, ax.legend_.legendHandles[0].__dict__[k])
+
+#
+# texts [Text(0,0,'high_activity'), Text(0,0,'low_activity')]
+# legendHandles [<matplotlib.collections.PathCollection object at 0xa225a62e8>, <matplotlib.collections.PathCollection object at 0xa225a6588>]
+quit()
+
 mean = pd.DataFrame([['kcat', 500, 'high_activity'],
                      ['kcat', 100, 'low_activity' ],
                      ['vol',   10, 'high_activity'],

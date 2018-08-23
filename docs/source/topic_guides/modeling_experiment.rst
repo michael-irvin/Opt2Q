@@ -12,12 +12,11 @@ The following details methods and steps involved in building an experiment model
 2. `PySB`_ models of the dynamics
 3. Models of the measurement.
 
-.. _PySB: http://pysb.org
-
 Modeling Experimental Treatments
 ================================
 Modelers represent various experimental treatments as variations in the dynamical model's parameters. The Opt2Q
-:class:`~opt2q.simulator.Simulator` accepts a :class:`~pandas.DataFrame` of parameters and their values.
+:class:`~opt2q.simulator.Simulator` accepts a :class:`~pandas.DataFrame` of parameters and their values (as formatted
+below).
 
 >>> import pandas as pd
 >>> parameters = pd.DataFrame([[0, 500, 'high_activity'],
@@ -28,9 +27,7 @@ Modelers represent various experimental treatments as variations in the dynamica
 0           0   500          high_activity
 1           1   100           low_activity
 
->>> # Example of supplying parameters directly Opt2Q simulator
-
-Notice the :class:`~pandas.DataFrame` can have additional columns annotating the different experimental conditions.
+Notice the :class:`~pandas.DataFrame` can have additional columns annotating the different experimental treatment.
 
 Noise Models
 ------------
@@ -72,8 +69,8 @@ Or you can specify it via a 'num_sims' column in your ``param_means`` argument. 
 consistent for unique experimental condition.
 
 >>> mean = pd.DataFrame([['kcat', 200, 'high_activity', 200],
-...                      ['kcat', 100, 'low_activity' , 200],
-...                      ['vol',   10, 'high_activity', 100],
+...                      ['kcat', 100, 'low_activity' , 100],
+...                      ['vol',   10, 'high_activity', 200],
 ...                      ['vol',   10, 'low_activity' , 100]],
 ...                     columns=['param', 'value', 'experimental_treatment', 'num_sims'])
 >>> cov = pd.DataFrame([['vol', 'kcat', 1.0], ['vol', 'vol', 3.0]], columns=['param_i', 'param_j', 'value'])
@@ -123,5 +120,50 @@ Retrieve missing parameters from :class:`~pysb.core.Model`. Note: this approach 
 
 Modeling Dynamics with PySB
 ===========================
+The Opt2Q :class:`~opt2q.simulator.Simulator` class uses PySB simulators (e.g.
+:class:`~pysb.simulator.ScipyOdeSimulator`) to simulate the dynamics of a biological system. The Opt2Q simulator
+behaves much like PySB simulators: It accepts the same kinds of objects for its ``param_values`` and ``initials``
+arguments and likewise returns a `PySB` :class:`~pysb.simulator.SimulationResult`. The PySB simulators are discussed
+`here <https://pysb.readthedocs.io/en/stable/modules/simulator.html>`_.
+
+The Opt2Q :class:`~opt2q.simulator.Simulator` also accepts :class:`~pandas.DataFrames` for its ``param_values`` and
+``initials`` arguments. The column names are the `PySB` model's :class:`~pysb.core.Parameter` names (for
+``param_values``) and the PySB ``model.species`` (for ``initials``). Additional columns can designate experimental
+treatments, conditions, etc.
+
+>>> import numpy as np
+>>> import pandas as pd
+>>> from matplotlib import pyplot as plt
+>>> from opt2q.simulator import Simulator
+>>> from pysb.examples.michment import model
+>>> new_params = pd.DataFrame([[np.nan, 'normal', 1],
+...                            [10.0,   'slow',   1],
+...                            [1.0e3,  'fast',   1]],
+...                           columns=['kcat', 'condition', 'experiment'])
+>>> sim = Simulator(model=model, param_values=new_params)
+>>> results = sim.run(np.linspace(0, 50, 50))
+
+The Opt2Q :class:`~opt2q.simulator.Simulator` returns the `PySB` :class:`~pysb.simulator.SimulationResult` with an
+additional ``opt2q_dataframe`` that annotates the simulation results by experimental treatment.
+
+.. code-block:: python
+
+    results_df = results.opt2q_dataframe
+
+    #plot
+    cm = plt.get_cmap('tab10')
+    fig, ax = plt.subplots(figsize=(8,6))
+    for i, (label, df) in enumerate(results_df.groupby(['experiment', 'condition'])):
+        df.plot.line(y='Product', ax=ax, label=label, color=cm.colors[i])
+    plt.legend()
+    plt.show()
+
+
+.. image:: /auto_examples/images/sphx_glr_plot_simple_dynamics_simulation_001.png
+    :class: sphx-glr-single-img
+
+The Opt2Q :class:`~opt2q.simulator.Simulator` only accepts :class:`models <pysb.core.Model>`.
 
 .. note:: Do not use double underscores in your PySB model parameter names. This interferes with the Opt2Q calibrator.
+
+.. _PySB: http://pysb.org

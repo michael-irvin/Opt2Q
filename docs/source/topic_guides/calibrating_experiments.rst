@@ -29,12 +29,25 @@ Lets start by importing an example opt2q model:
 >>> from opt2q.examples import opt2q_model
 >>> noise_models = {'model1':opt2q_model.noise_model,
 ...                 'model2':opt2q_model.noise_model_2}
+>>> dynamics_simulator = opt2q_model.simulator
 
 Set up objective function with Opt2Q :class:`~opt2q.calibrator.objective_function` decorator.
 
 >>> from opt2q.calibrator import objective_function
->>> @objective_function(noise=noise_models)
+>>> @objective_function(noise=noise_models, sim=dynamics_simulator)
 >>> def obj_f(x):
 ...     obj_f.noise['model1'].update_values(pd.DataFrame([['vol', x[0]]], columns=['param', 'value']))
 ...     obj_f.noise['model2'].update_values(pd.DataFrame([['vol', x[1]]], columns=['param', 'value']))
+...     params = pd.concat([obj_f.noise['model1'].run()
+...     obj_f.sim.param_values
 
+Updating parameters without checking them: The simulator will expect the updates to be similar to what
+was present at instantiation of the simulator. Print sim.param_values for a template.
+
+As a dataframe it should include a 'simulation' column.
+
+>>> print(sim.param_values)
+
+.. note::
+    Caution: Your objective should not try to update structural attributes e.g. experimental treatment names etc. It
+    could cause your model to fail.

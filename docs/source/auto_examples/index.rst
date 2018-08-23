@@ -5,7 +5,27 @@
 
 .. raw:: html
 
-    <div class="sphx-glr-thumbcontainer" tooltip="">
+    <div class="sphx-glr-thumbcontainer" tooltip="Plot of simulator results">
+
+.. only:: html
+
+    .. figure:: /auto_examples/images/thumb/sphx_glr_plot_simple_dynamics_simulation_thumb.png
+
+        :ref:`sphx_glr_auto_examples_plot_simple_dynamics_simulation.py`
+
+.. raw:: html
+
+    </div>
+
+
+.. toctree::
+   :hidden:
+
+   /auto_examples/plot_simple_dynamics_simulation
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="Scatter plot of noise model results">
 
 .. only:: html
 
@@ -31,6 +51,7 @@
 .. only :: html
 
  .. container:: sphx-glr-footer
+    :class: sphx-glr-footer-gallery
 
 
   .. container:: sphx-glr-download

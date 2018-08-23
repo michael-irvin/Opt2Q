@@ -1,6 +1,7 @@
 """
 Background Stuff
 """
+import warnings
 
 
 # MW Irvin -- Lopez Lab -- 2018-08-08
@@ -41,3 +42,19 @@ class UnsupportedSimulatorError(Exception):
     Raised when unsupported :mod:`~pysb.simulator` class is supplied.
     """
     pass
+
+
+class IncompatibleFormatWarning(Warning):
+    pass
+
+
+def incompatible_format_warning(_var):
+    """
+    Warns that the supplied parameter has an Opt2Q-incompatible format.
+
+    In this case, the simulator can still return simulation results, but they may not have a format compatible for use
+    with other Opt2Q functions.
+    """
+    warnings.warn(
+        'The supplied {} may not be formatted for use in other Opt2Q modules. Proceeding anyway.'.format(_var),
+        category=IncompatibleFormatWarning)

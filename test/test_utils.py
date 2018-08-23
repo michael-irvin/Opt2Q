@@ -1,5 +1,6 @@
 import opt2q.utils as ut
 import unittest
+import warnings
 
 
 class TesOpt2QUtils(unittest.TestCase):
@@ -20,3 +21,10 @@ class TesOpt2QUtils(unittest.TestCase):
         target = "'a', 'b', and 'c'"
         test = ut._list_the_errors(error_list)
         self.assertEqual(test, target)
+
+    @staticmethod
+    def test_incompatible_format_warming():
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            ut.incompatible_format_warning({'ksynthA': 10})
+            assert issubclass(w[-1].category, ut.IncompatibleFormatWarning)

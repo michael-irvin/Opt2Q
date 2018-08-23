@@ -3,31 +3,27 @@ from opt2q.noise import NoiseModel
 from matplotlib import pyplot as plt
 import numpy as np
 
-from examples.plot_simple_noise_model import ax, parameters
-from matplotlib.text import Text
 
-# for k,v in ax.collections[0].__dict__.items():
-#     print(k, ax.collections[0].__dict__[k])
+from opt2q.simulator import Simulator
+from pysb.examples.michment import model
+new_params = pd.DataFrame([[np.nan, 'normal', 1],
+                           [10.0,   'slow',   1],
+                           [1.0e3,  'fast',   1]],
+                          columns=['kcat', 'condition', 'experiment'])
+sim = Simulator(model=model, param_values=new_params)
+results = sim.run(np.linspace(0, 50, 50))
 
-# print(ax.collections[1].get_facecolors())
-# print(ax.collections[1].get_offsets().shape)
-# # cm = plt.get_cmap('tab10')
-# data = parameters[['kcat', 'vol']].values
-# print(data[200:, :].shape)
-# print(cm.colors[1])
-# print(np.array(list(cm.colors[0]))[:])
+results_df = results.opt2q_dataframe
+print(results.opt2q_dataframe.columns)
 
-# print(ax.collections[0].__dict__)
-# print(ax.legend_.legendHandles[0].__dict__)
-print(ax.get_legend().get_texts()[0].get_text())
-# for k, v in ax.legend_.texts[0].__dict__.items():
-#     print(k , ax.legend_.texts[0].__dict__[k])
-# for k, v in ax.legend_.legendHandles[0].__dict__.items():
-#     print(k, ax.legend_.legendHandles[0].__dict__[k])
+cm = plt.get_cmap('tab10')
+fig, ax = plt.subplots(figsize=(8,6))
+for i, (label, df) in enumerate(results_df.groupby(['experiment', 'condition'])):
+    df.plot.line(y='Product', ax=ax, label=label, color=cm.colors[i])
+plt.legend()
+plt.show()
 
-#
-# texts [Text(0,0,'high_activity'), Text(0,0,'low_activity')]
-# legendHandles [<matplotlib.collections.PathCollection object at 0xa225a62e8>, <matplotlib.collections.PathCollection object at 0xa225a6588>]
+print(results.opt2q_dataframe.shape)
 quit()
 
 mean = pd.DataFrame([['kcat', 500, 'high_activity'],

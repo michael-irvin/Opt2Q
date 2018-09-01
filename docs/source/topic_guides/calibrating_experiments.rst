@@ -5,6 +5,10 @@ Calibrating Opt2Q Models
 Opt2Q models consist of a dynamical model and accompanying noise and measurement models. These models can contain many
 free parameters who values are tune to optimize an objective function.
 
+Creating a DataSet
+==================
+The DataSet houses the measured values from the experiment along with annotations about the experimental conditions. It
+also specifies which observables and/or species of the PySB :class:`pysb.core.Model` are involved in the measurement.
 
 Assembling an Objective Function
 ================================
@@ -36,10 +40,17 @@ Set up objective function with Opt2Q :class:`~opt2q.calibrator.objective_functio
 >>> from opt2q.calibrator import objective_function
 >>> @objective_function(noise=noise_models, sim=dynamics_simulator)
 >>> def obj_f(x):
+...     # noise model
 ...     obj_f.noise['model1'].update_values(pd.DataFrame([['vol', x[0]]], columns=['param', 'value']))
 ...     obj_f.noise['model2'].update_values(pd.DataFrame([['vol', x[1]]], columns=['param', 'value']))
-...     params = pd.concat([obj_f.noise['model1'].run()
-...     obj_f.sim.param_values
+...     params = pd.concat([obj_f.noise['model1'].run(), obj_f.noise['model2'].run())
+...     # simulate dynamics
+...     obj_f.sim.param_values = params
+...     sim_res = obj_f.sim.run(np.linspace(0, 1, 100))
+...     # measurement model
+...     obj_f.measurement.simulation_result = sim_res
+...     obj_f.measurement.set_params({"!logistic_regression__coef_": np.array([[x[2], x[3]],[x[4], x[3]]])})
+...     return obj_f.measurement.run()
 
 Updating parameters without checking them: The simulator will expect the updates to be similar to what
 was present at instantiation of the simulator. Print sim.param_values for a template.

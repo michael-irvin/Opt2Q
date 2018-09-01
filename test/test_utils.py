@@ -1,4 +1,6 @@
 import opt2q.utils as ut
+import pandas as pd
+import numpy as np
 import unittest
 import warnings
 
@@ -28,3 +30,33 @@ class TesOpt2QUtils(unittest.TestCase):
             warnings.simplefilter("always")
             ut.incompatible_format_warning({'ksynthA': 10})
             assert issubclass(w[-1].category, ut.IncompatibleFormatWarning)
+
+    @staticmethod
+    def test_is_vector_like():
+        assert ut._is_vector_like(None) is False
+        assert ut._is_vector_like((1, 2, 3)) is True
+        assert ut._is_vector_like(pd.DataFrame([1])) is True
+
+    def _convert_vector_like_to_list(self):
+        target = [1, 2, 3]
+        test = ut._convert_vector_like_to_list({1, 2, 3})
+        assert isinstance(test, list)
+        test = ut._convert_vector_like_to_list((1, 2, 3))
+        self.assertListEqual(test, target)
+        test = ut._convert_vector_like_to_list(np.array([[1, 2, 3]]))
+        self.assertListEqual(test, target)
+        test = ut._convert_vector_like_to_list(pd.DataFrame([1, 2, 3]))
+        self.assertListEqual(test, target)
+
+    def _convert_vector_like_to_set(self):
+        target = {1, 2, 3}
+        test = ut._convert_vector_like_to_list([1, 2, 3])
+        self.assertSetEqual(test, target)
+        test = ut._convert_vector_like_to_list((1, 2, 3))
+        self.assertSetEqual(test, target)
+        test = ut._convert_vector_like_to_list(np.array([[1, 2, 3]]))
+        self.assertSetEqual(test, target)
+        test = ut._convert_vector_like_to_list(pd.DataFrame([1, 2, 3]))
+        self.assertSetEqual(test, target)
+
+

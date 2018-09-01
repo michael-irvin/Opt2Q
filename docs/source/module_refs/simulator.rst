@@ -1,4 +1,4 @@
-Opt2Q Simulator Module (:py:mod:`calibrator.py`)
+Opt2Q Simulator Module (:py:mod:`simulator.py`)
 ================================================
 Tools for simulating of *Opt2Q* models
 

@@ -168,10 +168,16 @@ class Simulator(object):
 
         # check that additional columns are equivalent for initials and param_values
         if params_are_compatible and initials_are_compatible:
-            if not checked_params[list(params_not_in_model | {'simulation'})].equals(
-                    checked_initials[list(initials_not_in_model | {'simulation'})]):
+            try:
+                cols = list(params_not_in_model | {'simulation'})
+                pd.testing.assert_frame_equal(checked_params[cols], checked_initials[cols], check_dtype=False)
+            except (AssertionError, KeyError):
                 raise ValueError("The experimental conditions columns of 'initials' and 'param_values' DataFrames"
                                  "must be equal")
+            # if not checked_params[list(params_not_in_model | {'simulation'})].equals(
+            #         checked_initials[list(initials_not_in_model | {'simulation'})]):
+            #     raise ValueError("The experimental conditions columns of 'initials' and 'param_values' DataFrames"
+            #                      "must be equal")
         if params_are_compatible:
             self._exp_conditions_columns = list(params_not_in_model|{'simulation'})
         elif initials_are_compatible:
@@ -363,7 +369,10 @@ class Simulator(object):
 
         Returns
         -------
-            A set of trajectories for the PySB model `species` and `observables` over the time points specified by ``tspan``. This is presented as a PySB :class:`~pysb.simulator.SimulationResult`, with an additional ``results.opt2q_dataframe`` that may include additional indices annotating the experimental conditions modeled by each trajectory.
+            A set of trajectories for the PySB model `species` and `observables` over the time points specified by
+            ``tspan``. This is presented as a PySB :class:`~pysb.simulator.SimulationResult`, with an additional
+            ``results.opt2q_dataframe`` that may include additional indices annotating the experimental conditions
+            modeled by each trajectory.
 
         Notes
         -----
@@ -406,4 +415,18 @@ class Simulator(object):
         new_df = new_df.merge(exp_index, how='inner', on=['simulation'])
         new_df.set_index('time', inplace=True)
         return new_df
+
+
+# from pysb.examples.michment import model
+# sim = Simulator(model)
+# sim.param_values = pd.DataFrame([[100, 'WT', 1],
+#                                  [100, 'KO', 1],
+#                                  [30, 'DKO', 2]],
+#                                 columns=['vol', 'condition', 'experiment'])
+# sim_result = sim.run(tspan=np.linspace(0, 10, 3),
+#                      initials=pd.DataFrame({model.species[1]: [100, 0, 0],
+#                                             'condition': ['WT', 'KO', 'DKO'],
+#                                             'experiment': [1, 1, 2]}))
+# print(getattr(sim_result, 'opt2q_dataframe', sim_result.dataframe))
+# print(sim_result.dataframe)
 

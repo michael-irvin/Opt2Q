@@ -2,6 +2,8 @@
 Background Stuff
 """
 import warnings
+import numpy as np
+import pandas as pd
 
 
 # MW Irvin -- Lopez Lab -- 2018-08-08
@@ -58,3 +60,37 @@ def incompatible_format_warning(_var):
     warnings.warn(
         'The supplied {} may not be formatted for use in other Opt2Q modules. Proceeding anyway.'.format(_var),
         category=IncompatibleFormatWarning)
+
+
+def _is_vector_like(vector_like_obj):
+    # if pd.Series, pd.DataFrame w/ one column, 1d np.array, list, tuple, set
+    if isinstance(vector_like_obj, (pd.Series, list, tuple, set)):
+        return True
+    elif isinstance(vector_like_obj, (pd.DataFrame, np.ndarray)):  # and ``has no experiment columns``
+        return len(vector_like_obj.shape) == 1 or \
+               (len(vector_like_obj.shape) == 2 and
+                (1 in vector_like_obj.shape or 0 in vector_like_obj.shape))
+    else:  # not vector-like format
+        return False
+
+
+def _convert_vector_like_to_list(vector_like_obj):
+    if not isinstance(vector_like_obj, (pd.DataFrame, np.ndarray)):
+        return list(vector_like_obj)
+    elif vector_like_obj.size is not 0:
+        v_obj = np.asarray(vector_like_obj)
+        observables = list(v_obj.reshape(max(v_obj.shape)))
+        return list(observables)
+    else:
+        return list([])
+
+
+def _convert_vector_like_to_set(vector_like_obj):
+    if not isinstance(vector_like_obj, (pd.DataFrame, np.ndarray)):
+        return set(vector_like_obj)
+    elif vector_like_obj.size is not 0:
+        v_obj = np.asarray(vector_like_obj)
+        observables = list(v_obj.reshape(max(v_obj.shape)))
+        return set(observables)
+    else:
+        return set([])

@@ -162,8 +162,23 @@ additional ``opt2q_dataframe`` that annotates the simulation results by experime
 .. image:: /auto_examples/images/sphx_glr_plot_simple_dynamics_simulation_001.png
     :class: sphx-glr-single-img
 
-The Opt2Q :class:`~opt2q.simulator.Simulator` only accepts :class:`models <pysb.core.Model>`.
+The Opt2Q :class:`~opt2q.simulator.Simulator` only accepts PySB :class:`models <pysb.core.Model>`.
 
 .. note:: Do not use double underscores in your PySB model parameter names. This interferes with the Opt2Q calibrator.
 
 .. _PySB: http://pysb.org
+
+Modeling Measurement Process
+============================
+
+Set-up the Measurement Model
+----------------------------
+I recommend supplying a :class:`~opt2.data.DataSet` to your measurement model.
+
+.. note::
+
+    Time-points supplied to the measurement model should be in the range of the simulation result's time axis.
+    Avoid extrapolation, which is less accurate than the ODE solver.
+
+The Measurement Process
+-----------------------

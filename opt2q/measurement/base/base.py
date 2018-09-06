@@ -81,7 +81,9 @@ class MeasurementModel(object):
         self._experimental_conditions_df = self._add_default_time_points_to_experimental_conditions(
             self._ec_df_pre, self._default_time_points
         )
-        # Add a time-points setter that does this too.
+
+        # Todo: Add @property and @...setter for simulation_result, dataset!!
+        # Todo: Add @property and @...setter for observables, time_points, experimental_conditions!!
 
     @staticmethod
     def _check_simulation_result(simulation_result_obj):

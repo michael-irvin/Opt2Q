@@ -1,5 +1,5 @@
 # MW Irvin -- Lopez Lab -- 2018-08-31
-from opt2q.measurement.base import Interpolate
+from opt2q.measurement.base import Interpolate, Pipeline
 from opt2q.utils import _is_vector_like
 import numpy as np
 import pandas as pd
@@ -229,3 +229,110 @@ class TestInterpolate(unittest.TestCase):
         interpolate.set_params(**{'interpolation_method_name': 'linear'})
         assert interpolate.interpolation_method_name == 'linear'
 
+
+class TestPipeline(unittest.TestCase):
+    def test_blank_input(self):
+        pl = Pipeline()
+        self.assertListEqual(pl.steps, [])
+        assert pl.__repr__() == 'Pipeline(steps=[])'
+
+    def test_duplicate_inputs(self):
+        with self.assertRaises(ValueError) as error:
+            Pipeline(steps=[('interpolate', Interpolate('iv', 'dv', [0.0])),
+                            ('interpolate', Interpolate('iv', 'dv', [2.0]))
+                            ])
+        self.assertTrue(error.exception.args[0] ==
+                        "Each steps must have a unique name. Duplicate steps are not allowed.")
+
+    def test_not_a_transport_error(self):
+        with self.assertRaises(ValueError) as error:
+            Pipeline(steps=[('interpolate', Interpolate('iv', 'dv', [0.0])),
+                            ('interpolate2', [1, 2, 3])
+                            ])
+        self.assertTrue(error.exception.args[0] ==
+                        "Each step must be a Transform class instance. [1, 2, 3] is not.")
+
+    def test_remove_step(self):
+        process = Pipeline(steps=[('interpolate', Interpolate('iv', 'dv', [1, 2, 3]))])
+        process.remove_step('interpolate')
+        self.assertListEqual(process.steps, [])
+
+    def test_remove_step_by_int(self):
+        i1 = Interpolate('iv', 'dv', [1, 2, 3])
+        i2 = Interpolate('iv', 'dv', [1, 2])
+        i3 = Interpolate('iv', 'dv', [1, 4])
+        process = Pipeline(steps=[('interpolate', i1),
+                                  ('interpolate_2_', i2),
+                                  ('interpolate_3_', i3)])
+        process.remove_step(1)
+        target_steps = [('interpolate', i1), ('interpolate_3_', i3)]
+        self.assertListEqual(process.steps, target_steps)
+
+    def test_add_step_by_default(self):
+        i1 = Interpolate('iv', 'dv', [1, 2, 3])
+        i2 = Interpolate('iv', 'dv', [1, 2])
+        i3 = Interpolate('iv', 'dv', [1, 4])
+        process = Pipeline(steps=[('interpolate', i1),
+                                  ('interpolate_3_', i3)])
+        process.add_step(('interpolate_2_', i2))
+        target_steps = [('interpolate', i1), ('interpolate_3_', i3), ('interpolate_2_', i2)]
+        self.assertListEqual(process.steps, target_steps)
+
+    def test_add_step_by_str_name(self):
+        i1 = Interpolate('iv', 'dv', [1, 2, 3])
+        i2 = Interpolate('iv', 'dv', [1, 2])
+        i3 = Interpolate('iv', 'dv', [1, 4])
+        process = Pipeline(steps=[('interpolate', i1),
+                                  ('interpolate_3_', i3)])
+        process.add_step(('interpolate_2_', i2), 'interpolate')
+        target_steps = [('interpolate', i1), ('interpolate_2_', i2), ('interpolate_3_', i3)]
+        self.assertListEqual(process.steps, target_steps)
+
+    def test_add_step_by_index(self):
+        i1 = Interpolate('iv', 'dv', [1, 2, 3])
+        i2 = Interpolate('iv', 'dv', [1, 2])
+        i3 = Interpolate('iv', 'dv', [1, 4])
+        process = Pipeline(steps=[('interpolate', i1),
+                                  ('interpolate_3_', i3)])
+        process.add_step(('interpolate_2_', i2), 10)
+        target_steps = [('interpolate', i1), ('interpolate_3_', i3), ('interpolate_2_', i2)]
+        self.assertListEqual(process.steps, target_steps)
+
+    def test_add_step_by_index_zero(self):
+        i1 = Interpolate('iv', 'dv', [1, 2, 3])
+        i2 = Interpolate('iv', 'dv', [1, 2])
+        i3 = Interpolate('iv', 'dv', [1, 4])
+        process = Pipeline(steps=[('interpolate', i1),
+                                  ('interpolate_3_', i3)])
+        process.add_step(('interpolate_2_', i2), 0)
+        target_steps = [('interpolate_2_', i2), ('interpolate', i1), ('interpolate_3_', i3)]
+        self.assertListEqual(process.steps, target_steps)
+
+    def test_add_step_example(self):
+        process = Pipeline()
+        process.add_step(('interpolate', Interpolate('iv', 'dv', [0.0])))
+        assert str(process.steps) == \
+            "[('interpolate', Interpolate(independent_variable_name='iv', dependent_variable_name=['dv'], " \
+            "new_values='DataFrame(shape=(1, 1))', options={'interpolation_method_name': 'cubic'}))]"
+
+    def test_get_params(self):
+        process = Pipeline()
+        process.add_step(('interpolate', Interpolate('iv', 'dv', [0.0])))
+        test = process.get_params('pipeline')
+        target = {
+            'pipeline__interpolate__new_values': pd.DataFrame([0.0], columns=['iv']),
+            'pipeline__interpolate__interpolation_method_name': 'cubic'
+        }
+        pd.testing.assert_frame_equal(target.pop('pipeline__interpolate__new_values'),
+                                      test.pop('pipeline__interpolate__new_values'))
+        self.assertDictEqual(test, target)
+
+    def test_transform_method(self):
+        process = Pipeline()
+        process.add_step(('interpolate', Interpolate('iv', 'dv', [0.0])))
+        x = pd.DataFrame([[0.0, 1],
+                          [1.0, 2],
+                          [1.4, 3]], columns=['iv', 'dv'])
+        test = process.transform(x)
+        target = pd.DataFrame([[0.0, 1]], columns=['iv', 'dv'])
+        pd.testing.assert_frame_equal(test, target, check_dtype=False)

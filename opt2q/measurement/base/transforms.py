@@ -35,12 +35,11 @@ class Transform(object):
         """
         Returns a dictionary of parameter names and values for the :class:`~opt2q.measurement.base.Transform`.
 
-        Return parameters in the model.
-
         Parameters
         ----------
         transform_name: str (optional)
-            Name of the process. This is prepended to the parameter-name; e.g. 'process__parameter'.
+            Name of the transform. This is prepended to the parameter-name with a double-underscore separating.
+            E.g. 'transform__parameter'.
         """
         return self._get_params(transform_name=transform_name)
 
@@ -113,15 +112,6 @@ class Transform(object):
             else:
                 self.set_params_fn[k](params[k])
 
-        # for k, v in params.items():
-        #     try:
-        #         if isinstance(v, dict):
-        #             self.set_params_fn[k](**v)
-        #         else:
-        #             self.set_params_fn[k](v)
-        #     except KeyError:
-        #         continue
-
     def _build_params_dict(self, params):
         """
         Builds a nested dict of values for the parameters being changed. Names are presented in reverse order.
@@ -130,9 +120,6 @@ class Transform(object):
         -------
 
         """
-
-        # if not hasattr(self, '_process_params'):
-        #     self._process_params = self.get_params()
         param_dict = {}
         for k, v in params.items():
             names_list = self._parse_param_names(k)
@@ -292,7 +279,7 @@ class Interpolate(Transform):
 
     @interpolation_method_name.setter
     def interpolation_method_name(self, v):
-        self._set_interpolation_method_name(self, v)
+        self._set_interpolation_method_name(v)
 
     def _set_interpolation_method_name(self, v):
         self._interpolation_method_name = v
@@ -347,7 +334,8 @@ class Interpolate(Transform):
         Get the rows of x that have experimental-conditions in common with those present in ``self.new_values``
         """
         try:
-            return pd.merge(x, new_val, on=self._new_val_extra_cols, suffixes=('', '_y'))[x.columns].drop_duplicates().reset_index(drop=True)
+            return pd.merge(x, new_val, on=self._new_val_extra_cols, suffixes=('', '_y'))[x.columns]\
+                .drop_duplicates().reset_index(drop=True)
         except KeyError as error:
             raise KeyError("'new_values' contains columns not present in x: " + _list_the_errors(error.args))
 
@@ -365,7 +353,8 @@ class Interpolate(Transform):
             # rows of new_x present in group's extra columns
             new_x_for_this_group = self._get_new_values_per_group(group, x_extra_cols)
             group_interpolation_result = self._interpolate_values_w_repeats(group, new_x_for_this_group, x_extra_cols)
-            interpolation_result = pd.concat([interpolation_result, group_interpolation_result], ignore_index=True, sort=False)
+            interpolation_result = pd.concat([interpolation_result, group_interpolation_result],
+                                             ignore_index=True, sort=False)
         return interpolation_result
 
     def _get_new_x_for_each_group(self, group, x_extra_cols):
@@ -409,5 +398,169 @@ class Interpolate(Transform):
         return new_x
 
 
-class Pipeline(object):
-    pass
+class Pipeline(Transform):
+    """
+    Runs a series of transformation steps on an Opt2Q :class:`~pysb.simulator.SimulationResult`'s ``opt2q_dataframe``.
+
+    The transformation steps are :class:`~opt2q.measurement.base.transforms.Transform` class instances.
+
+    This class serves as the process attribute of various measurement models.
+
+    Parameters
+    ----------
+    steps: list (optional)
+        Lists the Pipeline's steps. It is a list of tuples: ('name', 'transform'); where 'name' is the name (str) of the
+        step, and 'transform' is a :class:`~opt2q.measurement.base.transforms.Transform`.
+
+    .. note::
+        Do not name your steps (int)! The :meth:`~opt2q.measurement.base.transforms.Pipeline.remove_step` method will
+        treat ints as indices and not names of the steps.
+
+    """
+    def __init__(self, steps=None):
+        super(Pipeline).__init__()
+
+        self.steps = self._check_steps(steps)
+
+    @staticmethod
+    def _check_steps(_steps):
+        if _steps is None:
+            return []
+        names = [x[0] for x in _steps]
+        if len(names) != len(set(names)):
+            raise ValueError('Each steps must have a unique name. Duplicate steps are not allowed.')
+
+        for name, transformation in _steps:
+            if isinstance(transformation, Transform):
+                pass
+            else:
+                raise ValueError('Each step must be a Transform class instance. {} is not.'.format(transformation))
+        return _steps
+
+    # for repr and get params
+    @property
+    def _signature_params(self):
+        return (), {'steps': self.steps}
+
+    @property
+    def _get_params_dict(self):
+        return dict()
+
+    # manage steps
+    def remove_step(self, index):
+        """
+        Removes a step from the pipeline of process steps
+
+        Parameters
+        ----------
+        index: int or str
+            As an int, it is the index of the step being removed. As str, it names the removed step.
+
+        Example
+        -------
+        >>> from opt2q.measurement.base import Pipeline, Interpolate,
+        >>> process = Pipeline(steps=[('interpolate', Interpolate('iv', 'dv', [1, 2, 3]))])
+        >>> process.remove_step('interpolate')
+        >>> print(process.steps)
+        []
+        """
+        if isinstance(index, int):
+            del self.steps[index]
+        if isinstance(index, str):
+            index = [x for x, y in enumerate(self.steps) if y[0] == index][0]
+            del self.steps[index]
+
+    def add_step(self, step, index=None):
+        """
+        Adds a step to the process :class:`~opt2q.measurement.base.transforms.Pipeline`.
+
+        Parameters
+        ----------
+        step: tuple
+            The name (str) and :class:`~opt2q.measurement.base.transforms.Transform` class being added.
+
+        index: int or str (optional)
+            As an int, it is the index of the new step. As str, it names the the step the new step will be inserted
+            *after*. Defaults to the last index in the list of process steps.
+
+        Example
+        -------
+        >>> from opt2q.measurement.base import Pipeline, Interpolate
+        >>> process = Pipeline()
+        >>> process.add_step(('interpolate', Interpolate('iv', 'dv', [0.0])))
+        >>> print(process.steps)
+        [('interpolate', Interpolate(independent_variable_name='iv', dependent_variable_name=['dv'], new_values='DataFrame(shape=(1, 1))', options={'interpolation_method_name': 'cubic'}))]
+        """
+        # if a step with that name is already in there replace it.
+        names = [x[0] for x in self.steps]
+        if step[0] in names:
+            self.remove_step(step[0])
+
+        step_ = self._check_steps([step])[0]
+        if index is None:
+            index = len(self.steps)
+        if isinstance(index, int):
+            self.steps.insert(index, step_)
+            return
+        if isinstance(index, str):
+            # insert after named process step
+            idx = [x for x, y in enumerate(self.steps) if y[0] == index][0]+1
+            self.steps.insert(idx, step_)
+            return
+
+    def get_params(self, transform_name=None):
+        """
+        Returns a dictionary of parameter names and values for the :class:`~opt2q.measurement.base.Pipeline`.
+
+        The name of each step is prepended to the parameter name with a double-underscore separating.
+        E.g 'step_name__parameter
+
+        Parameters
+        ----------
+        transform_name: str (optional)
+            Name of the transform. This is prepended to the parameter-name with a double-underscore separating.
+            E.g. 'transform__parameter', or 'transform__step_name__parameter'
+
+        Examples
+        --------
+        >>> #example pending
+
+        """
+        if transform_name is not None:
+            return self._get_pipeline_params_transform_name(transform_name)
+
+        params = dict()
+        for name, transformation in self.steps:
+            params.update(transformation.get_params(name))
+        return params
+
+    def _get_pipeline_params_transform_name(self, transform_name):
+        params = dict()
+        for name, transformation in self.steps:
+            params.update(transformation.get_params('{}__{}'.format(transform_name, name)))
+        return params
+
+    def transform(self, x):
+        """
+        Runs a series of transformations on the ``opt2q_dataframe`` or ``dataframe`` found in the
+        :class:`~pysb.simulator.SimulationResult` passed to the :class:`~opt2q.measurement.base.MeasurementModel` model.
+
+        .. note:: Each transformation must have a 'transform' method.
+
+        Parameters
+        ----------
+        x: :class:`~pandas.DataFrame`
+            Ideally an ``opt2q_dataframe`` from a :class:`~pysb.simulator.SimulationResult` , but any DataFrame will '
+            suffice. The specific requirements of ``x`` depend on the individual
+            :class:`~opt2q.measurement.base.transforms.Pipeline` steps.
+
+        Returns
+        -------
+        :class:`~pandas.DataFrame`
+            Results of the series of transformations in the pipeline.
+        """
+        xt = x
+        for name, transformation in self.steps:
+            xt = transformation.transform(xt)
+            # Note: All transformations must have a run method. If they are sub-class of process, they will.
+        return xt

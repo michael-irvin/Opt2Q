@@ -3,7 +3,7 @@
 Suite of Measurement Models
 """
 from opt2q.measurement.base.base import MeasurementModel
-from opt2q.measurement.base.transforms import Interpolate
+from opt2q.measurement.base.transforms import Interpolate, Pipeline
 
 
 class WesternBlot(MeasurementModel):
@@ -53,29 +53,37 @@ class WesternBlot(MeasurementModel):
         You can add a 'time' column to specify time-points that are specific to the individual experimental conditions.
         NaNs in this column will be replace by the ``time_points`` values or the time-points mentioned in the
         :class:`~pysb.simulator.SimulationResult`
+
+    time_dependent: bool, optional
+        If False, the time-axis is eliminated by averaging and/or other operations so that the simulated measurement is
+        independent of time. If True a measurement is reported for every time-point in the series. Defaults to True.
+
+    Attributes
+    ----------
+    process: :class:`~opt2q.measurement.base.transforms.Transform`
+        Series of transformations that model the measurement process.
+
     """
-    def __init__(self, simulation_result, dataset=None, observables=None, time_points=None, experimental_conditions=None):
+    def __init__(self, simulation_result, dataset=None, observables=None, time_points=None,
+                 experimental_conditions=None, time_dependent=True):
         super(WesternBlot).__init__(simulation_result,
                                     dataset=dataset,
                                     observables=observables,
                                     time_points=time_points,
                                     experimental_conditions=experimental_conditions)
-        # Is there a time-axis for the measurement?
-        #   If yes, the values of the observables at each or the time-points mentioned in the experimental conditions
-        #   will be individually used as features of the ordinal regression step.
+        self.process = Pipeline()
 
-        #   If no, then a dimension reduction or feature-extraction pre-processing step is required.
-        self.time_axis_dimension_reduction = "We need a function to do this!"
+    def run(self):
+        return self.process.run()
 
-        # The western-blot will have observables and each observable is processed individually.
-        for obs in observables:
-            "Do ordinal-logistic reguression. {}".format(obs)
-            pass
-
-        # Other pre-processing:
-        #   Put this in the pipeline:
-        #       Log-standardize
-
-        # The measurement Process has to have a way to manipulate parameters etc from the outside. Set the process to
-        #  be a pipeline of transformations.
-        interpolate = Interpolate('independent_variable_name', 'dependent_variable_name', 'new_values')
+        # time-dependent WB
+        #   False by default
+        #   Trim dataframe to include just the observables in ``observables``
+        #   For each observable, do logistic regression on the values
+        #       one-feature per observable
+        #       how-many classes? As many as are in the dataset for that observable
+        #           get n_classes per dataset_observable
+        #           otherwise - default to min(4, len(data)) classes
+        #           (I did a calculation showing the effective resolution to be 6 categories)
+        #   Same calculation; i.e same observables, same coefficients (i.e. number of classes) for
+        #   ALL time-points and experimental conditions.

@@ -1,6 +1,7 @@
 # MW Irvin -- Lopez Lab -- 2018-08-24
 import pandas as pd
 import numpy as np
+import inspect
 from scipy.interpolate import interp1d
 from opt2q.utils import *
 
@@ -16,29 +17,142 @@ class Transform(object):
 
     This class can also depend on free-parameters.
     """
+    set_params_fn = dict()
+
     def __init__(self):
         pass
 
-    def _get_params(self, free_params_only=True):
+    # clearer __repr__
+    def __repr__(self):
+        sig = inspect.signature(self.__init__)
+        sig_args, sig_kw = getattr(self, '_signature_params', ((), dict()))
+        sig_str = sig.bind_partial(*sig_args, **sig_kw).__repr__().split('BoundArguments ')[1][:-1]
+        name_str = self.__class__.__name__
+        return '{}{}'.format(name_str, sig_str)
+
+    # get params
+    def get_params(self, transform_name=None):
         """
+        Returns a dictionary of parameter names and values for the :class:`~opt2q.measurement.base.Transform`.
+
         Return parameters in the model.
 
         Parameters
         ----------
-        free_params_only: bool
-            When True, only returns parameters that have a numeric value or set of numeric values. This is useful to the
-        calibrator.
+        transform_name: str (optional)
+            Name of the process. This is prepended to the parameter-name; e.g. 'process__parameter'.
         """
-        pass
+        return self._get_params(transform_name=transform_name)
 
-    def _set_params(self, **kwargs):
+    def _get_params(self, transform_name=None):
+        if transform_name is not None:
+            return self._get_params_named_process(transform_name)
+
+        _params = self._get_params_custom_params(dict())
+
+        for (k, v) in self.__dict__.items():
+            if k[0] == '_' or k == 'set_params_fn':  # ignore private attrs
+                pass
+            else:
+                self._get_params_update_params_dict(_params, k, v)
+        return _params
+
+    def _get_params_custom_params(self, _params):
+        for (k, v) in getattr(self, '_get_params_dict', dict()).items():
+            self._get_params_update_params_dict(_params, k, v)
+        return _params
+
+    def _get_params_update_params_dict(self, _params, k, v):
+        if isinstance(v, dict):
+            self._get_params_next_layer(k, v, _params)
+        else:
+            _params.update({k: v})
+
+    def _get_params_named_process(self, name):
+        _params = dict()
+
+        specific_params_dict = getattr(self, '_get_params_dict', dict())
+        for (k, v) in specific_params_dict.items():
+            self._get_params_update_params_dict(_params, '{}__{}'.format(name, k), v)
+
+        for (k, v) in self.__dict__.items():
+            if k[0] == '_' or k == 'set_params_fn':
+                pass
+            else:
+                self._get_params_update_params_dict(_params, '{}__{}'.format(name, k), v)
+        return _params
+
+    def _get_params_next_layer(self, layer_name, layer_val, params):
+        for (k, v) in layer_val.items():
+            if isinstance(v, dict):
+                self._get_params_next_layer('{}__{}'.format(layer_name, k), v, params)
+            else:
+                params.update({'{}__{}'.format(layer_name, k): v})
+
+    # set params
+    def set_params(self, **params):
         """
-        Sets parameter values of the measurement process.
+        Sets parameters of a :class:`~opt2q.measurement.base.transform.Transform` class.
+
+        Only parameters mentioned in the class's :attr:`~opt2q.measurement.base.transform.Transform.set_params_fn` can
+        be updated by this method. All others are ignored.
+
+        Parameters
+        ----------
+        params: dict
+            parameter names and values
         """
-        # These should be in Pipeline and Transform classes. The user accesses the measurement model directly, and can
-        # those parameters by name. The Pipeline and Transform classes create a set of parameters that are harder to
-        # anticipate. This makes it easier.
-        pass
+        params_dict = self._build_params_dict(params)
+        self._set_params(**params_dict)
+
+    def _set_params(self, **params):
+        params_present = set(params.keys()).intersection(self.set_params_fn.keys())
+        for k in params_present:
+            if isinstance(params[k], dict):
+                self.set_params_fn[k](**params[k])
+            else:
+                self.set_params_fn[k](params[k])
+
+        # for k, v in params.items():
+        #     try:
+        #         if isinstance(v, dict):
+        #             self.set_params_fn[k](**v)
+        #         else:
+        #             self.set_params_fn[k](v)
+        #     except KeyError:
+        #         continue
+
+    def _build_params_dict(self, params):
+        """
+        Builds a nested dict of values for the parameters being changed. Names are presented in reverse order.
+
+        Example
+        -------
+
+        """
+
+        # if not hasattr(self, '_process_params'):
+        #     self._process_params = self.get_params()
+        param_dict = {}
+        for k, v in params.items():
+            names_list = self._parse_param_names(k)
+            current_level = param_dict
+            for name in names_list[:-1]:
+                if name not in current_level:
+                    current_level[name] = {}
+                current_level = current_level[name]
+            current_level[names_list[-1]] = v
+        return param_dict
+
+    @staticmethod
+    def _parse_param_names(name):
+        """
+        Converts the param names in the dict passed to set_params (e.g. ``'A__b___adaba_do'``) to a list of the names of
+        the referenced parameters (e.g. ``['A', 'b', 'adaba_do']``). Names are separated by double underscores.
+
+        .. note:: Parameters cannot have underscore prefixes prefixes are not
+        """
+        return [k_rvs[::-1] for k_rvs in name[::-1].split('__')][::-1]
 
 
 class Interpolate(Transform):
@@ -75,13 +189,20 @@ class Interpolate(Transform):
     options: dict
          Dictionary of keyword arguments:
 
-        ``interpolation_method`` (str): interpolation method that gets passed to the `SciPy`
+        ``interpolation_method_name`` (str): interpolation method that gets passed to the `SciPy`
         :class:`~scipy.interpolate.interp1d` class. Defaults to 'cubic'.
 
     .. note::
         The columns mentioned in ``independent_variable_name``, ``dependent_variable_name`` and ``new_values`` and
         ``groupby``
+
+    Attributes
+    ----------
+    set_params_fn: dict
+        Dictionary of methods that handle updates of certain parameters. Only parameter mentioned here can be
+        updated dynamically using the :meth:`~opt2q.measurement.base.transforms.Transform` method.
     """
+
     def __init__(self, independent_variable_name, dependent_variable_name, new_values, groupby=None, **options):
         super(Interpolate).__init__()
 
@@ -91,19 +212,21 @@ class Interpolate(Transform):
                                                                                         dependent_variable_name)
 
         self._new_values, self._new_val_extra_cols = self._check_new_values(new_values, independent_variable_name)
-        self.new_val_has_extra_cols = len(self._new_val_extra_cols) > 0
+        self._new_val_has_extra_cols = len(self._new_val_extra_cols) > 0
 
         # How to carryout the interpolation
         self._group_by = self._check_group_by(groupby, self._iv_and_dv_names_set)
         self._interpolate = [self._interpolation_in_groups,
                              self._interpolation_not_in_groups][self._group_by is None]
         self._get_new_values_per_group = [self._use_same_new_x_for_each_group,
-                                          self._get_new_x_for_each_group][self.new_val_has_extra_cols]
+                                          self._get_new_x_for_each_group][self._new_val_has_extra_cols]
         self._transform = [self._transform_new_values_simple,
-                           self._transform_new_values_extra_cols][self.new_val_has_extra_cols]
+                           self._transform_new_values_extra_cols][self._new_val_has_extra_cols]
 
-        # convert str to list of len 1. "hello" --> ["hello"] for group-by and dep-var (?)
-        self._interpolation_method_name = options.get('interpolation_method', 'cubic')
+        self._interpolation_method_name = options.get('interpolation_method_name', 'cubic')
+
+        self.set_params_fn = {'new_values': self._set_new_values,
+                              'interpolation_method_name': self._set_interpolation_method_name}
 
     # set up
     @staticmethod
@@ -149,7 +272,10 @@ class Interpolate(Transform):
         return self._new_values
 
     @new_values.setter
-    def new_values(self, val):
+    def new_values(self, v):
+        self._set_new_values(v)
+
+    def _set_new_values(self, val):
         new_val, _extra_cols = self._check_new_values(val, self._independent_variable_name)
         has_extra_cols = len(_extra_cols) > 0
         self._transform = [self._transform_new_values_simple,
@@ -158,7 +284,32 @@ class Interpolate(Transform):
                                           self._get_new_x_for_each_group][has_extra_cols]
         self._new_values = new_val
         self._new_val_extra_cols = _extra_cols
-        self.new_val_has_extra_cols = has_extra_cols
+        self._new_val_has_extra_cols = has_extra_cols
+
+    @property
+    def interpolation_method_name(self):
+        return self._interpolation_method_name
+
+    @interpolation_method_name.setter
+    def interpolation_method_name(self, v):
+        self._set_interpolation_method_name(self, v)
+
+    def _set_interpolation_method_name(self, v):
+        self._interpolation_method_name = v
+
+    @property
+    def _signature_params(self):
+        return (self._independent_variable_name,
+                self._dependent_variable_name,
+                'DataFrame(shape={})'.format(self.new_values.shape)), \
+               {'interpolation_method_name': 'cubic'}
+
+    @property
+    def _get_params_dict(self):
+        return {
+            'new_values':  self.new_values,
+            'interpolation_method_name': self.interpolation_method_name
+        }
 
     # transform
     def transform(self, x):

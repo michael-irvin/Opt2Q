@@ -212,4 +212,20 @@ class TestInterpolate(unittest.TestCase):
                                [3, 'KO', 1.5, 1.5]], columns=['sim', 'ec', 'iv', 'dv'])
         pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
 
+    def test_interpolation_get_params(self):
+        interpolate = Interpolate('iv', 'dv', [0.0], interpolation_method_name='cubic')
+        new_x = pd.DataFrame([['WT', 0.5], ['KO', 1.5]], columns=['ec', 'iv'])
+        interpolate.new_values = new_x
+        target = {'named_transform__new_values': new_x,
+                  'named_transform__interpolation_method_name': 'cubic'}
+        test = interpolate.get_params('named_transform')
+        pd.testing.assert_frame_equal(target.pop('named_transform__new_values'),
+                                      test.pop('named_transform__new_values'))
+        self.assertDictEqual(test, target)
+        assert interpolate.__repr__() == "Interpolate(independent_variable_name='iv', " \
+                                         "dependent_variable_name=['dv'], " \
+                                         "new_values='DataFrame(shape=(2, 2))', " \
+                                         "options={'interpolation_method_name': 'cubic'})"
+        interpolate.set_params(**{'interpolation_method_name': 'linear'})
+        assert interpolate.interpolation_method_name == 'linear'
 

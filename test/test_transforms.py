@@ -336,7 +336,3 @@ class TestPipeline(unittest.TestCase):
         test = process.transform(x)
         target = pd.DataFrame([[0.0, 1]], columns=['iv', 'dv'])
         pd.testing.assert_frame_equal(test, target, check_dtype=False)
-
-    def test_scipy(self):
-        import scipy
-        print(scipy.__version__)

@@ -3,22 +3,28 @@
 Suite of Measurement Models
 """
 from opt2q.measurement.base.base import MeasurementModel
-from opt2q.measurement.base.transforms import Interpolate, Pipeline
+from opt2q.measurement.base.transforms import Interpolate, Pipeline, Scale, Standardize
 
 
 class WesternBlot(MeasurementModel):
     """
-    Simulates a Western Blot Measurement
+    Simulates a Western Blot Measurement.
 
     Conducts a series of transformations on the :class:`~pysb.simulator.SimulationResult` to represent attributes of the
-    Western Blot Measurement.
+    Western Blot Measurement:
+
+        1. log-scaling models the linear change in blot pixels with multiplicative changes in concentration.
+        2. logistic regression converts result to ordinal type (modeling technical noise which obscures intervals).
+
+    todo: add citation for western blot considerations.
 
     Parameters
     ----------
     simulation_result: :class:`~pysb.simulator.SimulationResult`
         Results of a `PySB` Model simulation. Produced by the run methods in the `PySB`
         (:meth:`~pysb.simulator.ScipyOdeSimulator.run`) and `Opt2Q` (:meth:`~opt2q.simulator.Simulator.run`)
-        simulators.
+        simulators. Since the Western Blot measurement makes use of a classifier, this simulation result should have a
+        large number of simulations.
 
     dataset: :class:`~opt2q.data.DataSet`, optional
         Measured values and associated attributes, e.g. 'observables', 'experimental_conditions', that dictate what
@@ -38,8 +44,8 @@ class WesternBlot(MeasurementModel):
         Lists the names (str) of the PySB PySB :class:`pysb.core.Model` observables and/or species involved in the
         measurement.
 
-        These observables apply to all the experimental conditions involved in the measurement. Observables not mentioned
-        in the ``simulation_result`` and/or ``dataset`` (if supplied) are ignored.
+        These observables apply to all the experimental conditions involved in the measurement. Observables not
+        mentioned in the ``simulation_result`` and/or ``dataset`` (if supplied) are ignored.
 
     time_points: vector-like, optional
         Lists the time-points involved in the measurement. Defaults to the time points in the
@@ -63,18 +69,62 @@ class WesternBlot(MeasurementModel):
     process: :class:`~opt2q.measurement.base.transforms.Transform`
         Series of transformations that model the measurement process.
 
+    dataset_process: :class:`~opt2q.measurement.base.transforms.Transform`
+        Series of transformations that model the measurement process and returns results that can be compared to
+        observations described in the :class:`~opt2q.data.DataSet`
+
     """
     def __init__(self, simulation_result, dataset=None, observables=None, time_points=None,
                  experimental_conditions=None, time_dependent=True):
-        super(WesternBlot).__init__(simulation_result,
-                                    dataset=dataset,
-                                    observables=observables,
-                                    time_points=time_points,
-                                    experimental_conditions=experimental_conditions)
-        self.process = Pipeline()
+        super().__init__(simulation_result,
+                         dataset=dataset,
+                         observables=observables,
+                         time_points=time_points,
+                         experimental_conditions=experimental_conditions)
 
-    def run(self):
-        return self.process.run()
+        self.process = Pipeline(
+            steps=[('interpolate',
+                    Interpolate('time',
+                                list(self.observables),
+                                self.experimental_conditions_df,
+                                groupby='simulation')),
+                   ('log_scale',
+                    Scale(columns=list(self.observables),
+                          scale_fn='log10')),
+                   ('standardize',
+                    Standardize(columns=list(self.observables), groupby=None))])
+
+        if dataset is not None:
+            self.dataset_process = Pipeline(
+                steps=[('interpolate',
+                        Interpolate('time',
+                                    list(self._dataset_observables),
+                                    self._dataset_experimental_conditions_df,
+                                    groupby='simulation')),
+                       ('log_scale',
+                        Scale(columns=list(self._dataset_observables),
+                              scale_fn='log10')),
+                       ('standardize',
+                        Standardize(columns=list(self._dataset_observables), groupby=None))])
+        else:
+            self.dataset_process = None
+
+    def update_simulation_result(self, sim_res):
+        self._update_simulation_result(sim_res)
+        self.process.set_params(**{'interpolate__new_values': self.experimental_conditions_df})
+        if self.dataset_process is not None:
+            self.dataset_process.set_params(**{'interpolate__new_values': self._dataset_experimental_conditions_df})
+
+    def run(self, use_dataset=True):
+        if use_dataset and self._dataset is not None:
+            cols = list(set(self._dataset_experimental_conditions_df.columns) | self._dataset_observables |
+                        {'simulation'})
+            x = self._opt2q_df[cols]
+            return self.dataset_process.transform(x)
+        else:
+            cols = list(set(self.experimental_conditions_df.columns) | self.observables | {'simulation'})
+            x = self._opt2q_df[cols]
+            return self.process.transform(x)
 
         # time-dependent WB
         #   False by default

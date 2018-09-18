@@ -182,3 +182,13 @@ I recommend supplying a :class:`~opt2.data.DataSet` to your measurement model.
 
 The Measurement Process
 -----------------------
+
+The :class:`~opt2q.measurement.base.transforms.LogisticClassifier` requires a :class:`~opt2q.data.DataSet` that possesses
+named columns of empirical data.
+
+>>> # dataset example illustrating the data columns
+
+If use the `Logistic Classifier`'s ``column_groups`` argument to resolve discrepancies between the names listed in the dataset
+and the simulation result:
+
+>>> column_groups = {'column_as_named_in_dataset': ['corresponding column(s) in x']}

@@ -4,6 +4,7 @@ from pysb.bng import generate_equations
 from pysb.testing import *
 from opt2q.simulator import Simulator
 from opt2q.measurement.base import MeasurementModel
+from opt2q.measurement import WesternBlot
 from opt2q.data import DataSet
 import numpy as np
 import pandas as pd
@@ -55,6 +56,10 @@ class TestSolverModel(object):
                                        initials=pd.DataFrame({self.model.species[1]: [100, 0, 0],
                                                               'condition': ['WT', 'KO', 'DKO'],
                                                               'experiment': [1, 1, 2]}))
+        self.sim_result_2 = self.sim.run(tspan=np.linspace(0, 8, 3),
+                                         initials=pd.DataFrame({self.model.species[1]: [100, 0, 0],
+                                                                'condition': ['WT', 'KO', 'DKO'],
+                                                                'experiment': [1, 1, 2]}))
 
     def tearDown(self):
         self.model=None
@@ -89,7 +94,6 @@ class TestMeasurementModel(TestSolverModel, unittest.TestCase):
         with self.assertRaises(ValueError) as error:
             mm = MeasurementModel(self.sim_result)
             mm._check_dataset('ds')
-        print(error.exception.args[0])
         self.assertTrue(error.exception.args[0] == "'dataset' must be an Opt2Q DataSet.")
 
     def test_get_obs_from_dataset(self):
@@ -103,6 +107,7 @@ class TestMeasurementModel(TestSolverModel, unittest.TestCase):
             assert str(w[-1].message) == 'The supplied dataset has observables not present in the simulation result. ' \
                                          'They will be ignored.'
         target = {'AB_complex'}
+        self.assertSetEqual(mm._get_required_observables({'A', 'B'}, None), {'A', 'B'})
         self.assertSetEqual(test, target)
 
     def test_check_observables(self):
@@ -136,6 +141,7 @@ class TestMeasurementModel(TestSolverModel, unittest.TestCase):
         test = (mm._dataset_observables, mm._observables)
         for i, xi in enumerate(target):
             self.assertSetEqual(xi, test[i])
+        self.assertSetEqual(mm._required_observables, {'A_free', 'AB_complex'})
 
     def test_get_default_time_points_user_spec(self):
         mm = MeasurementModel(self.sim_result)
@@ -419,4 +425,77 @@ class TestMeasurementModel(TestSolverModel, unittest.TestCase):
         pd.testing.assert_frame_equal(test1, target1)
         self.assertSetEqual(test2, target2)
 
+    def test_update_simulation_result(self):
+        mm = MeasurementModel(self.sim_result,
+                              experimental_conditions=pd.DataFrame([['WT', np.NaN],
+                                                                    ['KO', 3.50]],
+                                                                   columns=['condition', 'time']))
+        mm.update_simulation_result(self.sim_result_2)
+        test = mm._experimental_conditions_df
+        target = pd.DataFrame([['KO', 3.50, 1],
+                               ['WT', 0.00, 1],
+                               ['WT', 4.00, 1],
+                               ['WT', 8.00, 1]],
+                              columns=['condition', 'time', 'experiment'])
+        pd.testing.assert_frame_equal(test[['condition', 'time', 'experiment']],
+                                      target[['condition', 'time', 'experiment']])
+
+    def test_update_sim_res_df(self):
+        ds = DataSet()
+        ds.observables = ['AB_complex', 'A_free']
+        ds.experimental_conditions = pd.DataFrame([['WT', 1, 0.0],
+                                                   ['KO', 1, 0.0],
+                                                   ['DKO', 2, 0.0]],
+                                                  columns=['condition', 'experiment', 'time'])
+
+        mm = MeasurementModel(self.sim_result, dataset=ds, observables=['A_free', 'AB_complex'])
+        with self.assertRaises(ValueError) as error:
+            mm._update_sim_res_df(pd.DataFrame(columns=['A', 'B']))
+        print(error.exception.args[0])
+        self.assertTrue(error.exception.args[0] ==
+                        "This simulation result is missing the following required observables: "
+                        "'A_free', and 'AB_complex'" or
+                        error.exception.args[0] ==
+                        "This simulation result is missing the following required observables: "
+                        "'AB_complex', and 'A_free'"
+                        )
+
+    def test_simulation_result_df_setter(self):
+        mm = MeasurementModel(self.sim_result,
+                              experimental_conditions=pd.DataFrame([['WT', np.NaN],
+                                                                    ['KO', 3.50]],
+                                                                   columns=['condition', 'time']))
+        mm.simulation_result_df = self.sim_result_2.opt2q_dataframe
+        test = mm._experimental_conditions_df
+        target = pd.DataFrame([['KO', 3.50, 1],
+                               ['WT', 0.00, 1],
+                               ['WT', 4.00, 1],
+                               ['WT', 8.00, 1]],
+                              columns=['condition', 'time', 'experiment'])
+        pd.testing.assert_frame_equal(test[['condition', 'time', 'experiment']],
+                                      target[['condition', 'time', 'experiment']])
+
+
+class TestWesternBlotModel(TestSolverModel, unittest.TestCase):
+    def test_interpolate_step_updates_with_updated_simulation_result(self):
+        wb = WesternBlot(self.sim_result,
+                         experimental_conditions=pd.DataFrame([['WT', np.NaN],
+                                                               ['KO', 3.50]],
+                                                              columns=['condition', 'time']))
+        wb.update_simulation_result(self.sim_result_2)
+        target = pd.DataFrame([['KO', 3.50, 1],
+                               ['WT', 0.00, 1],
+                               ['WT', 4.00, 1],
+                               ['WT', 8.00, 1]],
+                              columns=['condition', 'time', 'experiment'])
+        test = wb.process.get_params()['interpolate__new_values']
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
+
+    def test_interpolate_steps(self):
+        wb = WesternBlot(self.sim_result,
+                         observables=['B_free', 'AB_complex'],
+                         experimental_conditions=pd.DataFrame([['WT', np.NaN],
+                                                               ['KO', 3.50]],
+                                                              columns=['condition', 'time']))
+        print(wb.process.get_params())
 

@@ -1,6 +1,8 @@
 # MW Irvin -- Lopez Lab -- 2018-08-31
-from opt2q.measurement.base import Interpolate, Pipeline
+from opt2q.measurement.base import Interpolate, Pipeline, Scale, Standardize, LogisticClassifier
+from opt2q.measurement.base.functions import log_scale, TransformFunction
 from opt2q.utils import _is_vector_like
+from opt2q.data import DataSet
 import numpy as np
 import pandas as pd
 import unittest
@@ -329,10 +331,636 @@ class TestPipeline(unittest.TestCase):
 
     def test_transform_method(self):
         process = Pipeline()
-        process.add_step(('interpolate', Interpolate('iv', 'dv', [0.0])))
+        process.add_step(('interpolate', Interpolate('iv', 'dv', np.array([0.0]))))
         x = pd.DataFrame([[0.0, 1],
                           [1.0, 2],
                           [1.4, 3]], columns=['iv', 'dv'])
         test = process.transform(x)
         target = pd.DataFrame([[0.0, 1]], columns=['iv', 'dv'])
         pd.testing.assert_frame_equal(test, target, check_dtype=False)
+
+    def test_set_params_missing_key(self):
+        process = Pipeline()
+        process.add_step(('interpolate', Interpolate('iv', 'dv', np.array([0.0]))))
+        with warnings.catch_warnings(record=True) as w:
+            process.set_params(**{'nonexistent_step__param': 42})
+            warnings.simplefilter("always")
+            print(str(w[-1].message) )
+            assert str(w[-1].message) == "The process does not have the following step(s): 'nonexistent_step'"
+
+
+class TestScale(unittest.TestCase):
+    @staticmethod
+    def f(x, a=2):
+        return x ** a
+
+    def test_check_columns_None(self):
+        s = Scale()
+        assert s._columns is None
+
+    def test_check_columns_str(self):
+        # what is column is not in x? (The scaling ignores it).
+        s = Scale(columns='a', scale_fn=self.f)
+        self.assertSetEqual({'a'}, s._columns_set)
+        test = s.transform(pd.DataFrame([1, 2, 3], columns=['b']))
+        target = pd.DataFrame([1, 2, 3], columns=['b'])
+        pd.testing.assert_frame_equal(test, target)
+        test = s.transform(pd.DataFrame([1, 2, 3], columns=['a']))
+        target = pd.DataFrame([1, 4, 9], columns=['a'])
+        pd.testing.assert_frame_equal(test, target)
+
+    def test_check_columns_list(self):
+        s = Scale(columns=['a', 'c'])
+        s.set_params(**{'scale_fn': self.f, 'scale_fn_kwargs': {'a': 2}})
+        test = s.transform(pd.DataFrame([[1, 2, 'a'], [2, 2, 'b'], [3, 2, 'c']], columns=['a', 'b', 'c']))
+        target = pd.DataFrame([[1, 2, 'a'], [4, 2, 'b'], [9, 2, 'c']], columns=['a', 'b', 'c'])
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns], check_dtype=False)
+
+    def test_check_scale_fn_str_in_scale_functions(self):
+        s = Scale()
+        test1, test2 = s._check_scale_fn('log2')
+        assert s.scale_functions['log2'][0] == test1
+        self.assertDictEqual({'base':2}, test2)
+
+    def test_check_scale_fn_str_not_in_scale_functions(self):
+        with self.assertRaises(ValueError) as error:
+            Scale(scale_fn='non_existent_fn')
+        self.assertTrue(error.exception.args[0] ==
+                        "'scale_fn' must be in 'scale_functions'. 'non_existent_fn' is not.")
+
+    def test_check_scale_fn_transform_function(self):
+        s = Scale()
+        target1 = log_scale
+        test1, test2 = s._check_scale_fn(target1)
+        assert target1 == test1
+        self.assertDictEqual(dict(), test2)
+
+    def test_check_scale_fn_regular_function(self):
+        s = Scale()
+        test1, test2 = s._check_scale_fn(self.f)
+        target1 = 'f(x, a=2)'
+        assert test1.__repr__() == target1  # True if the conversion to TransformFunction works
+        self.assertDictEqual(dict(), test2)
+
+    def test_scale_fn_kwargs(self):
+        s = Scale(scale_fn=self.f, a=3)
+        assert s.scale_fn.__repr__() == 'f(x, a=3)'
+        assert s.get_params()['scale_fn_kwargs__a'] == 3
+        assert s.get_params()['scale_fn'].__repr__() == 'f(x, a=3)'
+
+    def test_set_params(self):
+        s = Scale()
+        s.set_params(**{'scale_fn': self.f, 'scale_fn_kwargs': {'a': 1}})
+        assert s.get_params()['scale_fn'].__repr__() == 'f(x, a=1)'
+
+    def test_transform(self):
+        s = Scale()
+        s.set_params(**{'scale_fn': self.f, 'scale_fn_kwargs': {'a': 2}})
+        test = s.transform(pd.DataFrame([1, 2, 3]))
+        target = pd.DataFrame([1, 4, 9])
+        pd.testing.assert_frame_equal(test, target, check_dtype=False)
+
+    def test_transform_non_numeric_cols(self):
+        s = Scale()
+        s.set_params(**{'scale_fn': self.f, 'scale_fn_kwargs': {'a': 2}})
+        test = s.transform(pd.DataFrame([[1, 'a'], [2, 'b'], [3, 'c']]))
+        target = pd.DataFrame([[1, 'a'], [4, 'b'], [9, 'c']])
+        pd.testing.assert_frame_equal(test, target, check_dtype=False)
+
+
+class TestStandardize(unittest.TestCase):
+    def test_defaults(self):
+        st = Standardize()
+        assert st._columns is None
+        self.assertSetEqual(st._columns_set, set([]))
+        assert st._transform_get_scale_fn == st._scale_fn_w_fit
+
+    def test_columns_str(self):
+        st = Standardize(columns='col')
+        self.assertListEqual(['col'], st._columns)
+        self.assertSetEqual({'col'}, st._columns_set)
+
+    def test_columns_list(self):
+        st = Standardize(columns=['col1', 'col2'])
+        self.assertListEqual(['col1', 'col2'], st._columns)
+        self.assertSetEqual({'col1', 'col2'}, st._columns_set)
+
+    def test_do_fit_transform(self):
+        st = Standardize(do_fit_transform=False)
+        assert st._transform_get_scale_fn == st._scale_fn_wo_fit
+        test = st._transform_get_scale_fn(pd.DataFrame([1, 2, 3])).transform(pd.DataFrame([3]))
+        target = np.array([[1.224745]])
+        np.testing.assert_array_almost_equal(test, target, decimal=7)
+        self.assertListEqual(['__default'], list(st._transform_scale_fn_dict.keys()))
+
+    def test_transform_not_in_groups(self):
+        st = Standardize()
+        test = st._transform_not_in_groups(pd.DataFrame([[1, 1],
+                                                         [2, 1],
+                                                         [3, 1]]), {0})
+        target = pd.DataFrame([[-1.224745, 1],
+                               [ 0.000000, 1],
+                               [ 1.224745, 1]])
+        pd.testing.assert_frame_equal(test, target)
+
+    def test_transform_in_groups(self):
+        st = Standardize(groupby=1)
+        test = st._transform_in_groups(pd.DataFrame([[1, 1],
+                                                     [2, 1],
+                                                     [3, 1],
+                                                     [0, 2],
+                                                     [1, 2]]), {0})
+        target = pd.DataFrame([[-1.224745, 1],
+                               [0.000000, 1],
+                               [1.224745, 1],
+                               [-1,       2],
+                               [1.,       2]])
+        pd.testing.assert_frame_equal(test, target)
+        st.do_fit_transform = False
+        test = st._transform_in_groups(pd.DataFrame([[1, 1],
+                                                     [2, 1],
+                                                     [3, 1],
+                                                     [1, 2],
+                                                     [2, 2]]), {0})
+        target = pd.DataFrame([[-1.224745, 1],
+                               [0.000000, 1],
+                               [1.224745, 1],
+                               [1,        2],
+                               [3.,       2]])
+        pd.testing.assert_frame_equal(test, target)
+
+    def test_transform(self):
+        st = Standardize(groupby=1)
+        test = st.transform(pd.DataFrame([[1, 1],
+                                          [2, 1],
+                                          [3, 1],
+                                          [0, 2],
+                                          [1, 2]]))
+        target = pd.DataFrame([[-1.224745, 1],
+                               [0.000000, 1],
+                               [1.224745, 1],
+                               [-1, 2],
+                               [1., 2]])
+        pd.testing.assert_frame_equal(test, target)
+        st.do_fit_transform = False
+        test = st.transform(pd.DataFrame([[1, 1],
+                                          [2, 1],
+                                          [3, 1],
+                                          [1, 2],
+                                          [2, 2]]))
+        target = pd.DataFrame([[-1.224745, 1],
+                               [0.000000, 1],
+                               [1.224745, 1],
+                               [1, 2],
+                               [3., 2]])
+        pd.testing.assert_frame_equal(test, target)
+
+
+class TestLogisticClassifier(unittest.TestCase):
+    def setUp(self):
+        self.dataset = DataSet(pd.DataFrame(columns=['a', 'b', 'c']))
+        self.dataset.measured_variables = {'a': 'default', 'b': 'ordinal', 'c': 'quantitative'}
+        self.dataset.data = pd.DataFrame([[1, 2, 3]], columns=['a', 'b', 'c'])
+
+    def test_check_columns_and_col_groups_both_not_None(self):
+        lc = LogisticClassifier(self.dataset, columns=['b'])
+        with self.assertRaises(ValueError) as error:
+            lc._check_columns(['cols'], {'group': ['cols']})
+        self.assertTrue(error.exception.args[0] == "Use only 'columns' or 'column_groups'. Not both.")
+
+    def test_check_columns_both_none(self):
+        lc = LogisticClassifier(self.dataset)
+        test = lc._check_columns(None, None)
+        self.assertSetEqual(set(), test[0])
+        self.assertDictEqual(dict(), test[1])
+
+    def test_check_columns_bad_type_cols(self):
+        lc = LogisticClassifier(self.dataset, columns=['b'])
+        with self.assertRaises(ValueError) as error:
+            lc._check_columns({'cols': 3}, None)
+        self.assertTrue(error.exception.args[0] == "columns can only a str or list of str.")
+
+    def test_convert_columns_to_dict(self):
+        lc = LogisticClassifier(self.dataset, columns=['b'])
+        test1, test2 = lc._convert_columns_to_dict(['test', 'columns'])
+        target1 = ['test', 'columns']
+        target2 = {'test': ['test'], 'columns': ['columns']}
+        self.assertListEqual(test1, target1)
+        self.assertDictEqual(test2, target2)
+
+    def test_convert_columns_to_dict_int_cols(self):
+        lc = LogisticClassifier(self.dataset, columns=['b'])
+        test1, test2 = lc._convert_columns_to_dict([1, 'columns'])
+        target1 = [1, 'columns']
+        target2 = {1: [1], 'columns': ['columns']}
+        self.assertListEqual(test1, target1)
+        self.assertDictEqual(test2, target2)
+
+    def test_convert_columns_to_dict_str(self):
+        lc = LogisticClassifier(self.dataset, columns=['b'])
+        test1, test2 = lc._convert_columns_to_dict('column')
+        target1 = ['column']
+        target2 = {'column': ['column']}
+        self.assertListEqual(test1, target1)
+        self.assertDictEqual(test2, target2)
+
+    def test_convert_columns_to_dict_int(self):
+        lc = LogisticClassifier(self.dataset, columns=['b'])
+        test1, test2 = lc._convert_columns_to_dict(1)
+        target1 = [1]
+        target2 = {1: [1]}
+        self.assertListEqual(test1, target1)
+        self.assertDictEqual(test2, target2)
+
+    def test_get_columns_from_column_dict(self):
+        lc = LogisticClassifier(self.dataset, columns=['b'])
+        test, test_dict = lc._get_columns_from_column_dict({'1': [1]})
+        self.assertSetEqual(test, {1})
+        test, test_dict = lc._get_columns_from_column_dict({'1': [1],
+                                                            '2': [1, 'a']})
+        self.assertSetEqual(set(test), {1, 'a'})
+        test, test_dict = lc._get_columns_from_column_dict({'1': [1],
+                                                            '2': 'a'})
+        self.assertSetEqual(set(test), {1, 'a'})
+        self.assertDictEqual(test_dict, {'1': [1], '2': ['a']})
+
+    def test_check_that_dataset_has_required_columns(self):
+        lc = LogisticClassifier(self.dataset, column_groups={'a': [1, 2]})
+        with self.assertRaises(ValueError) as error:
+            lc._check_that_dataset_has_required_columns(['a', 'b', 'c'], {'cols': [1], 'a': [1, 2], 'col': [1, 2]})
+        assert error.exception.args[0] == \
+            "The 'dataset' must have the following nominal or ordinal measured-variables columns: 'col', and 'cols'" \
+            or error.exception.args[0] == \
+            "The 'dataset' must have the following nominal or ordinal measured-variables columns: 'cols', and 'col'"
+
+    def test_check_dataset(self):
+        lc = LogisticClassifier(pd.DataFrame())
+        test = lc._check_dataset(pd.DataFrame([1, 2, 3]), {0: ['a']})
+        pd.testing.assert_frame_equal(test, pd.DataFrame([1, 2, 3]))
+
+    def test_check_dataset_dataset(self):
+        lc = LogisticClassifier(pd.DataFrame())
+        test = lc._check_dataset(self.dataset, {'b': ['a']})
+        pd.testing.assert_frame_equal(test, pd.DataFrame([[1, 2, 3]], columns=['a', 'b', 'c']))
+
+    def test_check_dataset_dataset_missing_cols(self):
+        lc = LogisticClassifier(pd.DataFrame())
+        with self.assertRaises(ValueError) as error:
+            lc._check_dataset(self.dataset, {'c': [1, 2, 3]})
+        assert error.exception.args[0] == \
+            "The 'dataset' must have the following nominal or ordinal measured-variables columns: 'c'"
+
+    def test_group_features_error_no_group_name(self):
+        with self.assertRaises(ValueError) as error:
+            LogisticClassifier(pd.DataFrame([[1, 2, 3]]), columns=[1], group_features=True)
+        assert error.exception.args[0] == "'group_name' must be a string."
+
+    def test_group_features(self):
+        lc = LogisticClassifier(pd.DataFrame([[1, 2, 3]]), columns=['a', 'b'], group_features=True, group_name=0)
+        test = lc._columns_dict
+        target = {0: ['a', 'b']}
+        self.assertDictEqual(test, target)
+
+    def test_do_fit_transform(self):
+        lc = LogisticClassifier(pd.DataFrame([[1, 2, 3]]), columns=['a', 'b'], group_features=True, group_name=0)
+        test = lc.get_params()
+        target = {'do_fit_transform': True}
+        self.assertDictEqual(test, target)
+        lc.set_params(do_fit_transform=False)
+        assert lc._get_transform_fn == lc._get_transform_wo_fit
+
+    def test_transform_get_columns_from_x(self):
+        lc = LogisticClassifier(pd.DataFrame([0, 0, 0, 0, 1, 1, 1]))
+        x = pd.DataFrame(np.sort(np.random.normal(size=7)))
+        self.assertDictEqual({0: [0]}, lc._transform_get_columns_from_x(x))
+
+    def test_transform_get_columns_from_column_dict_missing_params(self):
+        lc = LogisticClassifier(pd.DataFrame([0, 0, 0, 0, 1, 1, 1], columns=['a']), column_groups={'a': [1, 2]})
+        np.random.seed(10)
+        x = pd.DataFrame(np.sort(np.random.normal(size=7)))
+        with self.assertRaises(ValueError) as error:
+            lc._transform_get_columns_from_column_dict(x)
+        assert error.exception.args[0] == "'x' is missing the following numeric columns: '1', and '2'"
+
+    def test_transform_get_columns_from_column_dict(self):
+        lc = LogisticClassifier(pd.DataFrame([0, 0, 0, 0, 1, 1, 1], columns=['a']), column_groups={'a': [1, 2]})
+        np.random.seed(10)
+        x = pd.DataFrame(np.sort(np.random.normal(size=(7, 3))))
+        test = lc._transform_get_columns_from_column_dict(x)
+        target = {'a': [1, 2]}
+        self.assertDictEqual(test, target)
+
+    def test_get_scalable_columns(self):
+        lc = LogisticClassifier(pd.DataFrame([0, 0, 0, 0, 1, 1, 1], columns=['a']), column_groups={'a': [1, 2]})
+        with self.assertRaises(TypeError) as error:
+            lc._get_scalable_columns({'Not a DataFrame'})
+        assert error.exception.args[0] == "x must be a pandas.DataFrame"
+
+    def test_transform_get_columns(self):
+        # picks the correct method based on whether user defined columns/column groups or not.
+        lc = LogisticClassifier(pd.DataFrame([0, 0, 0, 0, 1, 1, 1], columns=['a']), column_groups={'a': [1, 2]})
+        x = pd.DataFrame(np.sort(np.random.normal(size=(7, 3))))
+        test = lc._transform_get_columns(x)
+        target = {'a': [1, 2]}
+        self.assertDictEqual(test, target)
+        lc = LogisticClassifier(pd.DataFrame([0, 0, 0, 0, 1, 1, 1]))
+        self.assertDictEqual({0: [0]}, lc._transform_get_columns(x))
+
+    def test_repeat_data_to_match_x_columns(self):
+        np.random.seed(10)
+        data = pd.DataFrame([
+            [1, 1, 'WT', 0.0],
+            [2, 2, 'WT', 0.0],
+            [3, 1, 'WT', 0.0],
+            [1, 3, 'WT', 1.0],
+            [2, 3, 'WT', 1.0],
+            [3, 3, 'WT', 1.0],
+            [1, 1, 'KO', 1.0],
+            [2, 2, 'KO', 1.0],
+            [3, 2, 'KO', 1.0],
+            [1, 1, 'DKO', 0.0],
+            [2, 2, 'DKO', 0.0],
+            [3, 1, 'DKO', 0.0],
+            [1, 3, 'DKO', 1.0],
+            [2, 3, 'DKO', 1.0],
+            [3, 3, 'DKO', 1.0],
+        ],
+            columns=['trial', 'level', 'ec', 'time'])
+
+        x = pd.DataFrame([
+            [0, 10, 'WT', 0.0],
+            [0, 20, 'WT', 1.0],
+            [1, 11, 'WT', 0.0],
+            [1, 21, 'WT', 1.0],
+            [2, 10, 'KO', 0.0],
+            [2, 11, 'KO', 1.0]],
+            columns=['simulation', 'obs', 'ec', 'time'])
+
+        combined_xy = pd.merge(x, data, how='outer').dropna()
+
+        lc = LogisticClassifier(dataset=data, column_groups={'level': 'obs'}, classifier_type='ordinal_eoc',
+                                do_fit_transform=False)
+        for y_col, x_col in lc._columns_dict.items():
+            lr = lc._transform_get_logistic_model(combined_xy[x_col], combined_xy[y_col].astype(int), y_col)
+            test = lr.predict_proba(combined_xy[['obs']])
+            target = [[7.04426051e-01, 2.92672144e-01, 2.90180501e-03],
+                      [7.04426051e-01, 2.92672144e-01, 2.90180501e-03],
+                      [7.04426051e-01, 2.92672144e-01, 2.90180501e-03],
+                      [4.80732024e-01, 5.11831854e-01, 7.43612195e-03],
+                      [4.80732024e-01, 5.11831854e-01, 7.43612195e-03],
+                      [4.80732024e-01, 5.11831854e-01, 7.43612195e-03],
+                      [1.86427885e-04, 2.59936508e-02, 9.73819921e-01],
+                      [1.86427885e-04, 2.59936508e-02, 9.73819921e-01],
+                      [1.86427885e-04, 2.59936508e-02, 9.73819921e-01],
+                      [7.24273585e-05, 1.02628619e-02, 9.89664711e-01],
+                      [7.24273585e-05, 1.02628619e-02, 9.89664711e-01],
+                      [7.24273585e-05, 1.02628619e-02, 9.89664711e-01],
+                      [4.80732024e-01, 5.11831854e-01, 7.43612195e-03],
+                      [4.80732024e-01, 5.11831854e-01, 7.43612195e-03],
+                      [4.80732024e-01, 5.11831854e-01, 7.43612195e-03]]
+            np.testing.assert_array_almost_equal(test, target)
+
+        # make sure coef_ don't update when you call it again.
+        lr = lc._transform_get_logistic_model(combined_xy['obs'], "do_fit_transform is False, No need for y", 'level')
+        test = lr.predict_proba(combined_xy[['obs']])
+        target = [[7.04426051e-01, 2.92672144e-01, 2.90180501e-03],
+                  [7.04426051e-01, 2.92672144e-01, 2.90180501e-03],
+                  [7.04426051e-01, 2.92672144e-01, 2.90180501e-03],
+                  [4.80732024e-01, 5.11831854e-01, 7.43612195e-03],
+                  [4.80732024e-01, 5.11831854e-01, 7.43612195e-03],
+                  [4.80732024e-01, 5.11831854e-01, 7.43612195e-03],
+                  [1.86427885e-04, 2.59936508e-02, 9.73819921e-01],
+                  [1.86427885e-04, 2.59936508e-02, 9.73819921e-01],
+                  [1.86427885e-04, 2.59936508e-02, 9.73819921e-01],
+                  [7.24273585e-05, 1.02628619e-02, 9.89664711e-01],
+                  [7.24273585e-05, 1.02628619e-02, 9.89664711e-01],
+                  [7.24273585e-05, 1.02628619e-02, 9.89664711e-01],
+                  [4.80732024e-01, 5.11831854e-01, 7.43612195e-03],
+                  [4.80732024e-01, 5.11831854e-01, 7.43612195e-03],
+                  [4.80732024e-01, 5.11831854e-01, 7.43612195e-03]]
+        np.testing.assert_array_almost_equal(test, target)
+
+    def test_check_classifier_type(self):
+        # Raise error if not ordinal ordinal_eoc or nominal
+        pass
+
+    def test_prep_data(self):
+        np.random.seed(10)
+        data = pd.DataFrame([
+            [1, 'alive', 'WT',  0.0],
+            [2, 'alive', 'WT',  0.0],
+            [3, 'dead',  'WT',  0.0],
+            [1, 'alive', 'WT',  1.0],
+            [2, 'dead',  'WT',  1.0],
+            [3, 'dead',  'WT',  1.0],
+            [1, 'alive', 'KO',  1.0],
+            [2, 'alive', 'KO',  1.0],
+            [3, 'alive', 'KO',  1.0],
+            [1, 'alive', 'DKO', 0.0],
+            [2, 'alive', 'DKO', 0.0],
+            [3, 'alive', 'DKO', 0.0],
+            [1, 'dead',  'DKO', 1.0],
+            [2, 'dead',  'DKO', 1.0],
+            [3, 'dead',  'DKO', 1.0],
+        ],
+            columns=['trial', 'result', 'ec', 'time'])
+
+        x = pd.DataFrame([
+            [0, 10, 'WT', 0.0],
+            [0, 20, 'WT', 1.0],
+            [1, 11, 'WT', 0.0],
+            [1, 21, 'WT', 1.0],
+            [2, 10, 'KO', 0.0],
+            [2, 11, 'KO', 1.0]],
+            columns=['simulation', 'obs', 'ec', 'time'])
+
+        lc = LogisticClassifier(dataset=data, column_groups={'result': 'obs'}, classifier_type='nominal',
+                                do_fit_transform=False)
+
+        columns_set, columns_dict = lc._transform_get_columns(x)
+        x_extra_columns = set(x.columns) - columns_set
+        y_extra_columns = set(lc._data_df.columns) - set(lc._columns_dict.keys())
+        y_cols = list(lc._columns_dict.keys())
+        y = lc._data_df
+
+        test = lc._prep_data(x, y, y_cols, x_extra_columns, y_extra_columns).sort_values('simulation').reset_index(drop=True)
+        target =pd.DataFrame(
+                [[ 0,   10,  'WT',   0.0,  'alive'],
+                 [ 0,   10,  'WT',   0.0,  'alive'],
+                 [ 0,   10,  'WT',   0.0,   'dead'],
+                 [ 0,   20,  'WT',   1.0,  'alive'],
+                 [ 0,   20,  'WT',   1.0,   'dead'],
+                 [ 0,   20,  'WT',   1.0,   'dead'],
+                 [ 1,   11,  'WT',   0.0,  'alive'],
+                 [ 1,   11,  'WT',   0.0,  'alive'],
+                 [ 1,   11,  'WT',   0.0,   'dead'],
+                 [ 1,   21,  'WT',   1.0,  'alive'],
+                 [ 1,   21,  'WT',   1.0,   'dead'],
+                 [ 1,   21,  'WT',   1.0,   'dead'],
+                 [ 2,   11,  'KO',   1.0,  'alive'],
+                 [ 2,   11,  'KO',   1.0,  'alive'],
+                 [ 2,   11,  'KO',   1.0,  'alive']], columns=['simulation', 'obs', 'ec', 'time', 'result'])
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
+
+    def test_transform(self):
+        np.random.seed(10)
+        data = pd.DataFrame([
+            [1, 'alive', 'WT', 0.0],
+            [2, 'alive', 'WT', 0.0],
+            [3, 'alive', 'WT', 0.0],
+            [1, 'dead', 'WT', 1.0],
+            [2, 'dead', 'WT', 1.0],
+            [3, 'dead', 'WT', 1.0],
+            [1, 'alive', 'KO', 1.0],
+            [2, 'alive', 'KO', 1.0],
+            [3, 'alive', 'KO', 1.0],
+            [1, 'alive', 'DKO', 0.0],
+            [2, 'alive', 'DKO', 0.0],
+            [3, 'alive', 'DKO', 0.0],
+            [1, 'dead', 'DKO', 1.0],
+            [2, 'dead', 'DKO', 1.0],
+            [3, 'dead', 'DKO', 1.0],
+        ],
+            columns=['trial', 'result', 'ec', 'time'])
+
+        x = pd.DataFrame([
+            [0, 10, 'WT', 0.0],
+            [0, 20, 'WT', 1.0],
+            [1, 10, 'WT', 0.0],
+            [1, 21, 'WT', 1.0],
+            [2, 10, 'KO', 0.0],
+            [2, 11, 'KO', 1.0]],
+            columns=['simulation', 'obs', 'ec', 'time'])
+
+        lc = LogisticClassifier(dataset=data, column_groups={'result': 'obs'}, classifier_type='nominal')
+
+        test = lc.transform(x).sort_values('simulation').reset_index(drop=True)
+        target = pd.DataFrame(
+            [[0.617041,      0.382959,  'WT',   0.0,           0],
+             [0.617041,      0.382959,  'WT',   0.0,           0],
+             [0.617041,      0.382959,  'WT',   0.0,           0],
+             [0.312312,      0.687688,  'WT',   1.0,           0],
+             [0.312312,      0.687688,  'WT',   1.0,           0],
+             [0.312312,      0.687688,  'WT',   1.0,           0],
+             [0.617041,      0.382959,  'WT',   0.0,           1],
+             [0.617041,      0.382959,  'WT',   0.0,           1],
+             [0.617041,      0.382959,  'WT',   0.0,           1],
+             [0.285780,      0.714220,  'WT',   1.0,           1],
+             [0.285780,      0.714220,  'WT',   1.0,           1],
+             [0.285780,      0.714220,  'WT',   1.0,           1],
+             [0.586708,      0.413292,  'KO',   1.0,           2],
+             [0.586708,      0.413292,  'KO',   1.0,           2],
+             [0.586708,      0.413292,  'KO',   1.0,           2]],
+            columns=['result__alive',  'result__dead',  'ec',  'time',  'simulation'])
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
+
+    def test_transform_ordinal(self):
+        data = pd.DataFrame([
+            [1, 1, 'WT', 0.0],
+            [2, 2, 'WT', 0.0],
+            [3, 1, 'WT', 0.0],
+            [1, 3, 'WT', 1.0],
+            [2, 3, 'WT', 1.0],
+            [3, 3, 'WT', 1.0],
+            [1, 1, 'KO', 1.0],
+            [2, 2, 'KO', 1.0],
+            [3, 2, 'KO', 1.0]],
+            columns=['trial', 'level', 'ec', 'time'])
+
+        x = pd.DataFrame([
+            [0, 10, 'WT', 0.0],
+            [0, 20, 'WT', 1.0],
+            [1, 11, 'WT', 0.0],
+            [1, 21, 'WT', 1.0],
+            [2, 10, 'KO', 0.0],
+            [2, 11, 'KO', 1.0]],
+            columns=['simulation', 'obs', 'ec', 'time'])
+
+        lc = LogisticClassifier(dataset=data, column_groups={'level': 'obs'}, classifier_type='ordinal')
+        test = lc.transform(x).sort_values('simulation').reset_index(drop=True)
+        target = pd.DataFrame(
+            [[0.704426, 0.292672, 0.002902, 0, 'WT', 0.0],
+             [0.704426, 0.292672, 0.002902, 0, 'WT', 0.0],
+             [0.704426, 0.292672, 0.002902, 0, 'WT', 0.0],
+             [0.000186, 0.025994, 0.973820, 0, 'WT', 1.0],
+             [0.000186, 0.025994, 0.973820, 0, 'WT', 1.0],
+             [0.000186, 0.025994, 0.973820, 0, 'WT', 1.0],
+             [0.480732, 0.511832, 0.007436, 1, 'WT', 0.0],
+             [0.480732, 0.511832, 0.007436, 1, 'WT', 0.0],
+             [0.480732, 0.511832, 0.007436, 1, 'WT', 0.0],
+             [0.000072, 0.010263, 0.989665, 1, 'WT', 1.0],
+             [0.000072, 0.010263, 0.989665, 1, 'WT', 1.0],
+             [0.000072, 0.010263, 0.989665, 1, 'WT', 1.0],
+             [0.480732, 0.511832, 0.007436, 2, 'KO', 1.0],
+             [0.480732, 0.511832, 0.007436, 2, 'KO', 1.0],
+             [0.480732, 0.511832, 0.007436, 2, 'KO', 1.0]],
+            columns=['level__1', 'level__2', 'level__3', 'simulation', 'ec', 'time']
+        )
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns], check_less_precise=1)
+
+    def test_transform_ordinal_reverse_order(self):
+        np.random.seed(10)
+        data = pd.DataFrame([
+            [1, 1, 'WT', 0.0],
+            [2, 2, 'WT', 0.0],
+            [3, 1, 'WT', 0.0],
+            [1, 3, 'WT', 1.0],
+            [2, 3, 'WT', 1.0],
+            [3, 3, 'WT', 1.0],
+            [1, 1, 'KO', 1.0],
+            [2, 2, 'KO', 1.0],
+            [3, 2, 'KO', 1.0]],
+            columns=['trial', 'level', 'ec', 'time'])
+
+        x = pd.DataFrame([
+            [0, 30, 'WT', 0.0],
+            [0, 20, 'WT', 1.0],
+            [1, 25, 'WT', 0.0],
+            [1, 21, 'WT', 1.0],
+            [2, 30, 'KO', 0.0],
+            [2, 25, 'KO', 1.0]],
+            columns=['simulation', 'obs', 'ec', 'time'])
+
+        lc = LogisticClassifier(dataset=data, column_groups={'level': 'obs'}, classifier_type='ordinal')
+        test = lc.transform(x).sort_values('simulation').reset_index(drop=True)
+        target = pd.DataFrame(
+            [[0.972899, 0.025845, 0.001256, 0, 'WT', 0.0],
+             [0.972899, 0.025845, 0.001256, 0, 'WT', 0.0],
+             [0.972899, 0.025845, 0.001256, 0, 'WT', 0.0],
+             [0.005954, 0.111213, 0.882832, 0, 'WT', 1.0],
+             [0.005954, 0.111213, 0.882832, 0, 'WT', 1.0],
+             [0.005954, 0.111213, 0.882832, 0, 'WT', 1.0],
+             [0.316811, 0.594493, 0.088696, 1, 'WT', 0.0],
+             [0.316811, 0.594493, 0.088696, 1, 'WT', 0.0],
+             [0.316811, 0.594493, 0.088696, 1, 'WT', 0.0],
+             [0.014094, 0.226452, 0.759455, 1, 'WT', 1.0],
+             [0.014094, 0.226452, 0.759455, 1, 'WT', 1.0],
+             [0.014094, 0.226452, 0.759455, 1, 'WT', 1.0],
+             [0.316811, 0.594493, 0.088696, 2, 'KO', 1.0],
+             [0.316811, 0.594493, 0.088696, 2, 'KO', 1.0],
+             [0.316811, 0.594493, 0.088696, 2, 'KO', 1.0]],
+            columns=['level__1', 'level__2', 'level__3', 'simulation', 'ec', 'time']
+        )
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns], check_less_precise=1)
+
+        lc = LogisticClassifier(dataset=data, column_groups={'level': 'obs'}, classifier_type='ordinal_eoc')
+        test = lc.transform(x).sort_values('simulation').reset_index(drop=True)
+        target = pd.DataFrame(
+            [[0.185185, 0.574815, 0.24, 0, 'WT', 0.0],
+             [0.185185, 0.574815, 0.24, 0, 'WT', 0.0],
+             [0.185185, 0.574815, 0.24, 0, 'WT', 0.0],
+             [0.185185, 0.574815, 0.24, 0, 'WT', 1.0],
+             [0.185185, 0.574815, 0.24, 0, 'WT', 1.0],
+             [0.185185, 0.574815, 0.24, 0, 'WT', 1.0],
+             [0.185185, 0.574815, 0.24, 1, 'WT', 0.0],
+             [0.185185, 0.574815, 0.24, 1, 'WT', 0.0],
+             [0.185185, 0.574815, 0.24, 1, 'WT', 0.0],
+             [0.185185, 0.574815, 0.24, 1, 'WT', 1.0],
+             [0.185185, 0.574815, 0.24, 1, 'WT', 1.0],
+             [0.185185, 0.574815, 0.24, 1, 'WT', 1.0],
+             [0.185185, 0.574815, 0.24, 2, 'KO', 1.0],
+             [0.185185, 0.574815, 0.24, 2, 'KO', 1.0],
+             [0.185185, 0.574815, 0.24, 2, 'KO', 1.0]],
+            columns=['level__1', 'level__2', 'level__3', 'simulation', 'ec', 'time']
+        )
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns], check_less_precise=1)

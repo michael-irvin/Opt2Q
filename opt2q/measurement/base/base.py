@@ -68,6 +68,11 @@ class MeasurementModel(object):
             self._dataset_observables,\
             self._observables = self._get_observables(pysb_df, self._dataset, observables)
 
+        self._required_observables = self._get_required_observables(self._observables, self._dataset_observables)
+
+        if _is_vector_like(time_points):
+            self._time_points = _convert_vector_like_to_list(time_points)  # create only if user-specifies
+
         self._default_time_points = self._get_default_time_points(time_points, self._dataset, pysb_df)
 
         # keep dfs w/ nans for easy updating with updates to default time-points.
@@ -81,7 +86,7 @@ class MeasurementModel(object):
         self._experimental_conditions_df = self._add_default_time_points_to_experimental_conditions(
             self._ec_df_pre, self._default_time_points
         )
-
+        self._opt2q_df = opt2q_df
         # Todo: Add @property and @...setter for simulation_result, dataset!!
         # Todo: Add @property and @...setter for observables, time_points, experimental_conditions!!
 
@@ -149,7 +154,7 @@ class MeasurementModel(object):
 
         if observables is not None:
             user_obs = self._check_observables(observables, default_observables)
-            if len(user_obs-dataset_obs) > 0 and len(dataset_obs) > 0:
+            if dataset_obs is not None and len(user_obs-dataset_obs) > 0 and len(dataset_obs) > 0:
                 # The likelihood uses dataset_obs or the intersection of dataset_obs and user_obs.
                 warnings.warn("The 'observables' contain values not mentioned in the dataset. "
                               "They will be ignored in the likelihood calculation.")
@@ -157,6 +162,15 @@ class MeasurementModel(object):
             user_obs = None
 
         return default_observables, dataset_obs, user_obs
+
+    @staticmethod
+    def _get_required_observables(user_obs, dataset_obs):
+        """Any simulation-result update must have these observables"""
+        req_obs = set([])
+        for obs_set in (user_obs, dataset_obs):
+            if obs_set is not None:
+                req_obs |= obs_set
+        return req_obs
 
     @staticmethod
     def _get_obs_from_dataset(dataset, default_observables):
@@ -303,20 +317,84 @@ class MeasurementModel(object):
     @property
     def time_points(self):
         """Return list of *default* time points."""
-        return self._default_time_points
+        return getattr(self, '_time_points', self._default_time_points)
 
     @time_points.setter
     def time_points(self, tps):
         if _is_vector_like(tps):
             self._default_time_points = _convert_vector_like_to_list(tps)
+            self._time_points = _convert_vector_like_to_list(tps)
         else:
             raise ValueError("'time_points' must be vector-like")
-        self._default_time_points = tps
         self._dataset_experimental_conditions_df = self._add_default_time_points_to_experimental_conditions(
-            self._dataset_ec_df_pre, self._default_time_points)
+            self._dataset_ec_df_pre, self.time_points)
         self._experimental_conditions_df = self._add_default_time_points_to_experimental_conditions(
-            self._ec_df_pre, self._default_time_points
+            self._ec_df_pre, self.time_points
         )
+
+    @property
+    def observables(self):
+        if self._observables is not None:
+            return self._observables
+        else:
+            return self._default_observables
+
+    @property
+    def experimental_conditions_df(self):
+        return self._experimental_conditions_df
+
+    @property
+    def simulation_result_df(self):
+        """Returns the opt2q dataframe of the simulation result."""
+        return self._opt2q_df
+
+    @simulation_result_df.setter
+    def simulation_result_df(self, v):
+        self._opt2q_df = self._update_sim_res_df(v)
+
+    def update_simulation_result(self, sim_res):
+        """
+        Update the measurement model's :class:`~pysb.simulator.SimulationResult`. This is useful to the calibrator which
+        updates generates a new :class:`SimulationResults <pysb.simulator.SimulationResult>` as it optimizes the PySB
+        parameters.
+
+        .. note::
+            These updates cannot change the experimental conditions, and must retain all observables mentioned in
+            ``observables`` and those in the ``dataset``.
+
+        Parameter
+        ---------
+        sim_res: :class:`~pysb.simulator.SimulationResult`
+            Results of a `PySB` Model simulation. Produced by the run methods in the `PySB`
+            (:meth:`~pysb.simulator.ScipyOdeSimulator.run`) and `Opt2Q` (:meth:`~opt2q.simulator.Simulator.run`)
+            simulators.
+        """
+        self._update_simulation_result(sim_res)
+
+    def _update_simulation_result(self, sim_res):
+        opt2q_df, pysb_df = self._check_simulation_result(sim_res)
+        self._opt2q_df = self._update_sim_res_df(opt2q_df)
+
+    def _update_sim_res_df(self, sim_res_df):
+        if 'time' not in sim_res_df.columns:
+            sim_res_df.reset_index(inplace=True)
+
+        if len(self._required_observables - set(sim_res_df.columns)) != 0:
+            raise ValueError("This simulation result is missing the following required observables: " +
+                             _list_the_errors(list(self._required_observables - set(sim_res_df.columns))))
+
+        # todo: check that the experimental conditions in dataset and ec are the ones in the updated sim_res.
+
+        if not hasattr(self, '_time_points'):
+            # update default_time_points because this will overwrite NaN dataset_ec_df and ec_df
+            self._default_time_points = self._get_default_time_points(None, self._dataset, sim_res_df)
+
+            self._dataset_experimental_conditions_df = self._add_default_time_points_to_experimental_conditions(
+                self._dataset_ec_df_pre, self._default_time_points)
+            self._experimental_conditions_df = self._add_default_time_points_to_experimental_conditions(
+                self._ec_df_pre, self._default_time_points
+            )
+        return sim_res_df
 
     def likelihood(self, use_all_dataset_obs=True, use_all_dataset_exp_cond=True):
         """

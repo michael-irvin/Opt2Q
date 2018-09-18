@@ -48,7 +48,7 @@ Set up objective function with Opt2Q :class:`~opt2q.calibrator.objective_functio
 ...     obj_f.sim.param_values = params
 ...     sim_res = obj_f.sim.run(np.linspace(0, 1, 100))
 ...     # measurement model
-...     obj_f.measurement.simulation_result = sim_res
+...     obj_f.measurement.update_simulation_result(sim_res)  # This currently does not check for changes to experimental conditions
 ...     obj_f.measurement.set_params({"!logistic_regression__coef_": np.array([[x[2], x[3]],[x[4], x[3]]])})
 ...     return obj_f.measurement.run()
 

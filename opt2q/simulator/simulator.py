@@ -3,7 +3,7 @@ import warnings
 import logging
 import numpy as np
 import pandas as pd
-from pysb.simulator import ScipyOdeSimulator
+from pysb.simulator import ScipyOdeSimulator, CupSodaSimulator
 from opt2q.utils import UnsupportedSimulatorError, incompatible_format_warning
 
 
@@ -77,7 +77,7 @@ class Simulator(object):
         If True check new parameter and initials objects for compatibility with the solver, etc. Defaults to True
     """
 
-    supported_solvers = {'scipyode': ScipyOdeSimulator}
+    supported_solvers = {'scipyode': ScipyOdeSimulator, 'cupsoda':CupSodaSimulator}
 
     def __init__(self, model, tspan=None, param_values=None, initials=None, solver='scipyode', solver_options=None,
                  integrator_options=None, **kwargs):

@@ -231,6 +231,29 @@ class TestInterpolate(unittest.TestCase):
         interpolate.set_params(**{'interpolation_method_name': 'linear'})
         assert interpolate.interpolation_method_name == 'linear'
 
+    def test_interpolate_new_values_pd_updates_group_by(self):
+        interpolate = Interpolate('time', ['fluorescence', '1-fluorescence'], [0])
+        interpolate.new_values = pd.DataFrame([[2, 'early'], [8, 'late']], columns=['time', 'observation'])
+        x = pd.DataFrame([[1, 10, 0, 1, 'early'],
+                          [3, 8, 2, 1, 'early'],
+                          [5, 5, 5, 1, 'early'],
+                          [7, 2, 8, 2, 'late'],
+                          [9, 10, 0, 2, 'late']],
+                         columns=['time', 'fluorescence', '1-fluorescence', 'sample', 'observation'])
+        test = interpolate.transform(x)
+        target = pd.DataFrame([['early',      1,     2,           9.0,             1.0],
+                               ['late',       2,     8,           6.0,             4.0]],
+                              columns=['observation', 'sample', 'time', 'fluorescence', '1-fluorescence'])
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
+
+    def test_topic_guide_groupby(self):
+        x = pd.DataFrame([[1, 10, 0, 1, 'early'],
+                          [3, 8, 2, 1, 'early'],
+                          [5, 5, 5, 1, 'early'],
+                          [7, 2, 8, 2, 'late'],
+                          [9, 10, 0, 2, 'late']],
+                         columns=['time', 'fluorescence', '1-fluorescence', 'sample', 'observation'])
+
 
 class TestPipeline(unittest.TestCase):
     def test_blank_input(self):
@@ -426,6 +449,21 @@ class TestScale(unittest.TestCase):
         test = s.transform(pd.DataFrame([[1, 'a'], [2, 'b'], [3, 'c']]))
         target = pd.DataFrame([[1, 'a'], [4, 'b'], [9, 'c']])
         pd.testing.assert_frame_equal(test, target, check_dtype=False)
+
+    def test_topic_guide_example(self):
+        scale = Scale(columns=[1, 2], scale_fn='log10')
+        test = scale.transform(pd.DataFrame([[0, 0.1, 'a'], [1, 1.0, 'b'], [2, 10., 'c']]))
+        target = pd.DataFrame([[0, -1., 'a'], [1, 0., 'b'], [2, 1., 'c']])
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
+
+        def custom_f(x, a=1):
+            return x ** a
+
+        scale.scale_fn = custom_f
+        scale.scale_fn_kwargs = {'a': 2}
+        test = scale.transform(pd.DataFrame([[0, 0.1, 'a'], [1, 1.0, 'b'], [2, 10., 'c']]))
+        target = pd.DataFrame([[0, 0.01, 'a'], [1, 1.0, 'b'], [2, 100., 'c']])
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
 
 
 class TestStandardize(unittest.TestCase):
@@ -627,12 +665,12 @@ class TestLogisticClassifier(unittest.TestCase):
         target = {'do_fit_transform': True}
         self.assertDictEqual(test, target)
         lc.set_params(do_fit_transform=False)
-        assert lc._get_transform_fn == lc._get_transform_wo_fit
+        assert lc._get_transform == lc._get_transform_wo_fit
 
     def test_transform_get_columns_from_x(self):
         lc = LogisticClassifier(pd.DataFrame([0, 0, 0, 0, 1, 1, 1]))
         x = pd.DataFrame(np.sort(np.random.normal(size=7)))
-        self.assertDictEqual({0: [0]}, lc._transform_get_columns_from_x(x))
+        self.assertDictEqual({0: [0]}, lc._transform_get_columns_from_x(x)[1])
 
     def test_transform_get_columns_from_column_dict_missing_params(self):
         lc = LogisticClassifier(pd.DataFrame([0, 0, 0, 0, 1, 1, 1], columns=['a']), column_groups={'a': [1, 2]})
@@ -646,7 +684,7 @@ class TestLogisticClassifier(unittest.TestCase):
         lc = LogisticClassifier(pd.DataFrame([0, 0, 0, 0, 1, 1, 1], columns=['a']), column_groups={'a': [1, 2]})
         np.random.seed(10)
         x = pd.DataFrame(np.sort(np.random.normal(size=(7, 3))))
-        test = lc._transform_get_columns_from_column_dict(x)
+        test = lc._transform_get_columns_from_column_dict(x)[1]
         target = {'a': [1, 2]}
         self.assertDictEqual(test, target)
 
@@ -660,11 +698,11 @@ class TestLogisticClassifier(unittest.TestCase):
         # picks the correct method based on whether user defined columns/column groups or not.
         lc = LogisticClassifier(pd.DataFrame([0, 0, 0, 0, 1, 1, 1], columns=['a']), column_groups={'a': [1, 2]})
         x = pd.DataFrame(np.sort(np.random.normal(size=(7, 3))))
-        test = lc._transform_get_columns(x)
+        test = lc._transform_get_columns(x)[1]
         target = {'a': [1, 2]}
         self.assertDictEqual(test, target)
         lc = LogisticClassifier(pd.DataFrame([0, 0, 0, 0, 1, 1, 1]))
-        self.assertDictEqual({0: [0]}, lc._transform_get_columns(x))
+        self.assertDictEqual({0: [0]}, lc._transform_get_columns(x)[1])
 
     def test_repeat_data_to_match_x_columns(self):
         np.random.seed(10)
@@ -964,3 +1002,7 @@ class TestLogisticClassifier(unittest.TestCase):
             columns=['level__1', 'level__2', 'level__3', 'simulation', 'ec', 'time']
         )
         pd.testing.assert_frame_equal(test[test.columns], target[test.columns], check_less_precise=1)
+
+    def test_get_params(self):
+        # before transform. Calling Coefficients produces calls transform.
+        pass

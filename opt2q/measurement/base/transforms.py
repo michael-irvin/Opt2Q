@@ -218,6 +218,9 @@ class Interpolate(Transform):
 
         # How to carryout the interpolation
         self._group_by = self._check_group_by(groupby, self._iv_and_dv_names_set)
+        if self._group_by is None and self._new_val_has_extra_cols:
+            self._group_by = list(self._new_val_extra_cols)
+
         self._interpolate = [self._interpolation_in_groups,
                              self._interpolation_not_in_groups][self._group_by is None]
         self._get_new_values_per_group = [self._use_same_new_x_for_each_group,
@@ -287,6 +290,10 @@ class Interpolate(Transform):
         self._new_values = new_val
         self._new_val_extra_cols = _extra_cols
         self._new_val_has_extra_cols = has_extra_cols
+        if self._group_by is None and self._new_val_has_extra_cols:
+            self._group_by = list(self._new_val_extra_cols)
+        self._interpolate = [self._interpolation_in_groups,
+                             self._interpolation_not_in_groups][self._group_by is None]
 
     @property
     def interpolation_method_name(self):
@@ -417,7 +424,7 @@ def _threshold_fit(X, y, alpha, n_class, mode='SE',
     """
     Solve the general threshold-based ordinal regression model
     using the logistic loss as surrogate of the 0-1 loss, and
-    and forces empirical order constraints.
+    forces empirical order constraints.
 
     This is a modification of Fabian Pedregosa-Izquierdo's `code`_.
 
@@ -517,10 +524,10 @@ class LogisticEOC(LogisticSE):
 
 class LogisticClassifier(Transform):
     """
-    Uses a Logistic model to classify values in a DataFrame into ordinal or nominal categories.
+    Uses a Logistic model to classify values in a :class:`~pandas.DataFrame` into ordinal or nominal categories.
 
     Logistic regression is a supervised classification model, and requires a dataset with class labels for each
-    observable (or group of observables).  Todo: What will that look like for Dead vs. Surviving -> Apoptosis vs. Necr.?
+    observable (or group of observables).
 
     Parameters
     ----------
@@ -569,6 +576,10 @@ class LogisticClassifier(Transform):
         One of the supported classifiers: 'nominal' (logistic regression), 'ordinal' (ordinal logistic regression),
         'ordinal_eoc' (ordinal logistic regression with empirical ordering constraint).
 
+    Attributes
+    ----------
+    classifiers: dict
+        Supported logistic classification models
     """
 
     classifiers = {'ordinal': LogisticSE,  # Ordinal Logistic Regression
@@ -586,8 +597,7 @@ class LogisticClassifier(Transform):
         # set columns
         columns_set, columns_dict = self._check_columns(columns, column_groups)
         columns_dict = self._put_columns_in_single_group(columns_set, group_name) \
-            if group_features and columns is not None \
-            else columns_dict
+            if group_features and columns is not None else columns_dict
         self._columns_set = columns_set
         self._columns_dict = columns_dict
 
@@ -602,10 +612,16 @@ class LogisticClassifier(Transform):
         self._do_fit_transform = do_fit_transform is True or not isinstance(do_fit_transform, bool)  # non-bool -> True
         self._get_transform = self._get_transform_w_fit if self.do_fit_transform else self._get_transform_wo_fit
         self._logistic_models_dict = dict()  # this will be updated by self._get_transform_fn()
+        self._results_columns_dict = dict()
         self._classifier, self._classifier_params = self._check_classifier_type(classifier_type)
+        self._classifier_type = classifier_type
 
         # set_params method params
-        self.set_params_fn = {'do_fit_transform': self._set_do_fit_transform}
+        self.set_params_fn = {'do_fit_transform': self._set_do_fit_transform,
+                              'coefficients': self._set_params_set_coefficients}
+
+        # sphinx cannot find class attributes
+        self.classifiers = self.classifiers
 
     def _check_columns(self, cols, col_groups):
         """
@@ -698,9 +714,17 @@ class LogisticClassifier(Transform):
             return self.classifiers[classifier_type], self._classifier_attribute[classifier_type]
 
     # params dict
+    def get_params(self, transform_name=None):
+        params = self._get_params(transform_name=transform_name)
+        params.pop('classifiers__nominal', None)
+        params.pop('classifiers__ordinal', None)
+        params.pop('classifiers__ordinal_eoc', None)
+        return params
+
     @property
     def _get_params_dict(self):
-        return {'do_fit_transform': self.do_fit_transform}
+        return {'do_fit_transform': self.do_fit_transform,
+                'coefficients': self.coefficients}
 
     # fit_transform settings
     @property
@@ -719,10 +743,12 @@ class LogisticClassifier(Transform):
     @property
     def coefficients(self):
         """Only retrieve coefficients from the models when asked for them, via this property."""
-        logistic_models_dict = dict()  # dictionary of models indexed by column or column_group or (as given by key).
         coefficients = dict()
-        for k, v in logistic_models_dict:
-            coefficients.update({k, logistic_models_dict[k].coef_})  # {k: {'coef_': np.array, 'intercept_': np.array}}
+        for k, v in self._logistic_models_dict.items():
+            params = dict()
+            for attr_name in self._classifier_params:
+                params.update({attr_name: getattr(self._logistic_models_dict[k], attr_name)})
+            self._get_params_update_params_dict(coefficients, k, params)
         return coefficients
 
     @coefficients.setter
@@ -731,32 +757,29 @@ class LogisticClassifier(Transform):
         self._set_coefficients(v)
 
     def _set_coefficients(self, v):
-        self._check_that_coefficients_are_the_correct_shape()
+        current_coef_dict = self._build_params_dict(self.coefficients)
+        new_coef_dict = self._build_params_dict(v)
+        update_these_models = set(current_coef_dict.keys()).intersection(new_coef_dict.keys())
+        for model_name in update_these_models:
+            for k, v in new_coef_dict[model_name].items():
+                self._check_coef_shape(model_name, k, v)
+                self._check_coef_constraints(k, v)
+                setattr(self._logistic_models_dict[model_name], k, v)
 
-    def _check_for_coefficients(self):
-        """
-        Raises AttributeError if this class does not have coefficients. (Coefficients are produced by the
-        logistic regression fit method.
+    def _set_params_set_coefficients(self, **v):
+        return self._set_coefficients(v)
 
-        If ``do_fit_transform`` is False, this function is called.
-        """
-        pass
+    def _check_coef_shape(self, model_name, attr_name, attr_value):
+        required_shape = getattr(self._logistic_models_dict[model_name], attr_name).shape
+        if attr_value.shape != required_shape:
+            raise ValueError("'{}' in the '{}' must be of shape {}. It is {}.".format(
+                attr_name, model_name, required_shape, attr_value.shape
+            ))
 
-    def _check_that_coefficients_are_the_correct_shape(self):
-        """
-        This class requires that the transform be previously fit to data. This will establish the
-        coefficients' shape.
-
-        For every row in the new coefficients' dataframe. check that the shape is same as before.
-        """
-        pass
-
-    def _get_coefficients_from_model(self):
-        """Gets coefficients a fit logistic regression model and assembles them into a DataFrame with indexing
-        columns equal to the groupby columns + the column group names. The remaining columns are integers counting
-        up from zero (these correspond to the indices of the flattened array that is passed to the logistic
-        regression model's ``coef_`` attribute."""
-        pass
+    def _check_coef_constraints(self, k, v):
+        if self._classifier_type == 'ordinal_eoc' and k == 'coef_' and any(v < 0):
+            raise ValueError("Negative terms in '{}' violate the empirical order constraint. "
+                             "Get rid of them or use 'ordinal' instead of 'ordinal_eoc' for classifier_type.".format(k))
 
     # transform
     def transform(self, x, **kwargs):
@@ -776,19 +799,30 @@ class LogisticClassifier(Transform):
 
         columns_set, columns_dict = self._transform_get_columns(x)
         x_extra_columns = set(x.columns) - columns_set
-        y_extra_columns = set(y.columns) - set(self._columns_dict.keys())
-        combined_x_y = self._prep_data(x, y, list(self._columns_dict.keys()), x_extra_columns, y_extra_columns)
+        y_cols = list(self._columns_dict.keys())
 
+        if self.do_fit_transform or self._logistic_models_dict == dict():
+            y_extra_columns = set(y.columns) - set(y_cols)
+            combined_x_y = self._prep_data(x, y, y_cols, x_extra_columns, y_extra_columns)
+            data_cols = combined_x_y[y_cols]._get_numeric_data().columns
+            combined_x_y[data_cols] = combined_x_y[data_cols].astype(int)
+            for y_col, x_col in columns_dict.items():
+                self._results_columns_dict.update(
+                    {y_col: ['{}__{}'.format(str(y_col), cat) for cat in np.unique(combined_x_y[y_col])]})
+        else:
+            combined_x_y = x
+            combined_x_y[y_cols] = pd.DataFrame(columns=y_cols)
+        # todo ^^^^ move this to a separate function
+
+        # do transform
         result_df = pd.DataFrame()
         for y_col, x_col in columns_dict.items():
-            # prep y
-            y_ = combined_x_y[y_col].astype(int) if combined_x_y.dtypes[y_col] == float else combined_x_y[y_col]
             # get model
-            model = self._transform_get_logistic_model(combined_x_y[x_col], y_, y_col)
+            model = self._transform_get_logistic_model(combined_x_y[x_col], combined_x_y[y_col], y_col)
             # predict results
             results = model.predict_proba(combined_x_y[x_col])
-            results_columns = ['{}__{}'.format(str(y_col), cat) for cat in np.unique(y_)]
-            result_df[results_columns] = pd.DataFrame(results, columns=results_columns)
+            result_df[self._results_columns_dict[y_col]] = pd.DataFrame(results,
+                                                                        columns=self._results_columns_dict[y_col])
 
         # add exp conditions
         result_df[list(x_extra_columns)] = combined_x_y[list(x_extra_columns)]
@@ -798,9 +832,7 @@ class LogisticClassifier(Transform):
     def _prep_data(x, y, y_cols, x_extra_cols, y_extra_cols):
         shared_columns = list(x_extra_cols.intersection(y_extra_cols))
         data_blocks = pd.merge(x[shared_columns], y[shared_columns]).drop_duplicates().reset_index(drop=True)
-
-        # repeat the blocks so that they are consistent
-        x_blocks = x.groupby(shared_columns)
+        x_blocks = x.groupby(shared_columns)  # repeat the blocks so that they are consistent
         y_blocks = y.groupby(shared_columns)
 
         prepped_data = pd.DataFrame()
@@ -871,7 +903,7 @@ class LogisticClassifier(Transform):
         x = kwargs.get('x')
         y = kwargs.get('y')
 
-        logistic_model.fit(x, y)  # make sure the logistic_model.fit() method update updates the DataFrame
+        logistic_model.fit(x, y)
         return logistic_model
 
 
@@ -894,6 +926,7 @@ class Scale(Transform):
         As a string is must name one of the functions in
         :attr:`~opt2q.measurement.base.transforms.Scale.scale_functions`
         Defaults to 'log2'
+        As a function
 
     Attributes
     ----------

@@ -79,7 +79,7 @@ class Simulator(object):
 
     supported_solvers = {'scipyode': ScipyOdeSimulator}
 
-    def __init__(self, model, tspan = None, param_values=None, initials=None, solver='scipyode', solver_options=None,
+    def __init__(self, model, tspan=None, param_values=None, initials=None, solver='scipyode', solver_options=None,
                  integrator_options=None, **kwargs):
         # Solver
         self.solver = self._check_solver(solver)
@@ -415,18 +415,4 @@ class Simulator(object):
         new_df = new_df.merge(exp_index, how='inner', on=['simulation'])
         new_df.set_index('time', inplace=True)
         return new_df
-
-
-# from pysb.examples.michment import model
-# sim = Simulator(model)
-# sim.param_values = pd.DataFrame([[100, 'WT', 1],
-#                                  [100, 'KO', 1],
-#                                  [30, 'DKO', 2]],
-#                                 columns=['vol', 'condition', 'experiment'])
-# sim_result = sim.run(tspan=np.linspace(0, 10, 3),
-#                      initials=pd.DataFrame({model.species[1]: [100, 0, 0],
-#                                             'condition': ['WT', 'KO', 'DKO'],
-#                                             'experiment': [1, 1, 2]}))
-# print(getattr(sim_result, 'opt2q_dataframe', sim_result.dataframe))
-# print(sim_result.dataframe)
 

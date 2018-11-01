@@ -86,7 +86,7 @@ class TestMeasurementModel(TestSolverModel, unittest.TestCase):
         pd.testing.assert_frame_equal(test2, target2)
 
     def test_check_dataset(self):
-        ds = DataSet()
+        ds = DataSet(pd.DataFrame(), [])
         mm = MeasurementModel(self.sim_result)
         mm._check_dataset(ds)
 
@@ -97,7 +97,7 @@ class TestMeasurementModel(TestSolverModel, unittest.TestCase):
         self.assertTrue(error.exception.args[0] == "'dataset' must be an Opt2Q DataSet.")
 
     def test_get_obs_from_dataset(self):
-        ds = DataSet()
+        ds = DataSet(pd.DataFrame(), [])
         ds.experimental_conditions = pd.DataFrame(columns=['condition', 'experiment'])
         ds.observables = ['AB_complex', 'Nonexistent_Obs']
         mm = MeasurementModel(self.sim_result)
@@ -126,7 +126,7 @@ class TestMeasurementModel(TestSolverModel, unittest.TestCase):
         self.assertTrue(error.exception.args[0] == 'observables must be vector-like')
 
     def test_get_observables(self):
-        ds = DataSet()
+        ds = DataSet(pd.DataFrame(), [])
         ds.observables = ['AB_complex', 'AB_complex']
         ds.experimental_conditions=pd.DataFrame([['WT', 1, 0.0],
                                                  ['KO', 1, 0.0],
@@ -145,7 +145,7 @@ class TestMeasurementModel(TestSolverModel, unittest.TestCase):
 
     def test_get_default_time_points_user_spec(self):
         mm = MeasurementModel(self.sim_result)
-        ds = DataSet()
+        ds = DataSet(pd.DataFrame(), [])
         ds.experimental_conditions = pd.DataFrame([2, 4, 6], columns=['time'])
         o2_df, ps_df = mm._check_simulation_result(self.sim_result)
         test = mm._get_default_time_points([1, 2, 3], ds, ps_df)
@@ -154,7 +154,7 @@ class TestMeasurementModel(TestSolverModel, unittest.TestCase):
 
     def test_get_default_time_points_dataset(self):
         mm = MeasurementModel(self.sim_result)
-        ds = DataSet()
+        ds = DataSet(pd.DataFrame(), [])
         ds.experimental_conditions = pd.DataFrame([2, 4, 6], columns=['time'])
         o2_df, ps_df = mm._check_simulation_result(self.sim_result)
         test = mm._get_default_time_points(None, ds, ps_df)
@@ -163,7 +163,7 @@ class TestMeasurementModel(TestSolverModel, unittest.TestCase):
 
     def test_get_default_time_points_dataset_None(self):
         mm = MeasurementModel(self.sim_result)
-        ds = DataSet()
+        ds = DataSet(pd.DataFrame(), [])
         ds.experimental_conditions = pd.DataFrame([2, 4, 6], columns=['time'])
         o2_df, ps_df = mm._check_simulation_result(self.sim_result)
         test = mm._get_default_time_points(None, None, ps_df)
@@ -172,7 +172,7 @@ class TestMeasurementModel(TestSolverModel, unittest.TestCase):
 
     def test_get_default_time_points_dataset_df_w_ec(self):
         mm = MeasurementModel(self.sim_result)
-        ds = DataSet()
+        ds = DataSet(pd.DataFrame(), [])
         ds.experimental_conditions = pd.DataFrame([2, 4, 6], columns=['ec'])
         o2_df, ps_df = mm._check_simulation_result(self.sim_result)
         test = mm._get_default_time_points(None, ds, ps_df)
@@ -200,14 +200,14 @@ class TestMeasurementModel(TestSolverModel, unittest.TestCase):
     def test_get_experimental_conditions_from_dataset_ds_empty_df(self):
         # Add a time axis with just NaNs.
         mm = MeasurementModel(self.sim_result)
-        ds = DataSet()
+        ds = DataSet(pd.DataFrame(), [])
         ds.experimental_conditions = pd.DataFrame()
         test = mm._get_experimental_conditions_from_dataset(pd.DataFrame([1, 2, 3], columns=['time']), {'time'}, ds)
         pd.testing.assert_frame_equal(pd.DataFrame([np.NaN], columns=['time']), test)
 
     def test_get_experimental_conditions_from_dataset_ds_no_time_axis(self):
         mm = MeasurementModel(self.sim_result)
-        ds = DataSet()
+        ds = DataSet(pd.DataFrame(), [])
         ds.experimental_conditions = pd.DataFrame([1, 2, 3], columns=['a'])
         test = mm._get_experimental_conditions_from_dataset(
             pd.DataFrame([[1, 2],
@@ -224,7 +224,7 @@ class TestMeasurementModel(TestSolverModel, unittest.TestCase):
 
     def test_get_experimental_conditions_from_dataset_ds_drop_rows(self):
         mm = MeasurementModel(self.sim_result)
-        ds = DataSet()
+        ds = DataSet(pd.DataFrame(), [])
         ds.experimental_conditions = pd.DataFrame([[1, 2],
                                                    [2, 2]],
                                                   columns=['a', 'time'])
@@ -242,7 +242,7 @@ class TestMeasurementModel(TestSolverModel, unittest.TestCase):
 
     def test_get_experimental_conditions_from_dataset_ds_has_time_axis_only(self):
         mm = MeasurementModel(self.sim_result)
-        ds = DataSet()
+        ds = DataSet(pd.DataFrame(), [])
         ds.experimental_conditions = pd.DataFrame([1, 2, 3], columns=['time'])
         test = mm._get_experimental_conditions_from_dataset(pd.DataFrame(columns=['time']), {'time'}, ds)
         target = pd.DataFrame([1, 2, 3], columns=['time'])
@@ -441,7 +441,7 @@ class TestMeasurementModel(TestSolverModel, unittest.TestCase):
                                       target[['condition', 'time', 'experiment']])
 
     def test_update_sim_res_df(self):
-        ds = DataSet()
+        ds = DataSet(pd.DataFrame(), [])
         ds.observables = ['AB_complex', 'A_free']
         ds.experimental_conditions = pd.DataFrame([['WT', 1, 0.0],
                                                    ['KO', 1, 0.0],
@@ -477,25 +477,137 @@ class TestMeasurementModel(TestSolverModel, unittest.TestCase):
 
 
 class TestWesternBlotModel(TestSolverModel, unittest.TestCase):
-    def test_interpolate_step_updates_with_updated_simulation_result(self):
-        wb = WesternBlot(self.sim_result,
-                         experimental_conditions=pd.DataFrame([['WT', np.NaN],
-                                                               ['KO', 3.50]],
-                                                              columns=['condition', 'time']))
-        wb.update_simulation_result(self.sim_result_2)
-        target = pd.DataFrame([['KO', 3.50, 1],
-                               ['WT', 0.00, 1],
-                               ['WT', 4.00, 1],
-                               ['WT', 8.00, 1]],
-                              columns=['condition', 'time', 'experiment'])
-        test = wb.process.get_params()['interpolate__new_values']
-        pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
+    def test_check_measured_values_dict(self):
+        data = pd.DataFrame([[2, 0, 0, "WT", 1],
+                             [2, 0, 1, "WT", 1],
+                             [2, 0, 2, "WT", 1],
+                             [2, 1, 3, "WT", 1],
+                             [2, 2, 4, "WT", 1],
+                             [2, 3, 5, "WT", 1],
+                             [2, 3, 5, "WT", 1],
+                             [1, 4, 7, "WT", 1],
+                             [0, 4, 9, "WT", 1]],
+                            columns=['PARP', 'cPARP', 'time', 'condition', 'experiment'])
+        ds = DataSet(data, {'PARP': 'ordinal', 'cPARP': 'ordinal'})
+        WesternBlot(self.sim_result, ds, {'PARP': ['A_free'], 'cPARP': ['AB_complex']})
 
-    def test_interpolate_steps(self):
-        wb = WesternBlot(self.sim_result,
-                         observables=['B_free', 'AB_complex'],
-                         experimental_conditions=pd.DataFrame([['WT', np.NaN],
-                                                               ['KO', 3.50]],
-                                                              columns=['condition', 'time']))
-        print(wb.process.get_params())
+    def test_check_that_dict_items_are_vector_like(self):
+        data = pd.DataFrame([[2, 0, 0, "WT", 1],
+                             [0, 4, 9, "WT", 1]],
+                            columns=['PARP', 'cPARP', 'time', 'condition', 'experiment'])
+        ds = DataSet(data, {'PARP': 'ordinal', 'cPARP': 'ordinal'})
+        wb = WesternBlot(self.sim_result, ds, {'PARP': ['A_free'], 'cPARP': ['AB_complex']})
+        test = wb._check_that_dict_items_are_vector_like({1: [1, 2], 2: 'a'})
+        target = {1: [1, 2], 2: ['a']}
+        self.assertDictEqual(test, target)
 
+    def test_convert_measured_values_to_dict(self):
+        with self.assertRaises(ValueError) as error:
+            data = pd.DataFrame([[2, 0, 0, "WT", 1],
+                                 [0, 4, 9, "WT", 1]],
+                                columns=['PARP', 'cPARP', 'time', 'condition', 'experiment'])
+            ds = DataSet(data, {'PARP': 'ordinal', 'cPARP': 'ordinal'})
+            wb = WesternBlot(self.sim_result, ds, {'PARP': ['A_free'], 'cPARP': ['AB_complex']})
+            wb._check_that_measured_values_is_dict([])
+        self.assertTrue(
+            error.exception.args[0] == "'measured_values' must be a dict."
+        )
+
+    def test_check_measured_values_dict_key_not_in_data(self):
+        data = pd.DataFrame([[2, 0, 0, "WT", 1],
+                             [0, 4, 9, "WT", 1]],
+                            columns=['PARP', 'cPARP', 'time', 'condition', 'experiment'])
+        ds = DataSet(data, {'PARP': 'ordinal', 'cPARP': 'ordinal'})
+        wb = WesternBlot(self.sim_result, ds, {'PARP': ['A_free'], 'cPARP': ['AB_complex']})
+        with self.assertRaises(ValueError) as error:
+            wb._check_measured_values_dict({'PARP': ['A_free'], 'EXTRA': ['AB_complex']}, ds)
+        self.assertTrue(
+            error.exception.args[0] ==
+            "'measured_values' contains a variable, 'EXTRA', not mentioned as an ordinal variable in the 'dataset'.")
+
+    def test_check_measured_values_observables_updated(self):
+        data = pd.DataFrame([[2, 0, 0, "WT", 1],
+                             [0, 4, 9, "WT", 1]],
+                            columns=['PARP', 'cPARP', 'time', 'condition', 'experiment'])
+        ds = DataSet(data, {'PARP': 'ordinal', 'cPARP': 'ordinal'})
+        wb = WesternBlot(self.sim_result, ds, {'PARP': ['A_free'], 'cPARP': ['AB_complex']}, observables=['B_free'])
+        test = wb._check_measured_values_dict({'PARP': ['A_free'], 'cPARP': ['AB_complex']}, wb._dataset)[1]
+        target = {'AB_complex', 'A_free', 'B_free'}
+        self.assertSetEqual(test, target)
+
+    def test_run(self):
+        np.random.seed(10)
+        data = pd.DataFrame([[2, 0, 0, "WT", 1],
+                             [2, 0, 1, "WT", 1],
+                             [2, 0, 2, "WT", 1],
+                             [2, 1, 3, "WT", 1],
+                             [2, 2, 4, "WT", 1],
+                             [2, 3, 5, "WT", 1],
+                             [2, 3, 5, "WT", 1],
+                             [1, 4, 7, "WT", 1],
+                             [0, 4, 9, "WT", 1]],
+                            columns=['PARP', 'cPARP', 'time', 'condition', 'experiment'])
+        ds = DataSet(data, {'PARP': 'ordinal', 'cPARP': 'ordinal'})
+        wb = WesternBlot(self.sim_result, ds, {'PARP': ['AB_complex'], 'cPARP': ['AB_complex']},
+                         ['AB_complex'])
+        test = wb.run()[['cPARP__0', 'cPARP__1', 'cPARP__2', 'cPARP__3']]
+        target = pd.DataFrame([[0.999421,  0.000450,  0.000095,  0.000028],
+                               [0.764923,  0.171357,  0.046156,  0.014758],
+                               [0.329834,  0.359846,  0.204618,  0.087440],
+                               [0.140177,  0.283851,  0.312991,  0.209810],
+                               [0.069284,  0.182300,  0.309758,  0.329143],
+                               [0.038948,  0.115747,  0.255914,  0.405116],
+                               [0.038948,  0.115747,  0.255914,  0.405116],
+                               [0.015943,  0.052228,  0.149662,  0.421105],
+                               [0.008102,  0.027471,  0.087552,  0.348388]],
+                              columns=['cPARP__0', 'cPARP__1', 'cPARP__2', 'cPARP__3'])
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns], check_less_precise=1)
+
+    def test_get_index_of_logistic_classifier_step(self):
+        data = pd.DataFrame([[2, 0, 0, "WT", 1],
+                             [2, 0, 1, "WT", 1],
+                             [2, 0, 2, "WT", 1],
+                             [2, 1, 3, "WT", 1],
+                             [2, 2, 4, "WT", 1],
+                             [2, 3, 5, "WT", 1],
+                             [2, 3, 5, "WT", 1],
+                             [1, 4, 7, "WT", 1],
+                             [0, 4, 9, "WT", 1]],
+                            columns=['PARP', 'cPARP', 'time', 'condition', 'experiment'])
+        ds = DataSet(data, {'PARP': 'ordinal', 'cPARP': 'ordinal'})
+        wb = WesternBlot(self.sim_result, ds, {'PARP': ['AB_complex'], 'cPARP': ['AB_complex']},
+                         ['AB_complex'], experimental_conditions=pd.DataFrame([['WT', 1],
+                                                                               ['KO', 1]],
+                                                                              columns=['condition', 'experiment']))
+        test = wb.run(use_dataset=False)[['cPARP__0', 'cPARP__1', 'cPARP__2', 'cPARP__3', 'condition']]
+        target = pd.DataFrame([[0.982079,  0.013896,  0.002964,  0.000893,        'WT'],
+                               [0.067612,  0.179068,  0.308197,  0.333025,        'WT'],
+                               [0.009782,  0.032921,  0.102461,  0.373839,        'WT'],
+                               [0.982079,  0.013896,  0.002964,  0.000893,        'KO'],
+                               [0.067973,  0.179768,  0.308543,  0.332184,        'KO'],
+                               [0.009809,  0.033010,  0.102698,  0.374196,        'KO']],
+                              columns=['cPARP__0',  'cPARP__1',  'cPARP__2',  'cPARP__3', 'condition'])
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns], check_less_precise=1)
+
+    def test_likelihood(self):
+        data = pd.DataFrame([[2, 0, 0, "WT", 1],
+                             [2, 0, 1, "WT", 1],
+                             [2, 0, 2, "WT", 1],
+                             [2, 1, 3, "WT", 1],
+                             [2, 2, 4, "WT", 1],
+                             [2, 3, 5, "WT", 1],
+                             [1, 3, 5, "WT", 1],
+                             [1, 4, 7, "WT", 1],
+                             [0, 4, 9, "WT", 1]],
+                            columns=['PARP', 'cPARP', 'time', 'condition', 'experiment'])
+        ds = DataSet(data, {'PARP': 'ordinal', 'cPARP': 'ordinal'})
+        sim = Simulator(self.model)
+        sim.param_values = pd.DataFrame([[100, 'WT', 1,  0], [150, 'WT', 1,  1]],
+                                        columns=['kbindAB', 'condition', 'experiment', 'simulation'])
+        sim_result = sim.run(tspan=np.linspace(0, 10, 3))
+        wb = WesternBlot(sim_result, ds, {'PARP': ['AB_complex'], 'cPARP': ['AB_complex']},
+                         ['AB_complex'], experimental_conditions=pd.DataFrame([['WT', 1],
+                                                                               ['KO', 1]],
+                                                                              columns=['condition', 'experiment']))
+        results = wb.likelihood()
+        self.assertEqual(results, 12.965467804941806)

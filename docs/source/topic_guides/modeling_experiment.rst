@@ -122,12 +122,12 @@ Modeling Dynamics with PySB
 ===========================
 The Opt2Q :class:`~opt2q.simulator.Simulator` class uses PySB simulators (e.g.
 :class:`~pysb.simulator.ScipyOdeSimulator`) to simulate the dynamics of a biological system. The Opt2Q simulator
-behaves much like PySB simulators: It accepts the same kinds of objects for its ``param_values`` and ``initials``
+behaves much like PySB simulators: e.g. it accepts the same kinds of objects for its ``param_values`` and ``initials``
 arguments and likewise returns a `PySB` :class:`~pysb.simulator.SimulationResult`. The PySB simulators are discussed
 `here <https://pysb.readthedocs.io/en/stable/modules/simulator.html>`_.
 
-The Opt2Q :class:`~opt2q.simulator.Simulator` also accepts :class:`~pandas.DataFrames` for its ``param_values`` and
-``initials`` arguments. The column names are the `PySB` model's :class:`~pysb.core.Parameter` names (for
+The Opt2Q :class:`~opt2q.simulator.Simulator` also accepts :class:`DataFrames <pandas.DataFrame>` for its ``param_values``
+and ``initials`` arguments. The column names are the `PySB` model's :class:`~pysb.core.Parameter` names (for
 ``param_values``) and the PySB ``model.species`` (for ``initials``). Additional columns can designate experimental
 treatments, conditions, etc.
 
@@ -143,7 +143,7 @@ treatments, conditions, etc.
 >>> sim = Simulator(model=model, param_values=new_params)
 >>> results = sim.run(np.linspace(0, 50, 50))
 
-The Opt2Q :class:`~opt2q.simulator.Simulator` returns the `PySB` :class:`~pysb.simulator.SimulationResult` with an
+The Opt2Q :class:`~opt2q.simulator.Simulator` returns the `PySB` :class:`~pysb.simulator.SimulationResult` that retains the
 additional ``opt2q_dataframe`` that annotates the simulation results by experimental treatment.
 
 .. code-block:: python
@@ -170,25 +170,106 @@ The Opt2Q :class:`~opt2q.simulator.Simulator` only accepts PySB :class:`models <
 
 Modeling Measurement Process
 ============================
+Opt2Q has a suite of :class:`measurement models <~opt2q.measurement.base.MeasurementModel>` that mimic qualities of the
+measurements researchers conduct on biological systems.
+
+The :class:`~opt2q.measurement.WesternBlot` model, for instance, mimics the ordinal quality of western blot measurements by
+mapping quantities in the Opt2Q simulation :class:`~pysb.simulator.SimulationResult` (described above) to ordinal categories.
+
+The following describes steps to set-up and use measurement models.
 
 Set-up the Measurement Model
 ----------------------------
-I recommend supplying a :class:`~opt2.data.DataSet` to your measurement model.
+The :class:`measurement model <~opt2q.measurement.base.MeasurementModel>` receives a :class:`~pysb.simulator.SimulationResult`
+for its first argument.
+
+In addition, the measurement model needs to know which observables, experimental conditions, and time-points are pertinent to
+the process. This information exists in Opt2Q :class:`DataSets <opt2q.data.DataSet>`. I recommend supplying a
+:class:`~opt2.data.DataSet` to your measurement model.
+
+>>> # Example: measurement model with dataset supplied.
+
+They can also be specified manually using the ``observables``, ``experimental_conditions`` and ``time_points`` arguments.
+
+>>> # Example:
+
+Important info: The experimental conditions defines a subset of the experiments (in the simulation result) to which to apply the
+measurement. Each experimental conditions can have a unique set of time-points but the observables must be the same for all of
+them.
 
 .. note::
 
     Time-points supplied to the measurement model should be in the range of the simulation result's time axis.
-    Avoid extrapolation, which is less accurate than the ODE solver.
+    Avoid extrapolation which is less accurate than the ODE solver.
 
 The Measurement Process
 -----------------------
+The measurement process conducts a series of transformations (e.g. log-scaling, normalization, interpolation, classification etc)
+on the :class:`~pysb.simulator.SimulationResult`. Each transformation is carried out by an Opt2Q
+:class:`~opt2q.measurement.base.Transform` class that possess methods for getting and setting parameters, and conducting the
+transformation.
 
-The :class:`~opt2q.measurement.base.transforms.LogisticClassifier` requires a :class:`~opt2q.data.DataSet` that possesses
-named columns of empirical data.
+>>> # Get_params, set_params and Run a transformation for a measurement model #Plot results
 
->>> # dataset example illustrating the data columns
+Measurement Likelihood Metric
+-----------------------------
+Simulate extrinsic noise
 
-If use the `Logistic Classifier`'s ``column_groups`` argument to resolve discrepancies between the names listed in the dataset
-and the simulation result:
+>>> params_m = pd.DataFrame([['kc3', 1.0, '-', True],
+...                          ['kc3', 0.3, '+', True],
+...                          ['kc4', 1.0, '-', True],
+...                          ['kc4', 0.3, '+', True]],
+...                         columns=['param', 'value', 'inhibitor', 'apply_noise'])
+>>>
+>>> param_cov = pd.DataFrame([['kc4', 'kc3', 0.01,   '-'],
+...                           ['kc3', 'kc3', 0.009,  '+'],
+...                           ['kc4', 'kc4', 0.009,  '+'],
+...                           ['kc4', 'kc3', 0.001,  '+']],
+...                          columns=['param_i', 'param_j', 'value', 'inhibitor'])
+>>>
+>>> NoiseModel.default_sample_size = 500
+>>> noise = NoiseModel(param_mean=params_m, param_covariance=param_cov)
+>>> parameters = noise.run()
 
->>> column_groups = {'column_as_named_in_dataset': ['corresponding column(s) in x']}
+Simulate Dynamics
+
+>>> sim = Simulator(model=model, param_values=parameters)
+>>> results = sim.run(np.linspace(0, 5000, 100))
+>>> results_df = results.opt2q_dataframe
+
+Annotate Data
+
+>>> western_blot = pd.read_csv('Albeck_Sorger_WB.csv')
+>>> western_blot['time'] = western_blot['time'].apply(lambda x: x*500)
+>>> western_blot['inhibitor'] = '-'
+>>> dataset = DataSet(data=western_blot, measured_variables=['cPARP', 'PARP'])
+
+Simulate Measurement
+
+>>> ec = pd.DataFrame(['-', '+'], columns=['inhibitor'])
+>>> wb = WesternBlot(simulation_result=results,
+...                  dataset=dataset,
+...                  measured_values={'PARP': ['PARP_obs'], 'cPARP': ['cPARP_obs']},
+...                  observables=['PARP_obs', 'cPARP_obs'],
+...                  experimental_conditions=pd.DataFrame(['-', '+'], columns=['inhibitor']),
+...                  time_points=[1500, 2000, 2500, 3500, 4500])
+>>>
+>>> western_blot_results = wb.run(use_dataset=False)  # runs dataset first to get coefficients, then predicts the rest.
+
+Calibrating Measurement
+
+>>> @objective_function(noise_model=noise, dynamics_sim=sim, western_blot = wb)
+>>> def my_objective_func(x):
+...     new_params_m=pd.DataFrame([['kc3', x[0], '-'],
+...                                ['kc3', x[1], '+'],
+...                                ['kc4', x[0], '-'],
+...                                ['kc4', x[1], '+']], columns=['param', 'value', 'inhibitor'])
+...     my_objective_func.noise_model.update_values(param_mean=new_params_m)
+...     my_objective_func.western_blot.process.set_params(
+...         {'classifier__coefficients__PARP__coef_`': np.array([x[2]]),
+...          'classifier__coefficients__PARP__theta_`': np.array([x[3], x[4]]),
+...          'classifier__coefficients__cPARP__coef_`': np.array([x[5]]),
+...          'classifier__coefficients__cPARP__theta_`': np.array([x[6], x[7],  x[8], x[9]])})
+...     sim_results = my_objective_func.sim.run(np.linspace(0, 5000, 100))
+...     return my_objective_func.western_blot.likelihood()
+

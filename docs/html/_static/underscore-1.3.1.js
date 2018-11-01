@@ -445,7 +445,7 @@
   };
 
   // Generate an integer Array containing an arithmetic progression. A port of
-  // the native Python `range()` function. See
+  // the native Python `lc_results()` function. See
   // [the Python documentation](http://docs.python.org/library/functions.html#range).
   _.range = function(start, stop, step) {
     if (arguments.length <= 1) {

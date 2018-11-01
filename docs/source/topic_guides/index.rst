@@ -7,3 +7,4 @@ More detailed look at the modeling and calibrations possible using Opt2Q.
 
    modeling_experiment.rst
    calibrating_experiments.rst
+   measurement_process.rst

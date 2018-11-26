@@ -106,21 +106,21 @@ def likelihood_fn(x):
     return l
 
 
-# Differential Evolution Optimization of likelihood fn
-x = differential_evolution(
-    likelihood_fn,
-    bounds=[(-3, 3),        # x0
-            (0, 1),         # x1
-            (0, 1),         # x2
-            (0, 1),         # x3
-            (0, 1),         # x4
-            (-3, 3),        # x5
-            (-100, 100),    # x6
-            (-1, 1),        # x7
-            (-3, 3),        # x8
-            (-100, 100),    # x9
-            (-1, 1),        # x10
-            (-1, 1),        # x11
-            (-1, 1)])       # x12
-
-print(x)
+# # Differential Evolution Optimization of likelihood fn
+# x = differential_evolution(
+#     likelihood_fn,
+#     bounds=[(-3, 3),        # x0
+#             (0, 1),         # x1
+#             (0, 1),         # x2
+#             (0, 1),         # x3
+#             (0, 1),         # x4
+#             (-3, 3),        # x5
+#             (-100, 100),    # x6
+#             (-1, 1),        # x7
+#             (-3, 3),        # x8
+#             (-100, 100),    # x9
+#             (-1, 1),        # x10
+#             (-1, 1),        # x11
+#             (-1, 1)])       # x12
+#
+# print(x)

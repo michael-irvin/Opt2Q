@@ -22,7 +22,7 @@ class TestTransformFunction(unittest.TestCase):
         def f(x, k=3):
             return x + k
         test = f.clip_zeros([0, 1, 2])
-        target = pd.DataFrame([0.1, 2, 3])
+        target = pd.DataFrame([0.1, 1, 2])
         pd.testing.assert_frame_equal(test, target)
 
     def test_log_scale(self):

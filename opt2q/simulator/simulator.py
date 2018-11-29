@@ -77,7 +77,7 @@ class Simulator(object):
         If True check new parameter and initials objects for compatibility with the solver, etc. Defaults to True
     """
 
-    supported_solvers = {'scipyode': ScipyOdeSimulator, 'cupsoda':CupSodaSimulator}
+    supported_solvers = {'scipyode': ScipyOdeSimulator, 'cupsoda': CupSodaSimulator}
 
     def __init__(self, model, tspan=None, param_values=None, initials=None, solver='scipyode', solver_options=None,
                  integrator_options=None, **kwargs):

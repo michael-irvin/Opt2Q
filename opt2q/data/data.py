@@ -130,22 +130,29 @@ class DataSet(object):
     @staticmethod
     def _make_default_ordinal_errors_matrix(size, measurement_error=None):
         """
-        Return square matrix like this:
+        Return square numpy array like this:
         array([[ 0.95 ,  0.05 ,  0.   ,  0.   ,  0.   ],
                [ 0.05 ,  0.95 ,  0.025,  0.   ,  0.   ],
                [ 0.   ,  0.025,  0.95 ,  0.025,  0.   ],
                [ 0.   ,  0.   ,  0.025,  0.95 ,  0.05 ],
                [ 0.   ,  0.   ,  0.   ,  0.05 ,  0.95 ]])
+        If size = 0, return a numpy array of size 0
         """
+        if size == 0:
+            return np.array([])
+
         if measurement_error is None:
             err = 0.05
 
         # make user measurement error is a float between 0 and 1.
         elif isinstance(measurement_error, float) and 0. < measurement_error < 1:
             err = measurement_error
+
         else:
             raise ValueError('Ordinal Data Protocols permit only one unique value of '
                              'measurement_error per observable Ordinal data')
+        if size == 1:
+            return np.array([err])
 
         c = np.eye(size, k=0) * (1.0 - err) + np.eye(size, k=-1) * (err / 2.0) + np.eye(size, k=1) * (err / 2.0)
         c[(0, -1), (1, -2)] *= 2
@@ -204,6 +211,9 @@ class DataSet(object):
         return data_for_likelihood
 
     def _apply_ordinal_errors_matrices_to_one_hot_data(self, one_hot_transformed_data_df, ordinal_variables_names):
+        if len(one_hot_transformed_data_df)==0:
+            return one_hot_transformed_data_df[ordinal_variables_names]
+
         errors_df = pd.DataFrame()
         for ord_var in ordinal_variables_names:
             data_df = one_hot_transformed_data_df.filter(regex='^{}__'.format(ord_var))

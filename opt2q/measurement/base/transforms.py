@@ -157,6 +157,30 @@ class Transform(object):
         return x
 
 
+class Average(Transform):
+    """
+    Returns averages of the values in the numeric columns of a :class:`~pandas.DataFrame`.
+
+    This operation is performed in groups specified by the `groupby` argument.
+
+    Parameter
+    ---------
+    groupby: str, or list optional
+        The name(s) of the column(s) by which to group the operation. Each unique value in these column denotes a
+        separate group. Defaults to None or to the non-numeric columns in ``x`` (what is passed to the
+        :meth:`~opt2q.measurement.base.transform.Average.transform` method)
+
+        Your group-by column(s) should identify unique rows of the annotating columns of the :class:`~pandas.DataFrame`.
+        If multiple unique rows appear in a single group, the operation results are repeated for each unique row.
+
+    apply_noise: bool
+        If True, the transform returns a
+    """
+
+    def transform(self, x, **kwargs):
+        return x
+
+
 class Interpolate(Transform):
     """
     Interpolates values in numeric (dependent variable) columns of a :class:`~pandas.DataFrame` at new values of an
@@ -180,8 +204,8 @@ class Interpolate(Transform):
         conditions, or etc.
 
     groupby: str, or list optional
-        The name of the column(s) by which to group the operation. Each unique value in this column denotes a
-        separate group. Defaults to None or to the unique experimental conditions rows in ``new_values``.
+        The name(s) of the column(s) by which to group the operation. Each unique value in this column denotes a
+        separate group. Defaults to None or to the non-numeric columns in ``new_values``.
 
         Your group-by column(s) should identify unique rows of the experimental conditions. If multiple experimental
         conditions' rows appear in the same group, the interpolation is repeated for each unique row. If the rows

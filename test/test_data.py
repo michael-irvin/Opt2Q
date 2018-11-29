@@ -131,17 +131,18 @@ class TestDataSet(TestData, unittest.TestCase):
                               columns=['time', 'condition', 'experiment', 'PARP__0', 'PARP__1', 'PARP__2'])
 
         pd.testing.assert_frame_equal(test[target.columns], target[target.columns], check_dtype=False)
-        target = pd.DataFrame([[0.000,     0.05,    0.950],
-                               [0.000,     0.05,    0.950],
-                               [0.000,     0.05,    0.950],
-                               [0.000,     0.05,    0.950],
-                               [0.000,     0.05,    0.950],
-                               [0.000,     0.05,    0.950],
-                               [0.000,     0.05,    0.950],
-                               [0.025,     0.95,    0.025],
-                               [0.950,     0.05,    0.000]], columns=['PARP__0',  'PARP__1',  'PARP__2'])
+        target = pd.DataFrame([[0,        'WT',           1,    0.000,     0.05,    0.950],
+                               [1,        'WT',           1,    0.000,     0.05,    0.950],
+                               [2,        'WT',           1,    0.000,     0.05,    0.950],
+                               [3,        'WT',           1,    0.000,     0.05,    0.950],
+                               [4,        'WT',           1,    0.000,     0.05,    0.950],
+                               [5,        'WT',           1,    0.000,     0.05,    0.950],
+                               [5,        'WT',           1,    0.000,     0.05,    0.950],
+                               [7,        'WT',           1,    0.025,     0.95,    0.025],
+                               [9,        'WT',           1,    0.950,     0.05,    0.000]],
+                              columns=['time', 'condition', 'experiment', 'PARP__0',  'PARP__1',  'PARP__2'])
         test = ds._ordinal_errors_df
-        pd.testing.assert_frame_equal(test, target)
+        pd.testing.assert_frame_equal(test[target.columns], target[target.columns])
 
 # TODO: add a way to change the _ordinal_errors_matrices and it update the _ordinal_errors_df automatically.
 

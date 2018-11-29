@@ -610,4 +610,4 @@ class TestWesternBlotModel(TestSolverModel, unittest.TestCase):
                                                                                ['KO', 1]],
                                                                               columns=['condition', 'experiment']))
         results = wb.likelihood()
-        self.assertEqual(results, 12.965467804941806)
+        self.assertAlmostEqual(results, 12.9654678049418, 10)

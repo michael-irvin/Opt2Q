@@ -403,7 +403,7 @@ class TestScale(unittest.TestCase):
         s = Scale()
         test1, test2 = s._check_scale_fn('log2')
         assert s.scale_functions['log2'][0] == test1
-        self.assertDictEqual({'base':2}, test2)
+        self.assertDictEqual({'base':2, 'clip_zeros': True}, test2)
 
     def test_check_scale_fn_str_not_in_scale_functions(self):
         with self.assertRaises(ValueError) as error:
@@ -556,7 +556,7 @@ class TestStandardize(unittest.TestCase):
 
 class TestLogisticClassifier(unittest.TestCase):
     def setUp(self):
-        self.dataset = DataSet(pd.DataFrame(columns=['a', 'b', 'c']))
+        self.dataset = DataSet(pd.DataFrame(columns=['a', 'b', 'c']), measured_variables=['a', 'b', 'c'])
         self.dataset.measured_variables = {'a': 'default', 'b': 'ordinal', 'c': 'quantitative'}
         self.dataset.data = pd.DataFrame([[1, 2, 3]], columns=['a', 'b', 'c'])
 

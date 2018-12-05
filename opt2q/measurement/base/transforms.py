@@ -969,8 +969,38 @@ class SampleAverage(Transform):
             else self._transform_w_apply_noise_wo_groups if (self._apply_noise and not do_groups) \
             else self._transform_w_apply_noise_w_groups
 
-        # todo: set_params and get_params for this class.
-        # todo: test that the correct _transform
+        self.set_params_fn = {'noise_term': self._update_noise_term,
+                              'sample_size': self._set_sample_size}
+
+    @property
+    def _get_params_dict(self):
+        return {'noise_term': self.noise_term, 'sample_size': self.sample_size}
+
+    @property
+    def noise_term(self):
+        return self._noise_term
+
+    @noise_term.setter
+    def noise_term(self, val):
+        self._update_noise_term(val)
+
+    def _update_noise_term(self, *val, **kw):
+        try:
+            self._noise_term = self._set_noise_term(val[0])
+        except IndexError:
+            self._noise_term.update(kw)
+
+
+    @property
+    def sample_size(self):
+        return self._sample_size
+
+    @sample_size.setter
+    def sample_size(self, val):
+        self._update_noise_term(val)
+
+    def _set_sample_size(self, val):
+        self._sample_size = int(val)
 
     @staticmethod
     def _check_columns(cols):
@@ -1040,16 +1070,16 @@ class SampleAverage(Transform):
         n = float(len(x))
 
         results = pd.DataFrame()
-        default_noise_term = self._noise_term['default']
+        default_noise_term = self.noise_term['default']
         for k, m in avr.items():
-            v = std[k]/np.sqrt(n) + self._noise_term.get(k, default_noise_term)
-            results[k] = np.random.normal(m, v, self._sample_size)
+            v = std[k]/np.sqrt(n) + self.noise_term.get(k, default_noise_term)
+            results[k] = np.random.normal(m, v, self.sample_size)
 
         incomplete_results = results.iloc[
-            np.tile(range(self._sample_size), len(df_remaining))].reset_index(drop=True)
+            np.tile(range(self.sample_size), len(df_remaining))].reset_index(drop=True)
 
         complete_results = incomplete_results.join(
-            df_remaining.iloc[np.repeat(df_remaining.index.tolist(), self._sample_size)].reset_index(drop=True))
+            df_remaining.iloc[np.repeat(df_remaining.index.tolist(), self.sample_size)].reset_index(drop=True))
         return complete_results
 
     def _transform_w_apply_noise_w_groups(self, x, _scale_these_cols):

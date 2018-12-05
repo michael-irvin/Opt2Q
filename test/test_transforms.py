@@ -1104,9 +1104,9 @@ class TestSampleAverage(unittest.TestCase):
     def test_drop_columns(self):
         sa = SampleAverage(sample_size=4,
                            apply_noise=True,
-                           variances={'Y': 10},
                            groupby='X',
                            drop_columns=['Y', 'A'])
+        sa.set_params(noise_term__Y=10)
         df2 = pd.DataFrame({'X': ['B', 'B', 'A', 'A'], 'Y': [1, 2, 3, 4], 'Z': [1, 1, 2, 3]})
         np.random.seed(0)
         test = sa.transform(df2)
@@ -1119,3 +1119,12 @@ class TestSampleAverage(unittest.TestCase):
                                [1.000000, 'B'],
                                [1.000000, 'B']], columns=['Z', 'X'])
         pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
+
+    def test_set_params_and_get_params(self):
+        sa = SampleAverage()
+        self.assertDictEqual(sa.get_params, {'noise_term__default': 0.0, 'sample_size': 50})
+        sa.set_params(noise_term=42)
+        self.assertDictEqual(sa.get_params, {'noise_term__default': 42, 'sample_size': 50})
+        sa.set_params(noise_term__x=500)
+        self.assertDictEqual(sa.get_params, {'noise_term__default': 42, 'noise_term__x': 500, 'sample_size': 50})
+

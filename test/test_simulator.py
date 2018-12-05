@@ -2,7 +2,7 @@ from pysb import Monomer, Parameter, Initial, Observable, Rule
 from pysb.bng import generate_equations
 from pysb.testing import *
 from opt2q.simulator import Simulator
-from opt2q.utils import UnsupportedSimulatorError, IncompatibleFormatWarning
+from opt2q.utils import UnsupportedSimulatorError, IncompatibleFormatWarning, CupSodaNotInstalledWarning
 from examples import plot_simple_dynamics_simulation
 from matplotlib import pyplot as plt
 from nose.tools import *
@@ -581,4 +581,31 @@ class TestSolver(TestSolverModel, unittest.TestCase):
             test_text = ax.get_legend().get_texts()[i].get_text()
             target_text = legend[i]
             self.assertEqual(test_text, target_text)
+
+    def test_check_solver_when_cupsoda_is_not_installed(self):
+        try:
+            from pysb.pathfinder import get_path
+            # Path to cupSODA executable
+            get_path('cupsoda')
+            pass
+        except Exception:
+            with warnings.catch_warnings(record=True) as w:
+                Simulator(self.model, solver='cupsoda')
+                warnings.simplefilter("always")
+                assert issubclass(w[-1].category, CupSodaNotInstalledWarning)
+
+    def test_base_run_cupsoda_option(self):
+        target = pd.DataFrame(
+            np.array([[0,     0,     0,       0,       0,           0],
+                      [1,     1,   249,       1,       1,         249],
+                      [1,     1,   499,       1,       1,         499],
+                      [1,     1,   749,       1,       1,         749],
+                      [1,     1,   999,       1,       1,         999]]),
+            columns=[u'__s0', u'__s1', u'__s2', u'A_free', u'B_free', u'AB_complex'],
+            index=pd.Index([0.0, 2.5, 5.0, 7.5, 10.0], name='time'))
+        sim = Simulator(self.model, solver='cupsoda', integrator_options={'max_steps': 2 ** 10})
+        res = sim.run(tspan=np.linspace(0, 10, 5))
+        pd_testing.assert_frame_equal(target, res.dataframe, check_dtype=False)
+
+
 

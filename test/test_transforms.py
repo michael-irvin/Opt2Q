@@ -1,5 +1,5 @@
 # MW Irvin -- Lopez Lab -- 2018-08-31
-from opt2q.measurement.base import Interpolate, Pipeline, Scale, Standardize, LogisticClassifier
+from opt2q.measurement.base import Interpolate, Pipeline, SampleAverage, Scale, Standardize, LogisticClassifier
 from opt2q.measurement.base.functions import log_scale, TransformFunction
 from opt2q.utils import _is_vector_like
 from opt2q.data import DataSet
@@ -1006,3 +1006,116 @@ class TestLogisticClassifier(unittest.TestCase):
     def test_get_params(self):
         # before transform. Calling Coefficients produces calls transform.
         pass
+
+
+class TestSampleAverage(unittest.TestCase):
+    def test_defaults(self):
+        sa = SampleAverage()
+        assert sa._columns is None
+        assert sa._group_by is None
+        self.assertSetEqual(sa._columns_set, set([]))
+
+    def test_columns_str(self):
+        sa = SampleAverage(columns='col')
+        self.assertListEqual(['col'], sa._columns)
+        self.assertSetEqual({'col'}, sa._columns_set)
+
+    def test_columns_list(self):
+        st = SampleAverage(columns=['col1', 'col2'])
+        self.assertListEqual(['col1', 'col2'], st._columns)
+        self.assertSetEqual({'col1', 'col2'}, st._columns_set)
+
+    def test_groupby_vector_like(self):
+        st = SampleAverage(groupby=('col1', 'col2'))
+        self.assertListEqual(['col1', 'col2'], st._group_by)
+
+    def test_groupby_bad_group_types(self):
+        with self.assertRaises(ValueError) as error:
+            SampleAverage(groupby={'col1': 'col2'})
+        self.assertTrue(error.exception.args[0] == "groupby must be a string or list of strings")
+
+    def test_groupby_overlapping_cols(self):
+        with self.assertRaises(ValueError) as error:
+            SampleAverage(groupby={'col1', 'col2'}, columns='col1')
+        self.assertTrue(error.exception.args[0] == "columns and groupby cannot be have any of the same column names.")
+
+    def test_apply_noise(self):
+        sa = SampleAverage()
+        assert sa._apply_noise is False
+        sa = SampleAverage(apply_noise=True)
+        assert sa._apply_noise is True
+        sa = SampleAverage(apply_noise="I didn't read the docs")
+        assert sa._apply_noise is False
+
+    def test_transform_wo_apply_noise_in_groups(self):
+        df2 = pd.DataFrame({'X': ['B', 'B', 'A', 'A'], 'Y': [1, 2, 3, 4], 'Z': [1, 1, 2, 3]})
+        sa = SampleAverage(columns=['Y'], groupby='X')
+        test = sa._transform_wo_apply_noise_in_groups(df2, {'Y'})
+        target = pd.DataFrame({'X': ['A', 'A', 'B'], 'Y': [3.5, 3.5, 1.5], 'Z': [2, 3, 1]})
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
+
+    def test_transform_wo_apply_noise_wo_groups(self):
+        df2 = pd.DataFrame({'X': ['B', 'B', 'A', 'A'], 'Y': [1, 2, 3, 4], 'Z': [1, 1, 2, 3]})
+        sa = SampleAverage(columns=['Y'])
+        test = sa._transform_wo_apply_noise_wo_groups(df2, {'Y', 'Z'})
+        target = pd.DataFrame({'X': ['B', 'A'], 'Y': [2.5, 2.5], 'Z': [1.75, 1.75]})
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
+
+    def test_set_noise_term(self):
+        sa = SampleAverage(columns=['Y'])
+        self.assertDictEqual(sa._noise_term, {'default':0.0})
+        test = sa._set_noise_term(5)
+        self.assertDictEqual(test, {'default': 5})
+        test = sa._set_noise_term({'Y':5})
+        self.assertDictEqual(test, {'default': 0.0, 'Y': 5})
+
+    def test_transform_w_apply_noise_wo_groups(self):
+        sa = SampleAverage(sample_size=4, variances={'Y': 10})
+        df2 = pd.DataFrame({'X': ['B', 'B', 'A', 'A'], 'Y': [1, 2, 3, 4], 'Z': [1, 1, 2, 3]})
+        np.random.seed(0)
+        test = sa._transform_w_apply_noise_wo_groups(df2, {'Y', 'Z'})
+
+        target = pd.DataFrame([[22.381083,  2.594476,  'B'],
+                               [-7.903609,  1.941561,  'B'],
+                               [12.614164,  2.218535,  'B'],
+                               [ 0.888727,  2.822746,  'B'],
+                               [22.381083,  2.594476,  'A'],
+                               [-7.903609,  1.941561,  'A'],
+                               [12.614164,  2.218535,  'A'],
+                               [ 0.888727,  2.822746,  'A']], columns=['Y', 'Z', 'X'])
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
+
+    def test_transform_w_apply_noise_w_groups(self):
+        sa = SampleAverage(sample_size=4, apply_noise=True, variances={'Y': 10}, groupby='X', columns=['Z', 'Y'])
+        df2 = pd.DataFrame({'X': ['B', 'B', 'A', 'A'], 'Y': [1, 2, 3, 4], 'Z': [1, 1, 2, 3]})
+        np.random.seed(0)
+        test = sa.transform(df2)
+        print(test)
+        target = pd.DataFrame([[23.109359, 3.382026, 'A'],
+                               [-6.761418, 2.700079, 'A'],
+                               [13.475928, 2.989369, 'A'],
+                               [ 1.910749, 3.620447, 'A'],
+                               [ 9.490896, 1.000000, 'B'],
+                               [ 2.777588, 1.000000, 'B'],
+                               [ 6.160564, 1.000000, 'B'],
+                               [ 5.003580, 1.000000, 'B']], columns=['Y', 'Z', 'X'])
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
+
+    def test_drop_columns(self):
+        sa = SampleAverage(sample_size=4,
+                           apply_noise=True,
+                           variances={'Y': 10},
+                           groupby='X',
+                           drop_columns=['Y', 'A'])
+        df2 = pd.DataFrame({'X': ['B', 'B', 'A', 'A'], 'Y': [1, 2, 3, 4], 'Z': [1, 1, 2, 3]})
+        np.random.seed(0)
+        test = sa.transform(df2)
+        target = pd.DataFrame([[3.382026, 'A'],
+                               [2.700079, 'A'],
+                               [2.989369, 'A'],
+                               [3.620447, 'A'],
+                               [1.000000, 'B'],
+                               [1.000000, 'B'],
+                               [1.000000, 'B'],
+                               [1.000000, 'B']], columns=['Z', 'X'])
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns])

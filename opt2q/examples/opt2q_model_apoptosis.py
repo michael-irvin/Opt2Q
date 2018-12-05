@@ -9,6 +9,7 @@ from opt2q.noise import NoiseModel
 from opt2q.simulator import Simulator
 from opt2q.data import DataSet
 from opt2q.measurement import WesternBlot
+from opt2q.utils import profile
 
 # ------- simulate extrinsic noise -------
 params_m = pd.DataFrame([['kc3', 1.0, '-', True],
@@ -23,7 +24,7 @@ param_cov = pd.DataFrame([['kc4', 'kc3', 0.01,   '-'],
                           ['kc4', 'kc3', 0.001,  '+']],
                          columns=['param_i', 'param_j', 'value', 'inhibitor'])
 
-NoiseModel.default_sample_size = 50
+NoiseModel.default_sample_size = 1000
 noise = NoiseModel(param_mean=params_m, param_covariance=param_cov)
 parameters = noise.run()
 
@@ -37,11 +38,45 @@ plt.legend()
 plt.show()
 
 # ------- simulate dynamics -------
-sim = Simulator(model=model, param_values=parameters)
+sim = Simulator(model=model, param_values=parameters, solver='cupsoda')
 results = sim.run(np.linspace(0, 5000, 100))
 results_df = results.opt2q_dataframe
 results_df = results_df.reset_index()
 results_df['time_axis'] = results_df['time'].apply(lambda x: x/500.)
+
+# ------- cell lysis step of pipeline -------
+from opt2q.measurement.base import SampleAverage, Interpolate
+interpolate = Interpolate('time',
+                          ['cPARP_obs', 'PARP_obs'],
+                          [1500, 2000, 2500, 3500, 4500],
+                          groupby='simulation')
+res = interpolate.transform(results_df[['cPARP_obs', 'PARP_obs','time','simulation', 'inhibitor']])
+sa = SampleAverage(columns=['cPARP_obs', 'PARP_obs'], drop_columns='simulation',
+                   groupby=['time', 'inhibitor'], apply_noise=True, variances=10000)
+avr = sa.transform(res)
+
+# plot simulation results
+cm = plt.get_cmap('tab10')
+fig, axes = plt.subplots()
+
+axes.violinplot(dataset = [avr[(avr.inhibitor == '-')&(avr.time == 1500)]["cPARP_obs"],
+                           avr[(avr.inhibitor == '-')&(avr.time == 2000)]["cPARP_obs"],
+                           avr[(avr.inhibitor == '-')&(avr.time == 2500)]["cPARP_obs"],
+                           avr[(avr.inhibitor == '-')&(avr.time == 3500)]["cPARP_obs"],
+                           avr[(avr.inhibitor == '-')&(avr.time == 4500)]["cPARP_obs"]] )
+
+axes.violinplot(dataset = [avr[(avr.inhibitor == '+')&(avr.time == 1500)]["cPARP_obs"],
+                           avr[(avr.inhibitor == '+')&(avr.time == 2000)]["cPARP_obs"],
+                           avr[(avr.inhibitor == '+')&(avr.time == 2500)]["cPARP_obs"],
+                           avr[(avr.inhibitor == '+')&(avr.time == 3500)]["cPARP_obs"],
+                           avr[(avr.inhibitor == '+')&(avr.time == 4500)]["cPARP_obs"]])
+axes.set_xticks([3, 4, 5, 7, 9])
+axes.set_xlabel('time [hrs]')
+axes.set_ylabel('cPARP')
+axes.legend(handles=[
+    mpatches.Patch(color=colors[1], label='- zVAD'),
+    mpatches.Patch(color=colors[0], label='+ zVAD')])
+plt.show()
 
 # plot simulation results
 cm = plt.get_cmap('tab10')

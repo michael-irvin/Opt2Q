@@ -4,6 +4,8 @@ Background Stuff
 import warnings
 import numpy as np
 import pandas as pd
+import time
+
 
 
 # MW Irvin -- Lopez Lab -- 2018-08-08
@@ -47,6 +49,10 @@ class UnsupportedSimulatorError(Exception):
 
 
 class IncompatibleFormatWarning(Warning):
+    pass
+
+
+class CupSodaNotInstalledWarning(Warning):
     pass
 
 
@@ -94,3 +100,26 @@ def _convert_vector_like_to_set(vector_like_obj):
         return set(observables)
     else:
         return set([])
+
+
+def profile(func):
+    """
+    A timer decorator
+    """
+
+    def function_timer(*args, **kwargs):
+        """
+        A nested function for timing other functions
+        """
+        start = time.time()
+        value = func(*args, **kwargs)
+        end = time.time()
+        runtime = end - start
+        msg = "The runtime for {func} took {time} seconds to complete"
+        print(msg.format(func=func.__name__,
+                         time=runtime))
+        return value
+
+    return function_timer
+
+

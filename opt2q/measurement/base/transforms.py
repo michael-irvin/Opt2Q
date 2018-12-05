@@ -157,30 +157,6 @@ class Transform(object):
         return x
 
 
-class Average(Transform):
-    """
-    Returns averages of the values in the numeric columns of a :class:`~pandas.DataFrame`.
-
-    This operation is performed in groups specified by the `groupby` argument.
-
-    Parameter
-    ---------
-    groupby: str, or list optional
-        The name(s) of the column(s) by which to group the operation. Each unique value in these column denotes a
-        separate group. Defaults to None or to the non-numeric columns in ``x`` (what is passed to the
-        :meth:`~opt2q.measurement.base.transform.Average.transform` method)
-
-        Your group-by column(s) should identify unique rows of the annotating columns of the :class:`~pandas.DataFrame`.
-        If multiple unique rows appear in a single group, the operation results are repeated for each unique row.
-
-    apply_noise: bool
-        If True, the transform returns a
-    """
-
-    def transform(self, x, **kwargs):
-        return x
-
-
 class Interpolate(Transform):
     """
     Interpolates values in numeric (dependent variable) columns of a :class:`~pandas.DataFrame` at new values of an
@@ -931,6 +907,182 @@ class LogisticClassifier(Transform):
         return logistic_model
 
 
+class SampleAverage(Transform):
+    """
+    Returns averages of the values in the numeric columns of a :class:`~pandas.DataFrame`.
+
+    This operation is performed in groups specified by the `groupby` argument.
+
+    Parameter
+    ---------
+    columns:str or list of strings, optional
+        The column name(s) of the variable(s) being averaged. Defaults to all numeric columns of the
+        :class:`~pandas.DataFrame`, ``x``, that is passed to the
+        :meth:`~opt2q.measurement.base.transform.Average.transform` method.
+
+        All non-numeric columns are ignored (even if they where named in this argument).
+
+    drop_columns: str of list of string, optional
+        The column name(s) of the variable(s) to drop after the averaging step. E.g. if you
+        averaging all the simulations of an observable at a certain timepoint. You may want to
+        drop the simulation column after the average is calculated.
+
+    groupby: str, or list, optional
+        The name(s) of the column(s) by which to group the operation. Each unique value in these column denotes a
+        separate group. Defaults to None or to the non-numeric columns in ``x`` (what is passed to the
+        :meth:`~opt2q.measurement.base.transform.Average.transform` method)
+
+        Your group-by column(s) should identify unique rows of the annotating columns of the :class:`~pandas.DataFrame`.
+        If multiple unique rows appear in a single group, the operation results are repeated for each unique row.
+
+        Note: the ``groupby`` and ``columns`` arguments cannot reference the same column(s).
+
+    apply_noise: bool, optional
+        If True, the transform returns a t-distributed random numbers based on the average and standard deviation of
+        the values in the column. Defaults to False (i.e. returns only the average).
+
+    variances: float or dict, optional
+        If apply_noise is true, each average value replaced with a sample of random values having a normal centered
+        at the average, :math:`m`:  :math:`\mathscr{N}(m, s^2/n + \sigma^2)`, where :math:`s` is the variance of
+        values being averaged and :math:`\sigma^2` is an additional noise term specified by this argument.
+        As a float it applies to every column being averaged. As a dict, the keys designate the columns.
+    """
+    default_sample_size = 50
+
+    def __init__(self, columns=None, drop_columns=None, groupby=None, apply_noise=False, variances=0.0, sample_size=default_sample_size):
+        super(SampleAverage).__init__()
+        self._columns, self._columns_set = self._check_columns(columns)
+        self._drop_columns, self._drop_columns_set = self._check_columns(drop_columns)
+        self._group_by = self._check_group_by(groupby, self._columns_set)  # returns List or None
+
+        # non-bool defaults to False
+        self._apply_noise = apply_noise is True and isinstance(apply_noise, bool)
+
+        # noise terms
+        self._noise_term = self._set_noise_term(variances)
+        self._sample_size = int(sample_size)
+
+        do_groups = self._group_by is not None
+
+        self._transform = self._transform_wo_apply_noise_wo_groups if (not self._apply_noise and not do_groups) \
+            else self._transform_wo_apply_noise_in_groups if (not self._apply_noise and do_groups) \
+            else self._transform_w_apply_noise_wo_groups if (self._apply_noise and not do_groups) \
+            else self._transform_w_apply_noise_w_groups
+
+        # todo: set_params and get_params for this class.
+        # todo: test that the correct _transform
+
+    @staticmethod
+    def _check_columns(cols):
+        if cols is None:
+            return None, set([])
+        if _is_vector_like(cols):
+            cols_set = _convert_vector_like_to_set(cols)
+            cols = _convert_vector_like_to_list(cols)
+        else:
+            cols_set = {cols}
+            cols = [cols]
+        return cols, cols_set
+
+    @staticmethod
+    def _check_group_by(group_by, columns):
+        if group_by is None:
+            return group_by
+        if _is_vector_like(group_by):
+            groups = _convert_vector_like_to_set(group_by)
+        elif isinstance(group_by, str) or isinstance(group_by, int):
+            groups = {group_by}
+        else:
+            raise ValueError("groupby must be a string or list of strings")
+
+        # cannot group-by columns that are getting scaled.
+        if len(groups.intersection(columns)) > 0:
+            raise ValueError("columns and groupby cannot be have any of the same column names.")
+        else:
+            return list(groups)
+
+    @staticmethod
+    def _set_noise_term(variance):
+        noise_term = {'default': 0.0}
+        if isinstance(variance, (float, int)):
+            noise_term.update({'default': variance})
+        elif isinstance(variance, dict):
+            noise_term.update(variance)
+        else:
+            raise ValueError("variances can only be float or dict")
+        return noise_term
+
+    def _transform_wo_apply_noise_in_groups(self, x, _scale_these_cols):
+        _scale_these_cols |= set(self._group_by)
+        cols = list(_scale_these_cols)
+        remaining_cols = list(set(self._group_by)|(set(x.columns)-_scale_these_cols))
+
+        avr = x[cols].groupby(self._group_by).mean().reset_index()
+        df_remaining = x[remaining_cols].drop_duplicates()
+        return avr.merge(df_remaining, on=self._group_by)
+
+    def _transform_wo_apply_noise_wo_groups(self, x, _scale_these_cols):
+        cols = list(_scale_these_cols)
+        remaining_cols = list(set(x.columns)-_scale_these_cols)
+        df_remaining = x[remaining_cols].drop_duplicates().reset_index(drop=True)
+
+        avr = pd.DataFrame(x[cols].mean()).transpose().iloc[np.repeat([0], len(df_remaining))].reset_index(drop=True)
+        avr[remaining_cols] = df_remaining
+        return avr
+
+    def _transform_w_apply_noise_wo_groups(self, x, _scale_these_cols):
+        cols = list(_scale_these_cols)
+        remaining_cols = list(set(x.columns) - _scale_these_cols)
+        df_remaining = x[remaining_cols].drop_duplicates().reset_index(drop=True)
+
+        avr = x[cols].mean().to_dict()
+        std = x[cols].std().to_dict()
+        n = float(len(x))
+
+        results = pd.DataFrame()
+        default_noise_term = self._noise_term['default']
+        for k, m in avr.items():
+            v = std[k]/np.sqrt(n) + self._noise_term.get(k, default_noise_term)
+            results[k] = np.random.normal(m, v, self._sample_size)
+
+        incomplete_results = results.iloc[
+            np.tile(range(self._sample_size), len(df_remaining))].reset_index(drop=True)
+
+        complete_results = incomplete_results.join(
+            df_remaining.iloc[np.repeat(df_remaining.index.tolist(), self._sample_size)].reset_index(drop=True))
+        return complete_results
+
+    def _transform_w_apply_noise_w_groups(self, x, _scale_these_cols):
+        sample_average_result = pd.DataFrame()
+        for name, group in x.groupby(self._group_by):
+            group_result = self._transform_w_apply_noise_wo_groups(group, _scale_these_cols)
+            sample_average_result = pd.concat([sample_average_result, group_result])
+
+        return sample_average_result.reset_index(drop=True)
+
+    def transform(self, x, **kwargs):
+        """
+        Column-wise average of samples in ``x``.
+        """
+        if self._drop_columns is not None:
+            drop_these = list(self._drop_columns_set.intersection(set(x.columns)))
+            x_ = x.drop(columns=drop_these)
+        else:
+            x_ = x
+
+        try:
+            scalable_cols = set(x_._get_numeric_data().columns)
+        except AttributeError:
+            raise TypeError("x must be a DataFrame")
+
+        if self._columns is not None:
+            cols_to_scale = scalable_cols.intersection(self._columns_set)
+        else:
+            cols_to_scale = scalable_cols
+
+        return self._transform(x_, cols_to_scale)
+
+
 class Scale(Transform):
     """
     Conducts *simple* scaling of values in a DataFrame
@@ -1087,6 +1239,8 @@ class Standardize(Transform):
     groupby: str, or list, optional
         The name of the column(s) by which to group the operation. Each unique value in the column(s) denotes a
         separate group. Defaults to None, and conducts a single operation along the length on the whole DataFrame.
+
+        Note: the ``groupby`` and ``columns`` arguments cannot reference the same column(s).
 
     do_fit_transform: bool, optional
         When True, Simply scale the values of ``x`` to a (column-wise) mean of zero and unit variance.

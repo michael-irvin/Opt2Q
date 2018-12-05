@@ -4,7 +4,15 @@ import logging
 import numpy as np
 import pandas as pd
 from pysb.simulator import ScipyOdeSimulator, CupSodaSimulator
-from opt2q.utils import UnsupportedSimulatorError, incompatible_format_warning
+from opt2q.utils import UnsupportedSimulatorError, incompatible_format_warning, CupSodaNotInstalledWarning
+
+try:
+    from pysb.pathfinder import get_path
+    # Path to cupSODA executable
+    get_path('cupsoda')
+    do_not_use_cupsoda = False
+except Exception:
+    do_not_use_cupsoda = True
 
 
 class Simulator(object):
@@ -117,6 +125,13 @@ class Simulator(object):
         self.tspan = tspan
 
     def _check_solver(self, _solver):
+        if do_not_use_cupsoda and _solver is 'cupsoda':
+            warnings.warn("You cannot use the 'cupsoda' solver. "
+                          "The program cupSODA was not found in the default search path(s) for your operating system."
+                          "The 'scipyode' solver will be used instead and may take much longer for simulation.",
+                          category=CupSodaNotInstalledWarning)
+            return self.supported_solvers['scipyode']
+
         try:
             return self.supported_solvers[_solver]
         except KeyError:

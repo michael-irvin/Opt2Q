@@ -7,6 +7,7 @@ __all__ = ['MeasurementModel',
            'Interpolate',
            'LogisticClassifier',
            'Pipeline',
+           'SampleAverage'
            'Scale',
            'Standardize',
            # parent classes

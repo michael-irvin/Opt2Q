@@ -1070,19 +1070,20 @@ class TestSampleAverage(unittest.TestCase):
         self.assertDictEqual(test, {'default': 0.0, 'Y': 5})
 
     def test_transform_w_apply_noise_wo_groups(self):
+        np.random.seed(0)
         sa = SampleAverage(sample_size=4, variances={'Y': 10})
         df2 = pd.DataFrame({'X': ['B', 'B', 'A', 'A'], 'Y': [1, 2, 3, 4], 'Z': [1, 1, 2, 3]})
-        np.random.seed(0)
         test = sa._transform_w_apply_noise_wo_groups(df2, {'Y', 'Z'})
 
-        target = pd.DataFrame([[22.381083,  2.594476,  'B'],
-                               [-7.903609,  1.941561,  'B'],
-                               [12.614164,  2.218535,  'B'],
-                               [ 0.888727,  2.822746,  'B'],
-                               [22.381083,  2.594476,  'A'],
-                               [-7.903609,  1.941561,  'A'],
-                               [12.614164,  2.218535,  'A'],
-                               [ 0.888727,  2.822746,  'A']], columns=['Y', 'Z', 'X'])
+        target = pd.DataFrame([[21.279214,  2.644025,  'B'],
+                               [ 6.759872,  1.282164,  'B'],
+                               [12.919152,  2.204820,  'B'],
+                               [26.355422,  1.677543,  'B'],
+                               [21.279214,  2.644025,  'A'],
+                               [ 6.759872,  1.282164,  'A'],
+                               [12.919152,  2.204820,  'A'],
+                               [26.355422,  1.677543,  'A']], columns=['Y', 'Z', 'X'])
+        print(test)
         pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
 
     def test_transform_w_apply_noise_w_groups(self):
@@ -1091,14 +1092,14 @@ class TestSampleAverage(unittest.TestCase):
         np.random.seed(0)
         test = sa.transform(df2)
         print(test)
-        target = pd.DataFrame([[23.109359, 3.382026, 'A'],
-                               [-6.761418, 2.700079, 'A'],
-                               [13.475928, 2.989369, 'A'],
-                               [ 1.910749, 3.620447, 'A'],
-                               [ 9.490896, 1.000000, 'B'],
-                               [ 2.777588, 1.000000, 'B'],
-                               [ 6.160564, 1.000000, 'B'],
-                               [ 5.003580, 1.000000, 'B']], columns=['Y', 'Z', 'X'])
+        target = pd.DataFrame([[22.022550, 3.433779, 'A'],
+                               [ 7.701651, 2.011361, 'A'],
+                               [13.776749, 2.975044, 'A'],
+                               [27.029379, 2.424321, 'A'],
+                               [ 0.416202, 1.000000, 'B'],
+                               [ 5.811284, 1.000000, 'B'],
+                               [ 3.012457, 1.000000, 'B'],
+                               [16.769872, 1.000000, 'B']], columns=['Y', 'Z', 'X'])
         pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
 
     def test_drop_columns(self):
@@ -1122,9 +1123,9 @@ class TestSampleAverage(unittest.TestCase):
 
     def test_set_params_and_get_params(self):
         sa = SampleAverage()
-        self.assertDictEqual(sa.get_params, {'noise_term__default': 0.0, 'sample_size': 50})
+        self.assertDictEqual(sa.get_params(), {'noise_term__default': 0.0, 'sample_size': 50})
         sa.set_params(noise_term=42)
-        self.assertDictEqual(sa.get_params, {'noise_term__default': 42, 'sample_size': 50})
+        self.assertDictEqual(sa.get_params(), {'noise_term__default': 42, 'sample_size': 50})
         sa.set_params(noise_term__x=500)
-        self.assertDictEqual(sa.get_params, {'noise_term__default': 42, 'noise_term__x': 500, 'sample_size': 50})
+        self.assertDictEqual(sa.get_params(), {'noise_term__default': 42, 'noise_term__x': 500, 'sample_size': 50})
 

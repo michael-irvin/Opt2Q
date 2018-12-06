@@ -59,17 +59,17 @@ avr = sa.transform(res)
 cm = plt.get_cmap('tab10')
 fig, axes = plt.subplots()
 
-axes.violinplot(dataset = [avr[(avr.inhibitor == '-')&(avr.time == 1500)]["cPARP_obs"],
-                           avr[(avr.inhibitor == '-')&(avr.time == 2000)]["cPARP_obs"],
-                           avr[(avr.inhibitor == '-')&(avr.time == 2500)]["cPARP_obs"],
-                           avr[(avr.inhibitor == '-')&(avr.time == 3500)]["cPARP_obs"],
-                           avr[(avr.inhibitor == '-')&(avr.time == 4500)]["cPARP_obs"]] )
+axes.violinplot(dataset=[avr[(avr.inhibitor == '-')&(avr.time == 1500)]["cPARP_obs"],
+                         avr[(avr.inhibitor == '-')&(avr.time == 2000)]["cPARP_obs"],
+                         avr[(avr.inhibitor == '-')&(avr.time == 2500)]["cPARP_obs"],
+                         avr[(avr.inhibitor == '-')&(avr.time == 3500)]["cPARP_obs"],
+                         avr[(avr.inhibitor == '-')&(avr.time == 4500)]["cPARP_obs"]])
 
-axes.violinplot(dataset = [avr[(avr.inhibitor == '+')&(avr.time == 1500)]["cPARP_obs"],
-                           avr[(avr.inhibitor == '+')&(avr.time == 2000)]["cPARP_obs"],
-                           avr[(avr.inhibitor == '+')&(avr.time == 2500)]["cPARP_obs"],
-                           avr[(avr.inhibitor == '+')&(avr.time == 3500)]["cPARP_obs"],
-                           avr[(avr.inhibitor == '+')&(avr.time == 4500)]["cPARP_obs"]])
+axes.violinplot(dataset=[avr[(avr.inhibitor == '+')&(avr.time == 1500)]["cPARP_obs"],
+                         avr[(avr.inhibitor == '+')&(avr.time == 2000)]["cPARP_obs"],
+                         avr[(avr.inhibitor == '+')&(avr.time == 2500)]["cPARP_obs"],
+                         avr[(avr.inhibitor == '+')&(avr.time == 3500)]["cPARP_obs"],
+                         avr[(avr.inhibitor == '+')&(avr.time == 4500)]["cPARP_obs"]])
 axes.set_xticks([3, 4, 5, 7, 9])
 axes.set_xlabel('time [hrs]')
 axes.set_ylabel('cPARP')
@@ -78,9 +78,8 @@ axes.legend(handles=[
     mpatches.Patch(color=colors[0], label='+ zVAD')])
 plt.show()
 
-# plot simulation results
-cm = plt.get_cmap('tab10')
-fig, (ax, ax1) = plt.subplots(1, 2, figsize=(10, 6), sharey='all', gridspec_kw={'width_ratios':[2, 1]})
+# ------ plot simulation results -------
+fig2, (ax, ax1) = plt.subplots(1, 2, figsize=(10, 6), sharey='all', gridspec_kw={'width_ratios':[2, 1]})
 
 legend_handles = []
 for i, (label, df) in enumerate(results_df.groupby('inhibitor')):
@@ -92,7 +91,7 @@ ax.set_xlabel('time')
 ax.set_ylabel('cPARP')
 ax.legend(handles=legend_handles)
 
-# ------- simulate measurement -------
+# simulate measurement
 # data
 western_blot = pd.read_csv('Albeck_Sorger_WB.csv')
 western_blot['time'] = western_blot['time'].apply(lambda x: x*500)
@@ -112,6 +111,7 @@ western_blot_results = wb.run(use_dataset=False)  # runs dataset first to get co
 
 # plot results
 wb.process.set_params(classifier__do_fit_transform=False)
+wb.process.remove_step('sample_average')
 measurement_model_x = pd.DataFrame({'PARP_obs': np.linspace(0, 1000000, 100), 'cPARP_obs': np.linspace(0, 1000000, 100)})
 measurement_model_y = wb.process.transform(measurement_model_x)
 
@@ -121,9 +121,9 @@ cPARP_results['cPARP'] = measurement_model_x['cPARP_obs']
 for col in sorted(list(set(cPARP_results.columns)-{'cPARP'})):
     cPARP_results.plot(y='cPARP', x=col, ax=ax1, label=col)
 ax1.set_title('Probability')
-plt.show()
+plt.savefig('wb_measurement_model')
 
-# plot blot
+# -------- plot blot ---------
 western_blot_results['time_axis'] = western_blot_results['time'].apply(lambda x: x/500.0)
 western_blot_results['loc1'] = 0.3
 western_blot_results['loc2'] = 0.7
@@ -137,18 +137,18 @@ for label, df in western_blot_results[western_blot_results['inhibitor'] == '-'].
         df.plot.scatter(x='time_axis', y=result_obs[obs], ax=ax, s=result_size[obs][int(level)],
                         alpha=0.05*np.mean(df[col])**2)
 plt.ylim((0, 1))
-plt.show()
-
-western_blot_results['loc1'] = 0.3
-western_blot_results['loc2'] = 0.7
-
-result_obs = {'cPARP': 'loc1', 'PARP':'loc2'}
-result_size = {'cPARP': [100, 200, 400, 600, 1000], 'PARP': [200, 500, 1000]}
-fig, ax = plt.subplots(figsize=(8, 3))
-for label, df in western_blot_results[western_blot_results['inhibitor'] == '+'].groupby('time'):
-    for col in [i for i in df.columns if '__' in i]:
-        obs, level = tuple([k_rvs[::-1] for k_rvs in col[::-1].split('__')][::-1])
-        df.plot.scatter(x='time_axis', y=result_obs[obs], ax=ax, s=result_size[obs][int(level)],
-                        alpha=0.05*np.mean(df[col])**2, color=colors[0])
-plt.ylim((0, 1))
-plt.show()
+plt.savefig('simulated_wb.png')
+print("Finished file")
+# western_blot_results['loc1'] = 0.3
+# western_blot_results['loc2'] = 0.7
+#
+# result_obs = {'cPARP': 'loc1', 'PARP':'loc2'}
+# result_size = {'cPARP': [100, 200, 400, 600, 1000], 'PARP': [200, 500, 1000]}
+# fig, ax = plt.subplots(figsize=(8, 3))
+# for label, df in western_blot_results[western_blot_results['inhibitor'] == '+'].groupby('time'):
+#     for col in [i for i in df.columns if '__' in i]:
+#         obs, level = tuple([k_rvs[::-1] for k_rvs in col[::-1].split('__')][::-1])
+#         df.plot.scatter(x='time_axis', y=result_obs[obs], ax=ax, s=result_size[obs][int(level)],
+#                         alpha=0.05*np.mean(df[col])**2, color=colors[0])
+# plt.ylim((0, 1))
+# plt.show()

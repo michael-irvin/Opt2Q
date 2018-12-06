@@ -1054,6 +1054,9 @@ class SampleAverage(Transform):
     def _transform_wo_apply_noise_wo_groups(self, x, _scale_these_cols):
         cols = list(_scale_these_cols)
         remaining_cols = list(set(x.columns)-_scale_these_cols)
+        if len(remaining_cols) == 0:
+            return pd.DataFrame(x[cols].mean()).transpose()
+
         df_remaining = x[remaining_cols].drop_duplicates().reset_index(drop=True)
 
         avr = pd.DataFrame(x[cols].mean()).transpose().iloc[np.repeat([0], len(df_remaining))].reset_index(drop=True)
@@ -1061,6 +1064,9 @@ class SampleAverage(Transform):
         return avr
 
     def _transform_w_apply_noise_wo_groups(self, x, _scale_these_cols):
+        if x.shape[0] < 2:  # Standard Dev requires at least 2 values.
+            return self._transform_wo_apply_noise_wo_groups(x, _scale_these_cols)
+
         cols = list(_scale_these_cols)
         remaining_cols = list(set(x.columns) - _scale_these_cols)
         df_remaining = x[remaining_cols].drop_duplicates().reset_index(drop=True)

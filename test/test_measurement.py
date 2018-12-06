@@ -3,7 +3,7 @@ from pysb import Monomer, Parameter, Initial, Observable, Rule
 from pysb.bng import generate_equations
 from pysb.testing import *
 from opt2q.simulator import Simulator
-from opt2q.measurement.base import MeasurementModel
+from opt2q.measurement.base import MeasurementModel, SampleAverage
 from opt2q.measurement import WesternBlot
 from opt2q.data import DataSet
 import numpy as np
@@ -579,6 +579,7 @@ class TestWesternBlotModel(TestSolverModel, unittest.TestCase):
                          ['AB_complex'], experimental_conditions=pd.DataFrame([['WT', 1],
                                                                                ['KO', 1]],
                                                                               columns=['condition', 'experiment']))
+        wb.process.remove_step(0)
         test = wb.run(use_dataset=False)[['cPARP__0', 'cPARP__1', 'cPARP__2', 'cPARP__3', 'condition']]
         target = pd.DataFrame([[0.982079,  0.013896,  0.002964,  0.000893,        'WT'],
                                [0.067612,  0.179068,  0.308197,  0.333025,        'WT'],
@@ -609,5 +610,58 @@ class TestWesternBlotModel(TestSolverModel, unittest.TestCase):
                          ['AB_complex'], experimental_conditions=pd.DataFrame([['WT', 1],
                                                                                ['KO', 1]],
                                                                               columns=['condition', 'experiment']))
+        wb.process.remove_step(0)
         results = wb.likelihood()
         self.assertAlmostEqual(results, 12.9654678049418, 10)
+
+    def test_likelihood_with_sample_average_step_added(self):
+        data = pd.DataFrame([[2, 0, 0, "WT", 1],
+                             [2, 0, 1, "WT", 1],
+                             [2, 0, 2, "WT", 1],
+                             [2, 1, 3, "WT", 1],
+                             [2, 2, 4, "WT", 1],
+                             [2, 3, 5, "WT", 1],
+                             [1, 3, 5, "WT", 1],
+                             [1, 4, 7, "WT", 1],
+                             [0, 4, 9, "WT", 1]],
+                            columns=['PARP', 'cPARP', 'time', 'condition', 'experiment'])
+        ds = DataSet(data, {'PARP': 'ordinal', 'cPARP': 'ordinal'})
+        sim = Simulator(self.model)
+        sim.param_values = pd.DataFrame([[100, 'WT', 1,  0], [150, 'WT', 1,  1]],
+                                        columns=['kbindAB', 'condition', 'experiment', 'simulation'])
+        sim_result = sim.run(tspan=np.linspace(0, 10, 3))
+        wb = WesternBlot(sim_result, ds, {'PARP': ['AB_complex'], 'cPARP': ['AB_complex']},
+                         ['AB_complex'], experimental_conditions=pd.DataFrame([['WT', 1],
+                                                                               ['KO', 1]],
+                                                                              columns=['condition', 'experiment']))
+        wb.process.set_params(sample_average__sample_size=50)
+        results = wb.likelihood()
+        self.assertAlmostEqual(results, 9.595265322480328, 3)
+
+    def test_likelihood_with_sample_average_step_added_wo_apply_noise(self):
+        data = pd.DataFrame([[2, 0, 0, "WT", 1],
+                             [2, 0, 1, "WT", 1],
+                             [2, 0, 2, "WT", 1],
+                             [2, 1, 3, "WT", 1],
+                             [2, 2, 4, "WT", 1],
+                             [2, 3, 5, "WT", 1],
+                             [1, 3, 5, "WT", 1],
+                             [1, 4, 7, "WT", 1],
+                             [0, 4, 9, "WT", 1]],
+                            columns=['PARP', 'cPARP', 'time', 'condition', 'experiment'])
+        ds = DataSet(data, {'PARP': 'ordinal', 'cPARP': 'ordinal'})
+        sim = Simulator(self.model)
+        sim.param_values = pd.DataFrame([[100, 'WT', 1,  0], [150, 'WT', 1,  1]],
+                                        columns=['kbindAB', 'condition', 'experiment', 'simulation'])
+        sim_result = sim.run(tspan=np.linspace(0, 10, 3))
+        wb = WesternBlot(sim_result, ds, {'PARP': ['AB_complex'], 'cPARP': ['AB_complex']},
+                         ['AB_complex'], experimental_conditions=pd.DataFrame([['WT', 1],
+                                                                               ['KO', 1]],
+                                                                              columns=['condition', 'experiment']))
+        wb.process.add_step(('sample_average',
+                             SampleAverage(columns=['AB_complex'], drop_columns='simulation',
+                                          groupby=list(set(wb.experimental_conditions_df.columns)- {'simulation'}),
+                                          apply_noise=True, variances=0.0, sample_size=4)), index=0)
+        results = wb.likelihood()
+        self.assertAlmostEqual(results, 12.072994981309265, 3)
+

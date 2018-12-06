@@ -4,6 +4,7 @@ import pandas as pd
 from matplotlib import pyplot as plt
 import matplotlib.patches as mpatches
 
+import time
 from opt2q.examples.apoptosis_model import model
 from opt2q.noise import NoiseModel
 from opt2q.simulator import Simulator
@@ -26,12 +27,13 @@ param_cov = pd.DataFrame([['kc3', 'kc3', 0.009,  '+'],
                           ['kc4', 'kc3', 0.001,  '+']],
                          columns=['param_i', 'param_j', 'value', 'inhibitor'])
 
-NoiseModel.default_sample_size = 50
+NoiseModel.default_sample_size = 1000
 noise = NoiseModel(param_mean=params_m, param_covariance=param_cov)
 parameters = noise.run()
 
 # ------- simulate dynamics -------
-sim = Simulator(model=model, param_values=parameters)
+sim = Simulator(model=model, param_values=parameters, solver='cupsoda')
+
 results = sim.run(np.linspace(0, 5000, 100))
 
 # ------- simulate measurement -------
@@ -49,9 +51,8 @@ wb = WesternBlot(simulation_result=results,
                  observables=['PARP_obs', 'cPARP_obs'],
                  experimental_conditions=pd.DataFrame(['-', '+'], columns=['inhibitor']),
                  time_points=[1500, 2000, 2500, 3500, 4500])
-
+wb.process.set_params(**{'sample_average__sample_size': 200})
 results0 = wb.run(use_dataset=False)
-
 
 # -------- calibrate model -----------
 @objective_function(noise_model=noise, simulator=sim, measurement_model=wb, return_results=False, evals=0)
@@ -100,27 +101,28 @@ def likelihood_fn(x):
 
     likelihood_fn.evals += 1
     l = likelihood_fn.measurement_model.likelihood()
+
     print(likelihood_fn.evals)
     print(x)
     print(l)
     return l
 
+# Differential Evolution Optimization of likelihood fn
+x = differential_evolution(
+    likelihood_fn,
+    bounds=[(-3, 3),        # x0
+            (0, 1),         # x1
+            (0, 1),         # x2
+            (0, 1),         # x3
+            (0, 1),         # x4
+            (-3, 3),        # x5
+            (-100, 100),    # x6
+            (-1, 1),        # x7
+            (-3, 3),        # x8
+            (-100, 100),    # x9
+            (-1, 1),        # x10
+            (-1, 1),        # x11
+            (-1, 1)])       # x12
 
-# # Differential Evolution Optimization of likelihood fn
-# x = differential_evolution(
-#     likelihood_fn,
-#     bounds=[(-3, 3),        # x0
-#             (0, 1),         # x1
-#             (0, 1),         # x2
-#             (0, 1),         # x3
-#             (0, 1),         # x4
-#             (-3, 3),        # x5
-#             (-100, 100),    # x6
-#             (-1, 1),        # x7
-#             (-3, 3),        # x8
-#             (-100, 100),    # x9
-#             (-1, 1),        # x10
-#             (-1, 1),        # x11
-#             (-1, 1)])       # x12
-#
-# print(x)
+print(x)
+np.save('calibrated_params_scipy_diff_evolution.npy', x)

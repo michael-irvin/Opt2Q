@@ -4,7 +4,7 @@ Suite of Measurement Models
 """
 from opt2q.utils import _is_vector_like, _convert_vector_like_to_list
 from opt2q.measurement.base.base import MeasurementModel
-from opt2q.measurement.base.transforms import Interpolate, LogisticClassifier, Pipeline, Scale, Standardize
+from opt2q.measurement.base.transforms import Interpolate, LogisticClassifier, Pipeline, Scale, Standardize, SampleAverage
 import pandas as pd
 import numpy as np
 
@@ -87,7 +87,10 @@ class WesternBlot(MeasurementModel):
                                          groupby='simulation')
 
         self.process = Pipeline(
-            steps=[('log_scale', Scale(columns=list(_process_observables), scale_fn='log10')),
+            steps=[('sample_average', SampleAverage(columns=list(_process_observables), drop_columns='simulation',
+                                                    groupby=list(set(self.experimental_conditions_df.columns)-
+                                                                 {'simulation'}), apply_noise=True, variances=0.0)),
+                   ('log_scale', Scale(columns=list(_process_observables), scale_fn='log10')),
                    ('standardize', Standardize(columns=list(_process_observables), groupby=None)),
                    ('classifier', LogisticClassifier(self._dataset, column_groups=_measured_values,
                                                      do_fit_transform=False, classifier_type='ordinal_eoc'))])
@@ -173,13 +176,24 @@ class WesternBlot(MeasurementModel):
             If False, the likelihood uses only the subset of observables mentioned in both the DataSet and the
             ``experimental_conditions`` arguments.
         """
+
         self.results = self.run(use_dataset=True)
-        columns_for_merge = list(self._dataset.experimental_conditions.columns)+['simulation']
+        ordinal_errors = self._dataset._ordinal_errors_df
+        exp_conditions_cols = list(self._dataset.experimental_conditions.columns)
+        columns_for_merge = exp_conditions_cols + ['simulation']
+
+        if 'simulation' not in self.results.columns:  # sample_average drops 'simulation' column
+            sample_avr_step = [y[1] for y in self.process.steps if y[0] == 'sample_average'][0]
+            sims = range(sample_avr_step.sample_size) if sample_avr_step._apply_noise else [0]
+            sims_repeats = int(self.results.shape[0]/len(sims))
+
+            self.results = self.results.assign(simulation=np.tile(sims, sims_repeats))
 
         # Duplicate rows of _ordinal_errors_df to match self.results (which can have many simulations per data-point).
-        ordinal_category_dist = self._dataset._ordinal_errors_df.merge(
-            self.results[columns_for_merge], how='outer', on=list(self._dataset.experimental_conditions.columns))\
-            .drop_duplicates().reset_index(drop=True)
+        ordinal_category_dist = ordinal_errors.merge(self.results[columns_for_merge], how='outer',
+                                                     on=exp_conditions_cols).drop_duplicates().reset_index(drop=True)
+
+
 
         # Probability of the predictions and the data referencing the same ordinal category
         category_names = ordinal_category_dist.filter(regex='__').columns

@@ -221,11 +221,55 @@ class WesternBlot(MeasurementModel):
                ))
 
 
+class FractionalKilling(MeasurementModel):
+    """
+    Simulates Measurements of Fractional Killing.
+
+    Conducts a series of transformations on a :class:`~pysb.simulator.SimulationResult` to represent attributes of a
+    measurement fractional killing.
+
+    Parameters
+    ----------
+    simulation_result: :class:`~pysb.simulator.SimulationResult`
+        Results of a `PySB` Model simulation. Produced by the run methods in the `PySB`
+        (:meth:`~pysb.simulator.ScipyOdeSimulator.run`) and `Opt2Q` (:meth:`~opt2q.simulator.Simulator.run`)
+        simulators. Since the Western Blot measurement makes use of a classifier, this simulation result should have a
+        large number of simulations.
+
+    dataset: :class:`~opt2q.data.DataSet`
+        Measured values and associated attributes (e.g. experimental conditions names) which dictate the rows of the
+        :class:`~pysb.simulator.SimulationResult` ``opt2q_dataframe`` pertain to the data.
+
+    measured_values: dict
+        A dictionary of (keys) measured variables (as named in the DataSet) and a list of corresponding PySB model observables.
+
+    observables: vector-like, optional
+        Lists the names (str) of the PySB PySB :class:`pysb.core.Model` observables and/or species involved in the
+        measurement.
+
+        These observables apply to all the experimental conditions involved in the measurement. Observables not
+        mentioned in the ``simulation_result`` and/or ``dataset`` (if supplied) are ignored.
+
+    time_points: vector-like, optional
+        Lists the time-points involved in the measurement. Defaults to the time points in the
+        :class:`~pysb.simulator.SimulationResult`. You can also assign time-points using a 'time' in the
+        ``experimental_conditions`` argument (as follows).
+
+    experimental_conditions: :class:`~pandas.DataFrame`, optional
+        The experimental conditions involved in the measurement model. Defaults to experimental conditions in
+        the ``dataset`` (if present) or the ``simulation_result``.
+
+        You can add a 'time' column to specify time-points that are specific to the individual experimental conditions.
+        NaNs in this column will be replace by the ``time_points`` values or the time-points mentioned in the
+        :class:`~pysb.simulator.SimulationResult`
+    """
+
+
 class Fluorescence(MeasurementModel):
     """
-    Simulates a Fluorescence Measurements.
+    Simulates Fluorescence Measurements.
 
-    Conducts a series of transformation on a :class:`~pysb.simulator.SimulationResult` to represents attributes of the
+    Conducts a series of transformations on a :class:`~pysb.simulator.SimulationResult` to represent attributes of the
     Fluorescence (semi-quantitative) measurement.
 
     Parameters

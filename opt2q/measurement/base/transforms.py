@@ -1138,7 +1138,10 @@ class Scale(Transform):
         As a string is must name one of the functions in
         :attr:`~opt2q.measurement.base.transforms.Scale.scale_functions`
         Defaults to 'log2'
-        As a function
+
+    keep_old_columns: bool, false
+        If true, the original column(s) remain in the result, and the newly scaled columns are named as follows:
+        'col__name', where "col" is the column's original name and "name" is the name of the transform.
 
     Attributes
     ----------
@@ -1149,17 +1152,19 @@ class Scale(Transform):
                        'log10': (log_scale, {'base': 10, 'clip_zeros': True}),
                        'loge': (log_scale, {'base': np.e, 'clip_zeros': True})}
 
-    def __init__(self, columns=None, scale_fn='log2', **scale_fn_kwargs):
+    def __init__(self, columns=None, scale_fn='log2', keep_old_columns=False, **scale_fn_kwargs):
         super(Scale).__init__()
         self._columns, self._columns_set = self._check_columns(columns)
         self._scale_fn, self._scale_fn_kwargs = self._check_scale_fn(scale_fn)
         self._scale_fn_kwargs.update(scale_fn_kwargs)
+        self._keep_old_columns = True if keep_old_columns else False  # non-bool inputs are false by default
 
         # update scale_fn repr to reflect user defined kwargs
         self._scale_fn.signature(**self.scale_fn_kwargs)
 
         self.set_params_fn = {'scale_fn': self._set_scale_fn,
-                              'scale_fn_kwargs': self._set_scale_fn_kwargs}
+                              'scale_fn_kwargs': self._set_scale_fn_kwargs,
+                              'keep_old_columns': self._keep_old_cols}
 
     @staticmethod
     def _check_columns(cols):
@@ -1189,7 +1194,9 @@ class Scale(Transform):
 
     @property
     def _get_params_dict(self):
-        return {'scale_fn': self.scale_fn, 'scale_fn_kwargs': self.scale_fn_kwargs}
+        return {'scale_fn': self.scale_fn,
+                'scale_fn_kwargs': self.scale_fn_kwargs,
+                'keep_old_columns': self.keep_old_columns}
 
     @property
     def scale_fn(self):
@@ -1213,6 +1220,17 @@ class Scale(Transform):
     def _set_scale_fn_kwargs(self, **kw):
         self._scale_fn_kwargs.update(kw)
         self._scale_fn.signature(**self.scale_fn_kwargs)
+
+    @property
+    def keep_old_columns(self):
+        return self._keep_old_columns
+
+    @keep_old_columns.setter
+    def keep_old_columns(self, val):
+        self._keep_old_cols(val)
+
+    def _keep_old_cols(self, val):
+        self._keep_old_columns = True if val else False
 
     # set params
     def set_params(self, **params):
@@ -1252,11 +1270,31 @@ class Scale(Transform):
         else:
             cols_to_scale = scalable_cols
 
-        scaled_df = self.scale_fn(x[list(cols_to_scale)], **self.scale_fn_kwargs)
+        cols_to_scale_list = list(cols_to_scale)
+        scaled_df = self.scale_fn(x[cols_to_scale_list], **self.scale_fn_kwargs)
+
+        if self.keep_old_columns:
+            scaled_df = self._rename_scaled_columns(scaled_df, cols_to_scale, kwargs.get('name', 'scale'))
+            scaled_df[cols_to_scale_list] = x[cols_to_scale_list]
+
         remaining_cols = list(set(x.columns)-cols_to_scale)
 
         scaled_df[remaining_cols] = x[remaining_cols]
         return scaled_df
+
+    @staticmethod
+    def _rename_scaled_columns(scaled_df, scaled_columns_set, name):
+        """
+        Rename the new columns 'col__name', where "col" is a column in `scaled_columns_set` and "name" is `name`.
+
+        Parameters
+        ----------
+        scaled_df: pd.DataFrame
+        scaled_columns_set: set
+            scaled columns' names
+        name: str
+        """
+        return scaled_df.rename(columns={col : f'{col}__{name}' for col in scaled_columns_set})
 
 
 class Standardize(Transform):

@@ -465,6 +465,27 @@ class TestScale(unittest.TestCase):
         target = pd.DataFrame([[0, 0.01, 'a'], [1, 1.0, 'b'], [2, 100., 'c']])
         pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
 
+    def test_get_params(self):
+        scale = Scale(columns=[0, 1], scale_fn='log2')
+        scale.set_params(keep_old_columns=True)
+        target = {'scale_fn_kwargs__base': 2,
+                  'scale_fn_kwargs__clip_zeros': True, 'keep_old_columns': True}
+        test = scale.get_params()
+        assert test.pop('scale_fn').__repr__() == 'log_scale(x, base=2, clip_zeros=True)'
+        self.assertDictEqual(test, target)
+
+    def test_rename_scaled_columns(self):
+        scale = Scale(columns=[0, 1], scale_fn='log2')
+        test = scale._rename_scaled_columns(pd.DataFrame(np.ones((3, 4))), scaled_columns_set={0, 1}, name='scale').columns
+        target = {'0__scale',  '1__scale',    2,    3}
+        self.assertSetEqual(set(test), target)
+
+    def test_transform_keep_old_columns(self):
+        scale = Scale(columns=[1, 2], scale_fn='log10', keep_old_columns=True)
+        test = scale.transform(pd.DataFrame([[0, 0.1, 'a'], [1, 1.0, 'b'], [2, 10., 'c']]))
+        target = pd.DataFrame([[0, -1., 'a', 0.1], [1, 0., 'b', 1.0], [2, 1., 'c', 10.]], columns=[0, '1__scale', 2, 1])
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
+
 
 class TestStandardize(unittest.TestCase):
     def test_defaults(self):

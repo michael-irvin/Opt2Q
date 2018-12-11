@@ -6,6 +6,8 @@ import numpy as np
 import pandas as pd
 import inspect
 
+from sklearn.preprocessing import PolynomialFeatures
+
 
 class TransformFunction(object):
     """
@@ -123,3 +125,11 @@ def log_scale(x, base=10, clip_zeros=True):
     if clip_zeros:
         x = log_scale.clip_zeros(x)
     return np.log(x).divide(np.log(base))
+
+
+@transform_function
+def polynomial_features(x, degree=2, interaction_only=False, include_bias=False):
+    p = PolynomialFeatures(degree, interaction_only=interaction_only, include_bias=include_bias)
+    px = p.fit_transform(x)
+    cols = p.get_feature_names(x.columns)
+    return pd.DataFrame(px, columns=cols)

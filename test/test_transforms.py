@@ -486,6 +486,15 @@ class TestScale(unittest.TestCase):
         target = pd.DataFrame([[0, -1., 'a', 0.1], [1, 0., 'b', 1.0], [2, 1., 'c', 10.]], columns=[0, '1__scale', 2, 1])
         pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
 
+    def test_transform_two_columns_into_one(self):
+        def x1x2(x):
+            return pd.DataFrame(x[0]*x[1], columns=['x1x2'])  # this will only work when x has columns 0 and 1
+
+        scale = Scale(columns=[0, 1], scale_fn=x1x2, keep_old_columns=True)
+        test = scale.transform(pd.DataFrame([[0, 0.1, 'a'], [1, 1.0, 'b'], [2, 10., 'c']]))
+        target = pd.DataFrame([[0, 0., 'a', 0.1], [1, 1., 'b', 1.0], [2, 20., 'c', 10.]], columns=[0, 'x1x2', 2, 1])
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
+
 
 class TestStandardize(unittest.TestCase):
     def test_defaults(self):

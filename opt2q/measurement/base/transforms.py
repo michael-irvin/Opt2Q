@@ -1140,8 +1140,9 @@ class Scale(Transform):
         Defaults to 'log2'
 
     keep_old_columns: bool, false
-        If true, the original column(s) remain in the result, and the newly scaled columns are named as follows:
-        'col__name', where "col" is the column's original name and "name" is the name of the transform.
+        If true, the original column(s) remain in the result. If the newly scaled columns are not already renamed,
+        they assume the following name: 'col__name', where "col" is the column's original name and "name" is the name
+        of the transform.
 
     Attributes
     ----------

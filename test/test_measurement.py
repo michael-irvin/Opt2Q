@@ -3,8 +3,8 @@ from pysb import Monomer, Parameter, Initial, Observable, Rule
 from pysb.bng import generate_equations
 from pysb.testing import *
 from opt2q.simulator import Simulator
-from opt2q.measurement.base import MeasurementModel, SampleAverage
-from opt2q.measurement import WesternBlot
+from opt2q.measurement.base import MeasurementModel, SampleAverage, Interpolate
+from opt2q.measurement import WesternBlot, FractionalKilling
 from opt2q.data import DataSet
 import numpy as np
 import pandas as pd
@@ -664,4 +664,52 @@ class TestWesternBlotModel(TestSolverModel, unittest.TestCase):
                                           apply_noise=True, variances=0.0, sample_size=4)), index=0)
         results = wb.likelihood()
         self.assertAlmostEqual(results, 12.072994981309265, 3)
+
+
+class TestFractionalKillingModel(TestSolverModel, unittest.TestCase):
+    def test_check_measured_values_dict_too_many_keys(self):
+        with self.assertRaises(ValueError) as error:
+            data = pd.DataFrame([[2, 0, 0, "WT", 1],
+                                 [0, 4, 9, "WT", 1]],
+                                columns=['PARP', 'cPARP', 'time', 'condition', 'experiment'])
+            ds = DataSet(data, {'PARP': 'ordinal', 'cPARP': 'ordinal'})
+            fk = FractionalKilling(self.sim_result, ds, {'PARP': ['A_free'], 'cPARP': ['AB_complex']})
+            fk._check_measured_values_dict({'PARP': ['A_free'], 'cPARP': ['AB_complex']}, ds)
+        self.assertTrue(
+            error.exception.args[0] == "'measured_values' cannot have multiple keys.")
+
+    def test_check_measured_values_dict_value_out_of_range(self):
+        with self.assertRaises(ValueError) as error:
+            data = pd.DataFrame([[2, 0, 0, "WT", 1],
+                                 [0, 4, 9, "WT", 1]],
+                                columns=['PARP', 'cPARP', 'time', 'condition', 'experiment'])
+            ds = DataSet(data, {'PARP': 'nominal', 'cPARP': 'ordinal'})
+            fk = FractionalKilling(self.sim_result, ds, {'PARP': ['A_free']})
+            fk._check_measured_values_dict({'PARP': ['A_free']}, ds)
+        self.assertTrue(
+            error.exception.args[0] == "The variable, 'PARP', in the 'dataset', can only have values between "
+                                       "0.0 and 1.0")
+
+    def test_interpolate_first(self):
+        # if interpolate_first the interpolate step should be the first step
+        data = pd.DataFrame([[1.0, 0, 'WT', 1],[0.78, 10, 'WT', 1]],
+                            columns=['viability', 'time', 'condition', 'experiment'])
+        ds = DataSet(data, {'viability':'quantitative'})
+        fk = FractionalKilling(self.sim_result, ds, {'viability':['AB_complex', 'A_free']}, interpolate_first=False)
+        self.assertTrue(fk.process.steps[-2][0] == 'interpolate')
+        fk.interpolate_first = True
+        self.assertTrue(fk.process.steps[0][0] == 'interpolate')
+
+    def test_replace_interpolate_step(self):
+        # when run(use_dataset = True), replace interpolation with interpolation_ds
+        data = pd.DataFrame([[1.0, 0, 'WT', 1], [0.78, 10, 'WT', 1]],
+                            columns=['viability', 'time', 'condition', 'experiment'])
+        ds = DataSet(data, {'viability': 'quantitative'})
+        fk = FractionalKilling(self.sim_result, ds, {'viability':['AB_complex', 'A_free']}, interpolate_first=False)
+        fk._replace_interpolate_step('MOCK_STEP')
+        self.assertTrue(fk.process.steps[-2][1]=='MOCK_STEP')
+
+
+
+
 

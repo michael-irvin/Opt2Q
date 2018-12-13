@@ -138,12 +138,12 @@ class WesternBlot(MeasurementModel):
         return measured_values_dict, obs
 
     def run(self, use_dataset=True):
-        x_ds = self.interpolation_ds.transform(self.simulation_result_df[self._results_cols])
-        result_ds = self.process.transform(x_ds)
-
         if use_dataset:
+            x_ds = self.interpolation_ds.transform(self.simulation_result_df[self._results_cols])
+            result_ds = self.process.transform(x_ds)
             self.results = result_ds
             return self.results
+
         else:
             current_classifier_do_fit_transform = self.process.get_params()['classifier__do_fit_transform']
 
@@ -226,29 +226,33 @@ class FractionalKilling(MeasurementModel):
     Simulates Measurements of Fractional Killing.
 
     Conducts a series of transformations on a :class:`~pysb.simulator.SimulationResult` to represent attributes of a
-    measurement fractional killing.
+    measurement fractional killing. While fractional killing is quantitative, it reports the proportion of cells
+    undergoing a certain fate (nominal).
 
     Parameters
     ----------
     simulation_result: :class:`~pysb.simulator.SimulationResult`
         Results of a `PySB` Model simulation. Produced by the run methods in the `PySB`
         (:meth:`~pysb.simulator.ScipyOdeSimulator.run`) and `Opt2Q` (:meth:`~opt2q.simulator.Simulator.run`)
-        simulators. Since the Western Blot measurement makes use of a classifier, this simulation result should have a
-        large number of simulations.
+        simulators. Since the fractional killing measurement makes use of a classifier, this simulation result should
+        have a large number of simulations.
 
     dataset: :class:`~opt2q.data.DataSet`
         Measured values and associated attributes (e.g. experimental conditions names) which dictate the rows of the
-        :class:`~pysb.simulator.SimulationResult` ``opt2q_dataframe`` pertain to the data.
+        :class:`~pysb.simulator.SimulationResult` ``opt2q_dataframe`` pertain to the data. The pertinent measured values
+        in the dataset can only have values between 0, 1.
 
     measured_values: dict
-        A dictionary of (keys) measured variables (as named in the DataSet) and a list of corresponding PySB model observables.
+        Relate measured variable, key, (as named in the DataSet) to a list of corresponding columns in the ``dataframe``
+        or ``opt2q_dataframe`` of the :class:`~pysb.simulator.SimulationResult`. The dict can only have one key (one
+        measured variable).
 
     observables: vector-like, optional
-        Lists the names (str) of the PySB PySB :class:`pysb.core.Model` observables and/or species involved in the
+        Lists the names (str) of the PySB :class:`pysb.core.Model` observables and/or species involved in the
         measurement.
 
         These observables apply to all the experimental conditions involved in the measurement. Observables not
-        mentioned in the ``simulation_result`` and/or ``dataset`` (if supplied) are ignored.
+        mentioned in the ``simulation_result`` and/or ``dataset`` (if supplied here) are ignored.
 
     time_points: vector-like, optional
         Lists the time-points involved in the measurement. Defaults to the time points in the
@@ -262,7 +266,165 @@ class FractionalKilling(MeasurementModel):
         You can add a 'time' column to specify time-points that are specific to the individual experimental conditions.
         NaNs in this column will be replace by the ``time_points`` values or the time-points mentioned in the
         :class:`~pysb.simulator.SimulationResult`
+
+    interpolate_first: bool
+        When True, the 'interpolation' step is the first step of the measurement
+        :attr:``~opt2q.measurement.measurement.FractionalKilling.process`. Otherwise, it appears after all other prepocessing steps
+        and before the 'classifier' step. Defaults to True.
+
+    Attributes
+    ----------
+    process: :class:`~opt2q.measurement.base.transforms.Pipeline`
+        Series of steps needed to model the measurement.
+        .. note:: Do not remove the 'classifier' step. If you replace it, don't change it's name.
+
     """
+
+    def __init__(self, simulation_result, dataset, measured_values, observables=None, time_points=None,
+                 experimental_conditions=None, interpolate_first=True):
+
+        super().__init__(simulation_result,
+                         dataset=dataset,
+                         observables=observables,
+                         time_points=time_points,
+                         experimental_conditions=experimental_conditions)
+
+        _measured_values, _process_observables = self._check_measured_values_dict(measured_values, dataset)
+        self._measured_values_dict = _measured_values
+
+        self.interpolation_ds = Interpolate('time',
+                                            list(_process_observables),
+                                            self._dataset_experimental_conditions_df,
+                                            groupby='simulation')
+        self.interpolation = Interpolate('time',
+                                         list(_process_observables),
+                                         self.experimental_conditions_df,
+                                         groupby='simulation')
+        self._interpolate_first = False if not interpolate_first else True  # Non-bool Defaults to True
+
+        # Note: Pipeline.transform needs to be updated to look for variations in the name in addition to the name itself
+        # Polynomial expansion creates RIP1^2 and RIP1 RIP3 and RIP3^2 from RIP1 and RIP3.
+        # But If RIP3p is present, the transform has to ignore it... how?
+        # ADD __ to the operation. And say take RIP1 + RIP1__^2, RIP1__ RIP3__,
+        # State that in the Transform Function that changes to column names will not be tracked automatically unless the
+        # changes include __
+
+        # An alternatively way to track is to look for new columns in x... x in x1 that are not in x0.. those
+        # columns can only come from...
+        # But this approach would mean that ALL new columns funnel into the next transform (which might not be what
+        #   you're wanting to do.
+
+        # Look for word breaks in the observables.. This should work because observables inharently don't have
+        # word breaks. Let the delimiter by the space and the __
+
+
+        self.process = Pipeline(
+            steps=[('log_scale', Scale(columns=list(_process_observables), scale_fn='log10')),
+                   ('standardize', Standardize(columns=list(_process_observables), groupby=None)),
+                   # todo: Make Mock Data for Classifier (Supervised Learning requires labeled dataset)
+                   ('classifier', LogisticClassifier(self._dataset.data, column_groups=_measured_values,
+                                                     do_fit_transform=False, classifier_type='nominal')),
+                   # The `_process_observables` should no longer be in the Dataframe....
+                   ('sample_average', SampleAverage(columns=list(_process_observables), drop_columns='simulation',
+                                                    groupby=list(set(self.experimental_conditions_df.columns) -
+                                                                 {'simulation'}), apply_noise=False))
+                   ])
+        self._add_interpolate_step()
+
+    @property
+    def interpolate_first(self):
+        return self._interpolate_first
+
+    @interpolate_first.setter
+    def interpolate_first(self, val):
+        self._interpolate_first = False if not val else True  # Non-bool Defaults to True
+        self._add_interpolate_step()
+
+    def _add_interpolate_step(self):
+        if self.interpolate_first:
+            self.process.add_step(('interpolate', self.interpolation), index=0)
+        else:
+            idx = [x for x, y in enumerate(self.process.steps) if y[0] == 'classifier'][0]
+            self.process.steps.insert(idx, ('interpolate', self.interpolation))
+
+    def _replace_interpolate_step(self, step):
+        idx = [x for x, y in enumerate(self.process.steps) if y[0] == 'interpolate'][0]
+        self.process.remove_step('interpolate')
+        self.process.steps.insert(idx, ('interpolate', step))
+
+    def _check_measured_values_dict(self, measured_values_dict, dataset) -> (dict, set):
+        """
+        Check that measured_values has only one key, and is in the dataset.measured_variables.
+
+        Check that the measured_values have values between 0 and 1.
+
+        Look for observables mentioned in measured_values_dict that are not in self.observables, and add them.
+        """
+        if len(measured_values_dict) > 1:
+            raise ValueError("'measured_values' cannot have multiple keys.")
+
+        obs = self.observables  # set
+        # Todo: change to: obs = set() if self._observables is None else self._observables  # set
+        data_cols = [k for k, v, in dataset.measured_variables.items() if v is not 'ordinal']
+
+        for k, v in measured_values_dict.items():
+            if k not in data_cols: raise ValueError(
+                "'measured_values' contains a variable, '{}', not mentioned as in the 'dataset'."
+                .format(k))
+            if max(dataset.data[k]) > 1 or min(dataset.data[k]) < 0:
+                raise ValueError("The variable, '{}', in the 'dataset', can only have values between 0.0 and 1.0".format(k))
+
+            if _is_vector_like(v):  # look for the v in the default_observables
+                measured_obs = _convert_vector_like_to_list(v)
+                for i in measured_obs:  # if v is an observable mentioned in the
+                    if isinstance(i, str):
+                        mentioned_obs = i.split('__')[0]
+                        obs |= {mentioned_obs} if mentioned_obs in self._default_observables else set()
+            else:
+                raise ValueError("'measured_values' must be a dict of lists")
+
+        return measured_values_dict, obs
+
+    def run(self, use_dataset=True):
+        """
+        Run the measurement model and return predicted values of the fraction of cells killed.
+
+        Parameters
+        ----------
+        use_dataset, bool
+            True, this method transforms only experimental conditions mentioned in the data. When False,
+            the predictions will include experimental conditions in the simulation result that are not
+            present in the dataset.
+        """
+        if use_dataset:
+            self._replace_interpolate_step(self.interpolation_ds)
+            result_ds = self.process.transform(self.simulation_result_df[self._results_cols])
+            self._replace_interpolate_step(self.interpolation)
+
+            self.results = result_ds
+            return self.results
+
+        else:
+            current_classifier_do_fit_transform = self.process.get_params()['classifier__do_fit_transform']
+
+            self.process.set_params(**{'classifier__do_fit_transform': False})
+            self.results = self.process.transform(self.simulation_result_df[self._results_cols])
+
+            self.process.set_params(**{'classifier__do_fit_transform': current_classifier_do_fit_transform})
+        return self.results
+
+    def run_classification(self, use_dataset=True):
+        """
+        Run the measurement model and return predictions of cell death vs. survival.
+
+        Parameters
+        ----------
+        use_dataset, bool
+            True, this method transforms only experimental conditions mentioned in the data. When False,
+            the predictions will include experimental conditions in the simulation result that are not
+            present in the dataset.
+        """
+        pass
 
 
 class Fluorescence(MeasurementModel):

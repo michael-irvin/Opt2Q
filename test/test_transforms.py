@@ -1057,7 +1057,7 @@ class TestSampleAverage(unittest.TestCase):
 
     def test_groupby_vector_like(self):
         st = SampleAverage(groupby=('col1', 'col2'))
-        self.assertListEqual(['col1', 'col2'], st._group_by)
+        self.assertSetEqual({'col1', 'col2'}, set(st._group_by))
 
     def test_groupby_bad_group_types(self):
         with self.assertRaises(ValueError) as error:
@@ -1105,14 +1105,14 @@ class TestSampleAverage(unittest.TestCase):
         df2 = pd.DataFrame({'X': ['B', 'B', 'A', 'A'], 'Y': [1, 2, 3, 4], 'Z': [1, 1, 2, 3]})
         test = sa._transform_w_apply_noise_wo_groups(df2, {'Y', 'Z'})
 
-        target = pd.DataFrame([[21.279214,  2.644025,  'B'],
-                               [ 6.759872,  1.282164,  'B'],
-                               [12.919152,  2.204820,  'B'],
-                               [26.355422,  1.677543,  'B'],
-                               [21.279214,  2.644025,  'A'],
-                               [ 6.759872,  1.282164,  'A'],
-                               [12.919152,  2.204820,  'A'],
-                               [26.355422,  1.677543,  'A']], columns=['Y', 'Z', 'X'])
+        target = pd.DataFrame([[22.381083,  2.594476,  'B'],
+                               [-7.903609,  1.941561,  'B'],
+                               [12.614164,  2.218535,  'B'],
+                               [ 0.888727,  2.822746,  'B'],
+                               [22.381083,  2.594476,  'A'],
+                               [-7.903609,  1.941561,  'A'],
+                               [12.614164,  2.218535,  'A'],
+                               [ 0.888727,  2.822746,  'A']], columns=['Y', 'Z', 'X'])
         print(test)
         pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
 
@@ -1122,17 +1122,18 @@ class TestSampleAverage(unittest.TestCase):
         np.random.seed(0)
         test = sa.transform(df2)
         print(test)
-        target = pd.DataFrame([[22.022550, 3.433779, 'A'],
-                               [ 7.701651, 2.011361, 'A'],
-                               [13.776749, 2.975044, 'A'],
-                               [27.029379, 2.424321, 'A'],
-                               [ 0.416202, 1.000000, 'B'],
-                               [ 5.811284, 1.000000, 'B'],
-                               [ 3.012457, 1.000000, 'B'],
-                               [16.769872, 1.000000, 'B']], columns=['Y', 'Z', 'X'])
+        target = pd.DataFrame([[23.109359, 3.382026, 'A'],
+                               [-6.761418, 2.700079, 'A'],
+                               [13.475928, 2.989369, 'A'],
+                               [ 1.910749, 3.620447, 'A'],
+                               [ 9.490896, 1.000000, 'B'],
+                               [ 2.777588, 1.000000, 'B'],
+                               [ 6.160564, 1.000000, 'B'],
+                               [ 5.003580, 1.000000, 'B']], columns=['Y', 'Z', 'X'])
         pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
 
     def test_drop_columns(self):
+        np.random.seed(0)
         sa = SampleAverage(sample_size=4,
                            apply_noise=True,
                            groupby='X',

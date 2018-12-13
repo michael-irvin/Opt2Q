@@ -156,6 +156,20 @@ class Transform(object):
     def transform(self, x, **kwargs):
         return x
 
+    @staticmethod
+    def _transform_get_columns(x, cols, cols_set):
+        try:
+            scalable_cols = set(x._get_numeric_data().columns)
+        except AttributeError:
+            raise TypeError("x must be a DataFrame")
+
+        if cols is not None:
+            cols_to_scale = scalable_cols.intersection(cols_set)
+        else:
+            cols_to_scale = scalable_cols
+
+        return cols_to_scale
+
 
 class Interpolate(Transform):
     """
@@ -800,7 +814,6 @@ class LogisticClassifier(Transform):
         columns_set, columns_dict = self._transform_get_columns(x)
         x_extra_columns = set(x.columns) - columns_set
         y_cols = list(self._columns_dict.keys())
-
         if self.do_fit_transform or self._logistic_models_dict == dict():
             y_extra_columns = set(y.columns) - set(y_cols)
             combined_x_y = self._prep_data(x, y, y_cols, x_extra_columns, y_extra_columns)
@@ -831,7 +844,7 @@ class LogisticClassifier(Transform):
     @staticmethod
     def _prep_data(x, y, y_cols, x_extra_cols, y_extra_cols):
         shared_columns = list(x_extra_cols.intersection(y_extra_cols))
-        data_blocks = pd.merge(x[shared_columns], y[shared_columns]).drop_duplicates().reset_index(drop=True)
+        data_blocks = pd.merge(x[shared_columns], y[shared_columns]) #.drop_duplicates().reset_index(drop=True)
         x_blocks = x.groupby(shared_columns)  # repeat the blocks so that they are consistent
         y_blocks = y.groupby(shared_columns)
 
@@ -1396,15 +1409,7 @@ class Standardize(Transform):
         """
         Standardize values in ``x``.
         """
-        try:
-            scalable_cols = set(x._get_numeric_data().columns)
-        except AttributeError:
-            raise TypeError("x must be a DataFrame")
-
-        if self._columns is not None:
-            cols_to_scale = scalable_cols.intersection(self._columns_set)
-        else:
-            cols_to_scale = scalable_cols
+        cols_to_scale = self._transform_get_columns(x, self._columns, self._columns_set)
 
         return self._transform(x, cols_to_scale)
 

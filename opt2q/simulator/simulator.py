@@ -90,9 +90,10 @@ class Simulator(object):
     def __init__(self, model, tspan=None, param_values=None, initials=None, solver='scipyode', solver_options=None,
                  integrator_options=None, **kwargs):
         # Solver
-        self.solver = self._check_solver(solver)
         self.solver_kwargs = self._get_solver_kwargs(solver_options)
         self._add_integrator_options_dict(integrator_options)
+
+        self.solver = self._check_solver(solver)
         self.sim = self.solver(model, **self.solver_kwargs)  # solver instantiates model and generates_equations
         self.model = model
 
@@ -130,6 +131,12 @@ class Simulator(object):
                           "The program cupSODA was not found in the default search path(s) for your operating system."
                           "The 'scipyode' solver will be used instead and may take much longer for simulation.",
                           category=CupSodaNotInstalledWarning)
+
+            # Default (scipyode w/'lsoda') takes mxstep while cupsoda takes max_step.
+            self.solver_kwargs.update({'integrator': 'lsoda'})
+            if 'max_steps' in self.solver_kwargs['integrator_options'].keys():
+                self.solver_kwargs['integrator_options'].\
+                    update({'mxstep': self.solver_kwargs['integrator_options'].pop('max_steps')})
             return self.supported_solvers['scipyode']
 
         try:
@@ -156,6 +163,7 @@ class Simulator(object):
 
         if integrator_options is not None:
             self.solver_kwargs.update({'integrator_options': dict(integrator_options)})
+
         else:
             self.solver_kwargs.update({'integrator_options': {}})
 

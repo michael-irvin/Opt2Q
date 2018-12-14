@@ -1,12 +1,13 @@
 # MW Irvin -- Lopez Lab -- 2018-08-31
 from opt2q.measurement.base import Interpolate, Pipeline, SampleAverage, Scale, Standardize, LogisticClassifier
-from opt2q.measurement.base.functions import log_scale, TransformFunction
+from opt2q.measurement.base.functions import log_scale, TransformFunction, polynomial_features
 from opt2q.utils import _is_vector_like
 from opt2q.data import DataSet
 import numpy as np
 import pandas as pd
 import unittest
 import warnings
+import re
 
 
 class TestInterpolate(unittest.TestCase):
@@ -1159,4 +1160,32 @@ class TestSampleAverage(unittest.TestCase):
         self.assertDictEqual(sa.get_params(), {'noise_term__default': 42, 'sample_size': 50})
         sa.set_params(noise_term__x=500)
         self.assertDictEqual(sa.get_params(), {'noise_term__default': 42, 'noise_term__x': 500, 'sample_size': 50})
+
+
+class TestTransform(unittest.TestCase):
+    def test_parse_column_names(self):
+        cell_death_data = pd.DataFrame(np.arange(6).reshape(2, 3),
+                                       columns=['p53', 'RIP1__sum', 'p53 KO'])
+        scale = Scale(columns=['p53', 'RIP1__sum'], scale_fn=polynomial_features, degree=2)
+        scaled_x = scale.transform(cell_death_data[['p53', 'RIP1__sum', 'p53 KO']])
+
+        test = scale._parse_column_names(set(scaled_x.columns), {'p53', 'RIP1__sum'})
+        target = {'RIP1__sum^2', 'p53', 'p53^2', 'RIP1__sum'}
+        assert 'p53$RIP1__sum' in test or 'RIP1__sum$p53' in test
+        test -= {'p53$RIP1__sum', 'RIP1__sum$p53'}
+        self.assertSetEqual(test, target)
+
+        test = scale._parse_column_names(set(scaled_x.columns), {'RIP1__sum'})
+        target = {'RIP1__sum^2', 'RIP1__sum'}
+        assert 'p53$RIP1__sum' in test or 'RIP1__sum$p53' in test
+        test -= {'p53$RIP1__sum', 'RIP1__sum$p53'}
+
+        self.assertSetEqual(test, target)
+
+        test = scale._parse_column_names(set(scaled_x.columns), {'p53'})
+        target = {'p53', 'p53^2'}
+        assert 'p53$RIP1__sum' in test or 'RIP1__sum$p53' in test
+        test -= {'p53$RIP1__sum', 'RIP1__sum$p53'}
+        self.assertSetEqual(test, target)
+
 

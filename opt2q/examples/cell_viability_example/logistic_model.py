@@ -63,9 +63,17 @@ plt.show()
 scale = Scale(columns=['log10_k', 'Time of Max C8 activity (tau)'], scale_fn=polynomial_features, degree=2)
 scaled_x = scale.transform(cell_death_data[['log10_k', 'Time of Max C8 activity (tau)', 'Cell #']])
 
+# Note: This would normally work, but LogisticClassifier may not track new columns that contain whitespace.
+# The PySB simulation result and Opt2Q transform do not have whitespace.
 lc_poly = LogisticClassifier(dataset=cell_death_data,
-                             column_groups={'Surviving': set(scaled_x.columns)-{'Cell #'}},
+                             column_groups={'Surviving': ['log10_k', 'Time of Max C8 activity (tau)']},
                              classifier_type='nominal')
+
+# Manually track added column names:
+# lc_poly = LogisticClassifier(dataset=cell_death_data,
+#                              column_groups={'Surviving': set(scaled_x.columns)-{'Cell #'}},
+#                              classifier_type='nominal')
+
 lc_poly.transform(scaled_x)  # 'Cell #' is the index
 
 

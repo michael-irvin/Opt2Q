@@ -13,6 +13,13 @@ class TransformFunction(object):
     """
     Behaves like a function but has additional features that aid implementation in Opt2Q.
 
+    This class take functions that can take (as its first argument) and return a :class:`~pandas.DataFrame`.
+
+    ..note::
+        If the function generates new columns, use the
+        :meth:`~opt2q.measurement.base.functions.TransformFunction.replace_white_space_in_new_columns` method
+        to replace the whitespace in column names with "$".
+
     Parameters
     ----------
     f: function or callable:
@@ -66,6 +73,7 @@ class TransformFunction(object):
         return '{}{}'.format(name_str, sig_str)
 
     def __call__(self, x, *args, **kwargs):
+        self._x = x
         return self._f(x, *args, **kwargs)
 
     # pre-processing methods
@@ -82,6 +90,18 @@ class TransformFunction(object):
         x_min = x[x > 0].min()
         x = x.clip(0.1*x_min, axis=1)
         return x
+
+    def replace_white_space_in_new_columns(self, new_x, new_char='$'):
+        """
+        Replaces whitespace with ``new_char`` in newly created columns of the dataframe passed to ``self._f``.
+
+        Since the columns annotating experimental conditions can naturally contain whitespace, whitespace
+        is not tracked by the :class:`~opt2q.measurement.base.transforms.Transform` classes. This means
+        new columns can potentially get ignored in subsequent operations.
+        """
+        new_cols = set(new_x.columns) - set(self._x.columns)
+
+        return new_x.rename(columns={s: s.replace(" ", new_char) for s in new_cols})
 
 
 def transform_function(fn):
@@ -129,7 +149,25 @@ def log_scale(x, base=10, clip_zeros=True):
 
 @transform_function
 def polynomial_features(x, degree=2, interaction_only=False, include_bias=False):
+    """
+    Polynomial expansion on the columns of ``x``. Uses Scikit-Learn's
+    :class:`~sklearn.preprocessing.data.PolynomialFeatures` class, and takes the same args.
+
+    Parameters
+    ----------
+    x: :class:`pandas.DataFrame`
+
+    degree: int, optional
+        Degree of the resulting polynomial. Defaults to 2
+
+    interaction_only: bool, optional
+        When True, it returns only the products of tow or more columns but not the squares etc of single columns.
+        Defaults to False.
+
+    include_bias: bool, optional
+        When true, a column of ones is included in the result. Defaults to False.
+    """
+
     p = PolynomialFeatures(degree, interaction_only=interaction_only, include_bias=include_bias)
-    px = p.fit_transform(x)
-    cols = p.get_feature_names(x.columns)
-    return pd.DataFrame(px, columns=cols)
+    px = pd.DataFrame(p.fit_transform(x), columns=p.get_feature_names(x.columns))
+    return polynomial_features.replace_white_space_in_new_columns(px, new_char='$')

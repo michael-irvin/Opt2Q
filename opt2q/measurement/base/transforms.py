@@ -1,6 +1,7 @@
 # MW Irvin -- Lopez Lab -- 2018-08-24
 import inspect
 import warnings
+import re
 import pandas as pd
 import numpy as np
 from collections import OrderedDict
@@ -158,6 +159,17 @@ class Transform(object):
 
     @staticmethod
     def _transform_get_columns(x, cols, cols_set):
+        """
+        Names the columns that this transform will scale.
+
+        Parameter
+        ---------
+        cols: list
+            column names
+
+        cols_set: set
+            column names
+        """
         try:
             scalable_cols = set(x._get_numeric_data().columns)
         except AttributeError:
@@ -169,6 +181,28 @@ class Transform(object):
             cols_to_scale = scalable_cols
 
         return cols_to_scale
+
+    @staticmethod
+    def _parse_column_names(x_col_set, user_col_set):
+        """
+        Return the columns in ``x`` that are *like* those in listed in ``cols``.
+
+        If cols contains a column "name", return all columns in ``x`` that begin with "name " or "name__"
+
+        This lets us track column name changes that can occur in the transforms.
+
+        Parameters
+        ----------
+        x_col_set: set
+            numeric columns in ``x``.
+        user_col_set: set
+            columns specified by the user.
+        """
+        complete_cols = set()
+        for col in user_col_set:
+            complete_cols |= set([s for s in x_col_set if isinstance(col, str) and
+                                  re.search(f'{col}(?=_{2}|[$^])|(?<=[$^]){col}', s)])
+        return user_col_set | complete_cols
 
 
 class Interpolate(Transform):
@@ -814,6 +848,7 @@ class LogisticClassifier(Transform):
         columns_set, columns_dict = self._transform_get_columns(x)
         x_extra_columns = set(x.columns) - columns_set
         y_cols = list(self._columns_dict.keys())
+
         if self.do_fit_transform or self._logistic_models_dict == dict():
             y_extra_columns = set(y.columns) - set(y_cols)
             combined_x_y = self._prep_data(x, y, y_cols, x_extra_columns, y_extra_columns)
@@ -886,7 +921,13 @@ class LogisticClassifier(Transform):
         if self._columns_set - scalable_cols != set():
             missing_cols = self._columns_set - scalable_cols
             raise ValueError("'x' is missing the following numeric columns: " + _list_the_errors(missing_cols))
-        return self._columns_set, self._columns_dict
+
+        columns_dict = {k: list(self._parse_column_names(scalable_cols, set(v)))
+                        for k, v in self._columns_dict.items()}
+        columns_set = set()
+        for k, v in columns_dict.items():
+            columns_set |= set(v)
+        return columns_set, columns_dict
 
     def _transform_get_logistic_model(self, x, y, col):
         """

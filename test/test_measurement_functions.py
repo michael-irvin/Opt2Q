@@ -1,5 +1,5 @@
 # MW Irvin -- Lopez Lab -- 2018-09-07
-from opt2q.measurement.base.functions import transform_function, log_scale
+from opt2q.measurement.base.functions import transform_function, log_scale, polynomial_features
 import numpy as np
 import pandas as pd
 import unittest
@@ -40,5 +40,14 @@ class TestTransformFunction(unittest.TestCase):
         target = pd.DataFrame([[-1.321928, 0.0, 1.0],
                                [2.0, 3.0, 4.0]],
                               columns=['a', 'b', 'c'])
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
+
+    def test_polynomial_features(self):
+        test = polynomial_features(pd.DataFrame([[0, 1, 2],[1, 2, 3]],columns=['a ', 'b', 'c']), degree=2)
+        target=pd.DataFrame([
+            [0.0, 1.0, 2.0,  0.0,  0.0,  0.0, 1.0, 2.0, 4.0],
+            [1.0, 2.0, 3.0,  1.0,  2.0,  3.0, 4.0, 6.0, 9.0]],
+            columns=['a ', 'b', 'c', 'a$^2', 'a$$b', 'a$$c',  'b^2',  'b$c',  'c^2'])
+
         pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
 

@@ -402,15 +402,14 @@ class FractionalKilling(MeasurementModel):
             self._replace_interpolate_step(self.interpolation)
 
             self.results = result_ds
-            return self.results
 
         else:
             current_classifier_do_fit_transform = self.process.get_params()['classifier__do_fit_transform']
 
             self.process.set_params(**{'classifier__do_fit_transform': False})
             self.results = self.process.transform(self.simulation_result_df[self._results_cols])
-
             self.process.set_params(**{'classifier__do_fit_transform': current_classifier_do_fit_transform})
+
         return self.results
 
     def run_classification(self, use_dataset=True):

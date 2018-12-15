@@ -32,6 +32,38 @@ class Transform(object):
     def __init__(self):
         pass
 
+    # setup/init methods
+    @staticmethod
+    def _check_columns(*args):
+        cols=args[0]
+
+        if cols is None:
+            return None, set([])
+        if _is_vector_like(cols):
+            cols_set = _convert_vector_like_to_set(cols)
+            cols = _convert_vector_like_to_list(cols)
+        else:
+            cols_set = {cols}
+            cols = [cols]
+        return cols, cols_set
+
+    @staticmethod
+    def _check_group_by(group_by, columns):
+        if group_by is None:
+            return group_by
+        if _is_vector_like(group_by):
+            groups = _convert_vector_like_to_set(group_by)
+        elif isinstance(group_by, str) or isinstance(group_by, int):
+            groups = {group_by}
+        else:
+            raise ValueError("groupby must be a string or list of strings")
+
+        # cannot group-by columns that are getting scaled.
+        if len(groups.intersection(columns)) > 0:
+            raise ValueError("columns and groupby cannot be have any of the same column names.")
+        else:
+            return list(groups)
+
     # clearer __repr__
     def __repr__(self):
         sig = inspect.signature(self.__init__)
@@ -154,6 +186,7 @@ class Transform(object):
         """
         return [k_rvs[::-1] for k_rvs in name[::-1].split('__')][::-1]
 
+    # transform methods
     def transform(self, x, **kwargs):
         return x
 
@@ -203,6 +236,135 @@ class Transform(object):
             complete_cols |= set([s for s in x_col_set if isinstance(col, str) and
                                   re.search(f'{col}(?=_{2}|[$^])|(?<=[$^)(-]){col}', s)])
         return user_col_set | complete_cols
+
+    @staticmethod
+    def _rename_scaled_columns(scaled_df, scaled_columns_set, name):
+        """
+        Rename the new columns 'col__name', where "col" is a column in `scaled_columns_set` and "name" is `name`.
+
+        Parameters
+        ----------
+        scaled_df: pd.DataFrame
+        scaled_columns_set: set
+            scaled columns' names
+        name: str
+        """
+        return scaled_df.rename(columns={col: f'{col}__{name}' for col in scaled_columns_set})
+
+
+class CumulativeComputation(Transform):
+    """
+    Return cumulative computation (e.g. cumulative maximum) over DataFrame columns
+
+    Parameters
+    ----------
+    columns: str or list of strings, optional
+        The column name(s) of the variable(s) being scaled. Defaults to all numeric columns of the
+        :class:`~pandas.DataFrame`, ``x``, that is passed to the
+        :meth:`~opt2q.measurement.base.transforms.CumulativeComputation.transform` method.
+
+        All non-numeric columns are ignored (even if they where named in this argument).
+
+    groupby: str, or list, optional
+        The name of the column(s) by which to group the operation. Each unique value in the column(s) denotes a
+        separate group. Defaults to None, and conducts a single operation along the length on the whole DataFrame.
+
+        Note: the ``groupby`` and ``columns`` arguments cannot reference the same column(s).
+
+    operation: str, optional
+        Decide which operation - min, max, sum or prod (product) - to carryout. Defaults to 'sum'.
+
+    keep_old_columns: bool, false
+        If true, the original column(s) remain in the result. If the newly scaled columns are not already renamed,
+        they assume the following name: 'col__name', where "col" is the column's original name and "name" is the name
+        of the transform.
+
+    Attributes
+    ----------
+    supported_operations:list
+        list of supported operations
+    """
+
+    supported_operations= ['min', 'max', 'sum', 'prod']
+
+    def __init__(self, columns=None, groupby=None, operation='sum', keep_old_columns=False,):
+        super(CumulativeComputation).__init__()
+        self._columns, self._columns_set = self._check_columns(columns)
+        self._group_by = self._check_group_by(groupby, self._columns_set)  # returns list or None
+
+        self._operation = self._check_operation(operation)
+        self._keep_old_columns = True if keep_old_columns else False  # non-bool inputs are false by default
+
+        self.set_params_fn = {'operation': self._set_operation,
+                              'keep_old_columns': self._keep_old_cols}
+
+        self._transform = [self._transform_not_in_groups, self._transform_in_groups][self._group_by is not None]
+
+    def _check_operation(self, op):
+        if op in self.supported_operations:
+            return op
+        raise ValueError("'operation' must be one of the supported operations: "
+                         + _list_the_errors(self.supported_operations) + ".")
+
+    @property
+    def _get_params_dict(self):
+        return {'operation': self.operation,
+                'keep_old_columns': self.keep_old_columns}
+
+    @property
+    def operation(self):
+        return self._operation
+
+    @operation.setter
+    def operation(self, val):
+        self._set_operation(val)
+
+    def _set_operation(self, val):
+        self._operation = self._check_operation(val)
+
+    @property
+    def keep_old_columns(self):
+        return self._keep_old_columns
+
+    @keep_old_columns.setter
+    def keep_old_columns(self, val):
+        self._keep_old_cols(val)
+
+    def _keep_old_cols(self, val):
+        self._keep_old_columns = True if val else False
+
+    def transform(self, x, **kwargs):
+        cols_to_scale = self._transform_get_columns(x, self._columns, self._columns_set)
+        return self._transform(x, cols_to_scale, kwargs)
+
+    def _transform_in_groups(self, x, _scale_these_cols, kwargs):
+        _scale_these_cols -= set(self._group_by)
+        scaled_df = pd.DataFrame()
+        for name, group in x.groupby(self._group_by):
+            scaled_group = self._transform_not_in_groups(group, _scale_these_cols, kwargs)
+            scaled_df = pd.concat([scaled_df, scaled_group], ignore_index=True, sort=False)
+        return scaled_df
+
+    def _transform_not_in_groups(self, x, _scale_these_cols, kwargs):
+        cols = list(_scale_these_cols)
+        remaining_cols = list(set(x.columns) - _scale_these_cols)
+        scaled_df = self._carryout_operation(x[cols])
+        scaled_df[remaining_cols] = x[remaining_cols]
+
+        if self.keep_old_columns:
+            scaled_df = self._rename_scaled_columns(scaled_df, set(cols), kwargs.get('name', self.operation))
+            scaled_df[cols] = x[cols]
+        return scaled_df
+
+    def _carryout_operation(self, x):
+        if self.operation == 'max':
+            return x.cummax()
+        if self.operation == 'min':
+            return x.cummin()
+        if self.operation == 'prod':
+            return x.cumprod()
+        if self.operation == 'sum':
+            return x.cumsum()
 
 
 class Interpolate(Transform):
@@ -1046,7 +1208,6 @@ class SampleAverage(Transform):
         except IndexError:
             self._noise_term.update(kw)
 
-
     @property
     def sample_size(self):
         return self._sample_size
@@ -1057,35 +1218,6 @@ class SampleAverage(Transform):
 
     def _set_sample_size(self, val):
         self._sample_size = int(val)
-
-    @staticmethod
-    def _check_columns(cols):
-        if cols is None:
-            return None, set([])
-        if _is_vector_like(cols):
-            cols_set = _convert_vector_like_to_set(cols)
-            cols = _convert_vector_like_to_list(cols)
-        else:
-            cols_set = {cols}
-            cols = [cols]
-        return cols, cols_set
-
-    @staticmethod
-    def _check_group_by(group_by, columns):
-        if group_by is None:
-            return group_by
-        if _is_vector_like(group_by):
-            groups = _convert_vector_like_to_set(group_by)
-        elif isinstance(group_by, str) or isinstance(group_by, int):
-            groups = {group_by}
-        else:
-            raise ValueError("groupby must be a string or list of strings")
-
-        # cannot group-by columns that are getting scaled.
-        if len(groups.intersection(columns)) > 0:
-            raise ValueError("columns and groupby cannot be have any of the same column names.")
-        else:
-            return list(groups)
 
     @staticmethod
     def _set_noise_term(variance):
@@ -1181,10 +1313,19 @@ class Scale(Transform):
 
         All non-numeric columns are ignored (even if they where named in this argument).
 
+    groupby: str, or list, optional
+        The name of the column(s) by which to group the operation. Each unique value in the column(s) denotes a
+        separate group. Defaults to None, and conducts a single operation along the length on the whole DataFrame.
+
+        Note: the ``groupby`` and ``columns`` arguments cannot reference the same column(s).
+
     scale_fn: str or func, optional
         As a string is must name one of the functions in
         :attr:`~opt2q.measurement.base.transforms.Scale.scale_functions`
         Defaults to 'log2'
+
+    scale_fn_kwargs: dict
+        kwargs for ``scale_fn``
 
     keep_old_columns: bool, false
         If true, the original column(s) remain in the result. If the newly scaled columns are not already renamed,
@@ -1200,12 +1341,16 @@ class Scale(Transform):
                        'log10': (log_scale, {'base': 10, 'clip_zeros': True}),
                        'loge': (log_scale, {'base': np.e, 'clip_zeros': True})}
 
-    def __init__(self, columns=None, scale_fn='log2', keep_old_columns=False, **scale_fn_kwargs):
+    def __init__(self, columns=None, groupby=None, keep_old_columns=False, scale_fn='log2', **scale_fn_kwargs):
         super(Scale).__init__()
         self._columns, self._columns_set = self._check_columns(columns)
         self._scale_fn, self._scale_fn_kwargs = self._check_scale_fn(scale_fn)
         self._scale_fn_kwargs.update(scale_fn_kwargs)
+
+        # settings for transform
         self._keep_old_columns = True if keep_old_columns else False  # non-bool inputs are false by default
+        self._group_by = self._check_group_by(groupby, self._columns_set)
+        self._transform = [self._transform_not_in_groups, self._transform_in_groups][self._group_by is not None]
 
         # update scale_fn repr to reflect user defined kwargs
         self._scale_fn.signature(**self.scale_fn_kwargs)
@@ -1213,18 +1358,6 @@ class Scale(Transform):
         self.set_params_fn = {'scale_fn': self._set_scale_fn,
                               'scale_fn_kwargs': self._set_scale_fn_kwargs,
                               'keep_old_columns': self._keep_old_cols}
-
-    @staticmethod
-    def _check_columns(cols):
-        if cols is None:
-            return None, None
-        if _is_vector_like(cols):
-            cols_set = _convert_vector_like_to_set(cols)
-            cols = _convert_vector_like_to_list(cols)
-        else:
-            cols_set = {cols}
-            cols = [cols]
-        return cols, cols_set
 
     def _check_scale_fn(self, scale_fn) -> tuple:
         if isinstance(scale_fn, str) and scale_fn in self.scale_functions.keys():
@@ -1309,19 +1442,26 @@ class Scale(Transform):
         x: :class:`~pandas.DataFrame`
             The values to be scaled.
         """
-        # col_set = self._parse_column_names(set(x.columns), )
         cols_to_scale = self._transform_get_columns(x, self._columns, self._columns_set)
+        return self._transform(x, cols_to_scale, kwargs)
 
-        cols_to_scale_list = list(cols_to_scale)
-        scaled_df = self.scale_fn(x[cols_to_scale_list], **self.scale_fn_kwargs)
+    def _transform_in_groups(self, x, _scale_these_cols, kwargs):
+        _scale_these_cols -= set(self._group_by)
+        scaled_df = pd.DataFrame()
+        for name, group in x.groupby(self._group_by):
+            scaled_group = self._transform_not_in_groups(group, _scale_these_cols, kwargs)
+            scaled_df = pd.concat([scaled_df, scaled_group], ignore_index=True, sort=False)
+        return scaled_df
+
+    def _transform_not_in_groups(self, x, _scale_these_cols, kwargs):
+        cols = list(_scale_these_cols)
+        remaining_cols = list(set(x.columns) - _scale_these_cols)
+        scaled_df = self.scale_fn(x[cols], **self.scale_fn_kwargs)
+        scaled_df[remaining_cols] = x[remaining_cols]
 
         if self.keep_old_columns:
-            scaled_df = self._rename_scaled_columns(scaled_df, cols_to_scale, kwargs.get('name', 'scale'))
-            scaled_df[cols_to_scale_list] = x[cols_to_scale_list]
-
-        remaining_cols = list(set(x.columns)-cols_to_scale)
-
-        scaled_df[remaining_cols] = x[remaining_cols]
+            scaled_df = self._rename_scaled_columns(scaled_df, set(cols), kwargs.get('name', 'scale'))
+            scaled_df[cols] = x[cols]
         return scaled_df
 
     @staticmethod
@@ -1348,7 +1488,7 @@ class Standardize(Transform):
     columns: str or list of strings, optional
         The column name(s) of the variable(s) being scaled. Defaults to all numeric columns of the
         :class:`~pandas.DataFrame`, ``x``, that is passed to the
-        :meth:`~opt2q.measurement.base.transforms.Scale.transform` method.
+        :meth:`~opt2q.measurement.base.transforms.Standardize.transform` method.
 
         All non-numeric columns are ignored (even if they where named in this argument).
 
@@ -1377,35 +1517,6 @@ class Standardize(Transform):
 
         # set params
         self.set_params_fn = {'do_fit_transform': self._set_do_fit_transform}
-
-    @staticmethod
-    def _check_columns(cols):
-        if cols is None:
-            return None, set([])
-        if _is_vector_like(cols):
-            cols_set = _convert_vector_like_to_set(cols)
-            cols = _convert_vector_like_to_list(cols)
-        else:
-            cols_set = {cols}
-            cols = [cols]
-        return cols, cols_set
-
-    @staticmethod
-    def _check_group_by(group_by, columns):
-        if group_by is None:
-            return group_by
-        if _is_vector_like(group_by):
-            groups = _convert_vector_like_to_set(group_by)
-        elif isinstance(group_by, str) or isinstance(group_by, int):
-            groups = {group_by}
-        else:
-            raise ValueError("groupby must be a string or list of strings")
-
-        # cannot group-by columns that are getting scaled.
-        if len(groups.intersection(columns)) > 0:
-            raise ValueError("columns and groupby cannot be have any of the same column names.")
-        else:
-            return list(groups)
 
     @property
     def _get_params_dict(self):

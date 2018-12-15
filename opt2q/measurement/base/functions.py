@@ -171,3 +171,12 @@ def polynomial_features(x, degree=2, interaction_only=False, include_bias=False)
     p = PolynomialFeatures(degree, interaction_only=interaction_only, include_bias=include_bias)
     px = pd.DataFrame(p.fit_transform(x), columns=p.get_feature_names(x.columns))
     return polynomial_features.replace_white_space_in_new_columns(px, new_char='$')
+
+
+@transform_function
+def derivative(x):
+    """
+    Returns using second order accurate central differences in the interior points and second order forward
+    and backward differences for the first and last points respectively.
+    """
+    return pd.DataFrame(np.gradient(x, axis=0), columns=x.columns)

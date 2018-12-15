@@ -1,5 +1,6 @@
 # MW Irvin -- Lopez Lab -- 2018-08-31
-from opt2q.measurement.base import Interpolate, Pipeline, SampleAverage, Scale, Standardize, LogisticClassifier
+from opt2q.measurement.base import Interpolate, Pipeline, SampleAverage, Scale, Standardize, \
+    LogisticClassifier, CumulativeComputation
 from opt2q.measurement.base.functions import log_scale, TransformFunction, polynomial_features
 from opt2q.utils import _is_vector_like
 from opt2q.data import DataSet
@@ -7,7 +8,6 @@ import numpy as np
 import pandas as pd
 import unittest
 import warnings
-import re
 
 
 class TestInterpolate(unittest.TestCase):
@@ -530,6 +530,35 @@ class TestScale(unittest.TestCase):
         scale = Scale(columns=[0, 1], scale_fn=x1x2, keep_old_columns=True)
         test = scale.transform(pd.DataFrame([[0, 0.1, 'a'], [1, 1.0, 'b'], [2, 10., 'c']]))
         target = pd.DataFrame([[0, 0., 'a', 0.1], [1, 1., 'b', 1.0], [2, 20., 'c', 10.]], columns=[0, 'x1x2', 2, 1])
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
+
+    def test_transform_in_groups(self):
+        def t_where_x_is_max(x, iv='time', dv='A'):
+            return x.where(x[dv] == x[dv].max()).bfill()[[iv, dv]]
+        scale = Scale(scale_fn=t_where_x_is_max, groupby='C', keep_old_columns=True, dv='A', iv='time')
+        x = pd.DataFrame([
+            [0, 0, 0, 'a'],
+            [1, 3, 1, 'a'],
+            [0, 2, 2, 'a'],
+            [2, 1, 3, 'a'],
+            [3, 0, 0, 'b'],
+            [2, 2, 1, 'b'],
+            [5, 4, 2, 'b'],
+            [4, 6, 3, 'b'],
+            [5, 8, 4, 'b'],
+        ], columns=['A', 'B', 'time', 'C'])
+        test = scale.transform(x, name='tau')
+        target = pd.DataFrame([
+            [3.0,     2.0,  'a',  0,     0,  0],
+            [3.0,     2.0,  'a',  3,     1,  1],
+            [3.0,     2.0,  'a',  2,     2,  0],
+            [3.0,     2.0,  'a',  1,     3,  2],
+            [2.0,     5.0,  'b',  0,     0,  3],
+            [2.0,     5.0,  'b',  2,     1,  2],
+            [2.0,     5.0,  'b',  4,     2,  5],
+            [4.0,     5.0,  'b',  6,     3,  4],
+            [4.0,     5.0,  'b',  8,     4,  5]],
+            columns=['time__tau',  'A__tau',  'C',  'B',  'time',  'A'])
         pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
 
 
@@ -1224,4 +1253,64 @@ class TestTransform(unittest.TestCase):
         test -= {'p53$RIP1__sum', 'RIP1__sum$p53'}
         self.assertSetEqual(test, target)
 
+
+class TestCumulativeComputation(unittest.TestCase):
+    def test_check_operation(self):
+        cum_comp = CumulativeComputation()
+        test = cum_comp._check_operation('max')
+        target = 'max'
+        assert test == target
+        with self.assertRaises(ValueError) as error:
+            cum_comp._check_operation('unsupported_value')
+        self.assertTrue(error.exception.args[0] == "'operation' must be one of the supported "
+                                                   "operations: 'min', 'max', 'sum', and 'prod'.")
+
+    def test_get_set_params(self):
+        cum_comp = CumulativeComputation()
+        cum_comp.set_params(operation='min', keep_old_columns=True)
+        self.assertDictEqual(cum_comp.get_params(), {'operation':'min', 'keep_old_columns':True})
+
+    def test_transform_not_in_groups(self):
+        df = pd.DataFrame([[2.0, 1.0],
+                           [3.0, np.nan],
+                           [1.0, 0.0]],
+                          columns=list('AB'))
+        cumprod = CumulativeComputation(operation='prod', keep_old_columns=True)
+        test = cumprod.transform(df)
+        target = pd.DataFrame([
+            [2.0,       1.0,        'a',    2.0,       1.0],
+            [6.0,    np.NaN,        'a',    3.0,    np.NaN],
+            [6.0,       0.0,        'a',    1.0,       0.0]],
+            columns=['A__prod', 'B__prod', 'C', 'A', 'B'])
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
+
+    def test_transform_in_groups(self):
+        df = pd.DataFrame([[2.0, 1.0,    'a'],
+                           [3.0, np.nan, 'a'],
+                           [1.0, 0.0,    'a'],
+                           [3.0, 1.0,    'b'],
+                           [2.0, np.nan, 'b'],
+                           [4.0, 0.0,    'b']],
+                          columns=list('ABC'))
+        test = CumulativeComputation(operation='max', keep_old_columns=True, groupby='C').transform(df)
+        target = pd.DataFrame([
+            [2.0,     1.0,  'a',  2.0,    1.0],
+            [3.0,  np.NaN,  'a',  3.0, np.NaN],
+            [3.0,     1.0,  'a',  1.0,    0.0],
+            [3.0,     1.0,  'b',  3.0,    1.0],
+            [3.0,  np.NaN,  'b',  2.0, np.NaN],
+            [4.0,     1.0,  'b',  4.0,    0.0]],
+            columns=['A__max', 'B__max', 'C', 'A', 'B'])
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
+
+        test = CumulativeComputation(operation='sum', keep_old_columns=True, groupby='C').transform(df)
+        target = pd.DataFrame([
+            [2.0,   1.0,    'a', 2.0,    1.0],
+            [5.0,   np.NaN, 'a', 3.0, np.NaN],
+            [6.0,   1.0,    'a', 1.0,    0.0],
+            [3.0,   1.0,    'b', 3.0,    1.0],
+            [5.0,   np.NaN, 'b', 2.0, np.NaN],
+            [9.0,   1.0,    'b', 4.0,    0.0]],
+            columns=['A__sum', 'B__sum', 'C', 'A', 'B'])
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
 

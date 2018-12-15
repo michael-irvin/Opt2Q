@@ -157,8 +157,7 @@ class Transform(object):
     def transform(self, x, **kwargs):
         return x
 
-    @staticmethod
-    def _transform_get_columns(x, cols, cols_set):
+    def _transform_get_columns(self, x, cols, cols_set):
         """
         Names the columns that this transform will scale.
 
@@ -176,7 +175,8 @@ class Transform(object):
             raise TypeError("x must be a DataFrame")
 
         if cols is not None:
-            cols_to_scale = scalable_cols.intersection(cols_set)
+            cols_set_ = self._parse_column_names(set(x.columns), cols_set)
+            cols_to_scale = scalable_cols.intersection(cols_set_)
         else:
             cols_to_scale = scalable_cols
 
@@ -201,7 +201,7 @@ class Transform(object):
         complete_cols = set()
         for col in user_col_set:
             complete_cols |= set([s for s in x_col_set if isinstance(col, str) and
-                                  re.search(f'{col}(?=_{2}|[$^])|(?<=[$^]){col}', s)])
+                                  re.search(f'{col}(?=_{2}|[$^])|(?<=[$^)(-]){col}', s)])
         return user_col_set | complete_cols
 
 
@@ -260,6 +260,7 @@ class Interpolate(Transform):
             self._dependent_variable_name, \
             self._iv_and_dv_names_set = self._check_independent_and_dependent_variables(independent_variable_name,
                                                                                         dependent_variable_name)
+        self._dependent_variable_names_in_x = self._dependent_variable_name  # Updated by self.transform
 
         self._new_values, self._new_val_extra_cols = self._check_new_values(new_values, independent_variable_name)
         self._new_val_has_extra_cols = len(self._new_val_extra_cols) > 0
@@ -382,6 +383,7 @@ class Interpolate(Transform):
             The independent and dependent variable column names (specified at instantiation of this class) must be in x.
             The independent variable cannot have repeat values within the same group.
         """
+        self._dependent_variable_names_in_x = self._parse_column_names(set(x.columns), set(self._dependent_variable_name))
         return self._transform(x)
 
     def _transform_new_values_extra_cols(self, x):
@@ -389,12 +391,12 @@ class Interpolate(Transform):
         Do interpolation when the new_values has additional columns annotating experimental conditions.
         """
         x_trimmed_rows = self._intersect_x_and_new_values_experimental_condition(x, self.new_values)
-        x_extra_cols = list(set(x.columns) - self._iv_and_dv_names_set)
+        x_extra_cols = list(set(x.columns) - self._iv_and_dv_names_set-self._dependent_variable_names_in_x)
         return self._interpolate(x_trimmed_rows, x_extra_cols)
 
     def _transform_new_values_simple(self, x):
         # new_values is one group
-        x_extra_cols = list(set(x.columns) - self._iv_and_dv_names_set)
+        x_extra_cols = list(set(x.columns) - self._iv_and_dv_names_set-self._dependent_variable_names_in_x)
         return self._interpolate(x, x_extra_cols)
 
     def _intersect_x_and_new_values_experimental_condition(self, x, new_val):
@@ -452,7 +454,7 @@ class Interpolate(Transform):
 
     def _interpolate_values_no_repeats(self, x, new_x):
         """If the only x only has 'iv' and 'dv', do not try to do repeats of the interpolation."""
-        for dv in self._dependent_variable_name:
+        for dv in self._dependent_variable_names_in_x:
             try:
                 cubic_spline_fn = interp1d(x[self._independent_variable_name], x[dv],
                                            kind=self._interpolation_method_name)
@@ -1160,16 +1162,7 @@ class SampleAverage(Transform):
         else:
             x_ = x
 
-        try:
-            scalable_cols = set(x_._get_numeric_data().columns)
-        except AttributeError:
-            raise TypeError("x must be a DataFrame")
-
-        if self._columns is not None:
-            cols_to_scale = scalable_cols.intersection(self._columns_set)
-        else:
-            cols_to_scale = scalable_cols
-
+        cols_to_scale = self._transform_get_columns(x_, self._columns, self._columns_set)
         return self._transform(x_, cols_to_scale)
 
 
@@ -1316,14 +1309,8 @@ class Scale(Transform):
         x: :class:`~pandas.DataFrame`
             The values to be scaled.
         """
-        try:
-            scalable_cols = set(x._get_numeric_data().columns)
-        except AttributeError:
-            raise TypeError("x must be a DataFrame")
-        if self._columns is not None:
-            cols_to_scale = scalable_cols.intersection(self._columns_set)
-        else:
-            cols_to_scale = scalable_cols
+        # col_set = self._parse_column_names(set(x.columns), )
+        cols_to_scale = self._transform_get_columns(x, self._columns, self._columns_set)
 
         cols_to_scale_list = list(cols_to_scale)
         scaled_df = self.scale_fn(x[cols_to_scale_list], **self.scale_fn_kwargs)

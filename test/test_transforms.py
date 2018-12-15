@@ -254,6 +254,42 @@ class TestInterpolate(unittest.TestCase):
                           [7, 2, 8, 2, 'late'],
                           [9, 10, 0, 2, 'late']],
                          columns=['time', 'fluorescence', '1-fluorescence', 'sample', 'observation'])
+        interpolate = Interpolate('time', ['fluorescence', '1-fluorescence'], [0])
+        interpolate.new_values = pd.DataFrame([[2, 'early'], [8, 'late']], columns=['time', 'observation'])
+        test = interpolate.transform(x)
+        target = pd.DataFrame([['early', 1, 2, 9.0, 1.0],
+                               ['late', 2, 8, 6.0, 4.0]],
+                              columns=['observation', 'sample', 'time', 'fluorescence', '1-fluorescence'])
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
+
+    def test_topic_guide_groupby_scaled_terms(self):
+        x = pd.DataFrame([[1, 10, 0, 1, 'early'],
+                          [3, 8, 2, 1, 'early'],
+                          [5, 5, 5, 1, 'early'],
+                          [7, 2, 8, 2, 'late'],
+                          [9, 10, 0, 2, 'late']],
+                         columns=['time', 'fluorescence', '1-fluorescence', 'sample', 'observation'])
+        interpolate = Interpolate('time', ['fluorescence'], [0])
+        interpolate.new_values = pd.DataFrame([[2, 'early'], [8, 'late']], columns=['time', 'observation'])
+        test = interpolate.transform(x)
+        target = pd.DataFrame([['early', 1, 2, 9.0, 1.0],
+                               ['late', 2, 8, 6.0, 4.0]],
+                              columns=['observation', 'sample', 'time', 'fluorescence', '1-fluorescence'])
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
+
+    def test_transform_extra_cols_no_groups_vector_for_new_values_parse_column_names(self):
+        # Automatically repeat the interpolate for each unique row of extra columns
+        # Builds a default pd.DataFrame for ``new_values`` from [0.5, 1.5].
+        interpolate = Interpolate('iv', 'dv', [0.5, 1.5])
+        x = pd.DataFrame([[1, 1, 0, 0, 0],
+                          [2, 1, 1, 2, 4],
+                          [1, 1, 2, 4, 8]], columns=['ec1', 'ec', 'iv', 'dv', 'dv$*$2'])
+        target = pd.DataFrame([[1, 1, 0.5, 1.0, 2.0],
+                               [2, 1, 0.5, 1.0, 2.0],
+                               [1, 1, 1.5, 3.0, 6.0],
+                               [2, 1, 1.5, 3.0, 6.0]], columns=['ec1', 'ec', 'iv', 'dv', 'dv$*$2'])
+        test = interpolate.transform(x)
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
 
 
 class TestPipeline(unittest.TestCase):
@@ -1118,11 +1154,10 @@ class TestSampleAverage(unittest.TestCase):
         pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
 
     def test_transform_w_apply_noise_w_groups(self):
-        sa = SampleAverage(sample_size=4, apply_noise=True, variances={'Y': 10}, groupby='X', columns=['Z', 'Y'])
-        df2 = pd.DataFrame({'X': ['B', 'B', 'A', 'A'], 'Y': [1, 2, 3, 4], 'Z': [1, 1, 2, 3]})
+        sa = SampleAverage(sample_size=4, apply_noise=True, variances={'Y': 10}, groupby='X', columns=['Y'])
+        df2 = pd.DataFrame({'X': ['B', 'B', 'A', 'A'], 'Y': [1, 2, 3, 4], '2^Y': [1, 1, 2, 3]})
         np.random.seed(0)
         test = sa.transform(df2)
-        print(test)
         target = pd.DataFrame([[23.109359, 3.382026, 'A'],
                                [-6.761418, 2.700079, 'A'],
                                [13.475928, 2.989369, 'A'],
@@ -1130,7 +1165,7 @@ class TestSampleAverage(unittest.TestCase):
                                [ 9.490896, 1.000000, 'B'],
                                [ 2.777588, 1.000000, 'B'],
                                [ 6.160564, 1.000000, 'B'],
-                               [ 5.003580, 1.000000, 'B']], columns=['Y', 'Z', 'X'])
+                               [ 5.003580, 1.000000, 'B']], columns=['Y', '2^Y', 'X'])
         pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
 
     def test_drop_columns(self):
@@ -1150,7 +1185,8 @@ class TestSampleAverage(unittest.TestCase):
                                [1.000000, 'B'],
                                [1.000000, 'B'],
                                [1.000000, 'B'],
-                               [1.000000, 'B']], columns=['Z', 'X'])
+                               [1.000000, 'B']],
+                              columns=['Z', 'X'])
         pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
 
     def test_set_params_and_get_params(self):

@@ -1253,6 +1253,12 @@ class TestTransform(unittest.TestCase):
         test -= {'p53$RIP1__sum', 'RIP1__sum$p53'}
         self.assertSetEqual(test, target)
 
+        test = scale._parse_column_names(set(scaled_x.columns), {'RIP1'})
+        assert 'p53$RIP1__sum' in test or 'RIP1__sum$p53' in test
+        target = {'RIP1__sum^2', 'RIP1__sum', 'RIP1'}
+        test -= {'p53$RIP1__sum', 'RIP1__sum$p53'}
+        self.assertSetEqual(test, target)
+
 
 class TestCumulativeComputation(unittest.TestCase):
     def test_check_operation(self):

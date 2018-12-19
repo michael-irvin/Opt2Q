@@ -2,11 +2,12 @@
 """
 Suite of Measurement Models
 """
+import pandas as pd
+import numpy as np
+from scipy import stats
 from opt2q.utils import _is_vector_like, _convert_vector_like_to_list
 from opt2q.measurement.base.base import MeasurementModel
 from opt2q.measurement.base.transforms import Interpolate, LogisticClassifier, Pipeline, Scale, Standardize, SampleAverage
-import pandas as pd
-import numpy as np
 
 
 class WesternBlot(MeasurementModel):
@@ -140,19 +141,23 @@ class WesternBlot(MeasurementModel):
     def run(self, use_dataset=True):
         if use_dataset:
             x_ds = self.interpolation_ds.transform(self.simulation_result_df[self._results_cols])
+
             result_ds = self.process.transform(x_ds)
             self.results = result_ds
             return self.results
 
         else:
-            current_classifier_do_fit_transform = self.process.get_params()['classifier__do_fit_transform']
+            original_do_fit_transform_settings = {k: v for k, v in self.process.get_params().items()
+                                                  if 'do_fit_transform' in k}
+            do_not_do_fit_transform = {k: False for k in self.process.get_params().keys()
+                                       if 'do_fit_transform' in k}
 
-            self.process.set_params(**{'classifier__do_fit_transform': False})
+            self.process.set_params(**do_not_do_fit_transform)
             x = self.interpolation.transform(self.simulation_result_df[self._results_cols])
             self.results = self.process.transform(x)
+            self.process.set_params(**original_do_fit_transform_settings)
 
-            self.process.set_params(**{'classifier__do_fit_transform': current_classifier_do_fit_transform})
-        return self.results
+            return self.results
 
     def likelihood(self, use_all_dataset_obs=True, use_all_dataset_exp_cond=True):
         """
@@ -182,6 +187,8 @@ class WesternBlot(MeasurementModel):
         exp_conditions_cols = list(self._dataset.experimental_conditions.columns)
         columns_for_merge = exp_conditions_cols + ['simulation']
 
+        # The sample average step drops the 'simulation' column and changes the number of rows.
+        # Add the 'simulation' column back to the results dataframe so that it can merge with the _ordinal_errors_df
         if 'simulation' not in self.results.columns:  # sample_average drops 'simulation' column
             sample_avr_step = [y[1] for y in self.process.steps if y[0] == 'sample_average'][0]
             sims = range(sample_avr_step.sample_size) if sample_avr_step._apply_noise else [0]
@@ -192,8 +199,6 @@ class WesternBlot(MeasurementModel):
         # Duplicate rows of _ordinal_errors_df to match self.results (which can have many simulations per data-point).
         ordinal_category_dist = ordinal_errors.merge(self.results[columns_for_merge], how='outer',
                                                      on=exp_conditions_cols).drop_duplicates().reset_index(drop=True)
-
-
 
         # Probability of the predictions and the data referencing the same ordinal category
         category_names = ordinal_category_dist.filter(regex='__').columns
@@ -291,45 +296,46 @@ class FractionalKilling(MeasurementModel):
 
         _measured_values, _process_observables = self._check_measured_values_dict(measured_values, dataset)
         self._measured_values_dict = _measured_values
+        self._measured_values_names = list(_measured_values.keys())
 
         self.interpolation_ds = Interpolate('time',
                                             list(_process_observables),
                                             self._dataset_experimental_conditions_df,
                                             groupby='simulation')
+
         self.interpolation = Interpolate('time',
                                          list(_process_observables),
                                          self.experimental_conditions_df,
                                          groupby='simulation')
         self._interpolate_first = False if not interpolate_first else True  # Non-bool Defaults to True
 
-        # Note: Pipeline.transform needs to be updated to look for variations in the name in addition to the name itself
-        # Polynomial expansion creates RIP1^2 and RIP1 RIP3 and RIP3^2 from RIP1 and RIP3.
-        # But If RIP3p is present, the transform has to ignore it... how?
-        # ADD __ to the operation. And say take RIP1 + RIP1__^2, RIP1__ RIP3__,
-        # State that in the Transform Function that changes to column names will not be tracked automatically unless the
-        # changes include __
-
-        # An alternatively way to track is to look for new columns in x... x in x1 that are not in x0.. those
-        # columns can only come from...
-        # But this approach would mean that ALL new columns funnel into the next transform (which might not be what
-        #   you're wanting to do.
-
-        # Look for word breaks in the observables.. This should work because observables inharently don't have
-        # word breaks. Let the delimiter by the space and the __
-
+        _data_columns = list(measured_values.keys())
+        _mock_data_col = _data_columns[0]
+        self._mock_dataset = self._create_mock_dataset(self._dataset.data, _data_columns)
 
         self.process = Pipeline(
             steps=[('log_scale', Scale(columns=list(_process_observables), scale_fn='log10')),
                    ('standardize', Standardize(columns=list(_process_observables), groupby=None)),
-                   # todo: Make Mock Data for Classifier (Supervised Learning requires labeled dataset)
-                   ('classifier', LogisticClassifier(self._dataset.data, column_groups=_measured_values,
+                   ('classifier', LogisticClassifier(self._mock_dataset, column_groups=_measured_values,
                                                      do_fit_transform=False, classifier_type='nominal')),
-                   # The `_process_observables` should no longer be in the Dataframe....
-                   ('sample_average', SampleAverage(columns=list(_process_observables), drop_columns='simulation',
+                   ('sample_average', SampleAverage(columns=_mock_data_col, drop_columns='simulation',
                                                     groupby=list(set(self.experimental_conditions_df.columns) -
-                                                                 {'simulation'}), apply_noise=False))
-                   ])
+                                                                 {'simulation'}), apply_noise=False))])
+
         self._add_interpolate_step()
+
+        self.results = None
+        self._results_cols = list(set(_process_observables) | (set(self.experimental_conditions_df.columns)) |
+                                  {'time', 'simulation'})
+    @staticmethod
+    def _create_mock_dataset(data, data_columns):
+        # todo make mock data something that can also be user-defined.
+        other_columns = list(set(data.columns)-set(data_columns))
+        num_categories = len(data_columns)+1
+        len_data = data.shape[0]
+        data_ = data[other_columns].copy()
+        data_[data_columns[0]] = np.tile(np.arange(num_categories), int(len_data/num_categories)+1)[:len_data].astype(int)
+        return data_
 
     @property
     def interpolate_first(self):
@@ -360,13 +366,15 @@ class FractionalKilling(MeasurementModel):
 
         Look for observables mentioned in measured_values_dict that are not in self.observables, and add them.
         """
+
+        # Measured_values has only one key
         if len(measured_values_dict) > 1:
             raise ValueError("'measured_values' cannot have multiple keys.")
 
         obs = self.observables  # set
-        # Todo: change to: obs = set() if self._observables is None else self._observables  # set
         data_cols = [k for k, v, in dataset.measured_variables.items() if v is not 'ordinal']
 
+        # Measured_values name exists in DataSet and has values between 0 and 1.
         for k, v in measured_values_dict.items():
             if k not in data_cols: raise ValueError(
                 "'measured_values' contains a variable, '{}', not mentioned as in the 'dataset'."
@@ -374,9 +382,11 @@ class FractionalKilling(MeasurementModel):
             if max(dataset.data[k]) > 1 or min(dataset.data[k]) < 0:
                 raise ValueError("The variable, '{}', in the 'dataset', can only have values between 0.0 and 1.0".format(k))
 
+            # Corresponding columns in the simulation result
             if _is_vector_like(v):  # look for the v in the default_observables
                 measured_obs = _convert_vector_like_to_list(v)
-                for i in measured_obs:  # if v is an observable mentioned in the
+                for i in measured_obs:  # if v is an observable mentioned in the simulation result.
+                    # But what if you want to reference only a feature that gets created via a proceeding scaling step?
                     if isinstance(i, str):
                         mentioned_obs = i.split('__')[0]
                         obs |= {mentioned_obs} if mentioned_obs in self._default_observables else set()
@@ -393,22 +403,24 @@ class FractionalKilling(MeasurementModel):
         ----------
         use_dataset, bool
             True, this method transforms only experimental conditions mentioned in the data. When False,
-            the predictions will include experimental conditions in the simulation result that are not
-            present in the dataset.
+            it will do "out of sample" predictions; i.e. doing the transform on experimental conditions in
+            simulation result but not in the dataset.
         """
         if use_dataset:
             self._replace_interpolate_step(self.interpolation_ds)
             result_ds = self.process.transform(self.simulation_result_df[self._results_cols])
             self._replace_interpolate_step(self.interpolation)
-
             self.results = result_ds
 
-        else:
-            current_classifier_do_fit_transform = self.process.get_params()['classifier__do_fit_transform']
+        else:  # set 'do_fit_transform' to false to enable out-of-sample predictions.
+            original_do_fit_transform_settings = {k: v for k, v in self.process.get_params().items()
+                                                 if 'do_fit_transform' in k}
+            do_not_do_fit_transform = {k: False for k in self.process.get_params().keys()
+                                       if 'do_fit_transform' in k}
 
-            self.process.set_params(**{'classifier__do_fit_transform': False})
+            self.process.set_params(**do_not_do_fit_transform)
             self.results = self.process.transform(self.simulation_result_df[self._results_cols])
-            self.process.set_params(**{'classifier__do_fit_transform': current_classifier_do_fit_transform})
+            self.process.set_params(**original_do_fit_transform_settings)
 
         return self.results
 
@@ -424,6 +436,37 @@ class FractionalKilling(MeasurementModel):
             present in the dataset.
         """
         pass
+
+    def likelihood(self, **kwargs):
+        """
+        Calculates the negative log-likelihood assuming the measured values of fractional killing have a
+        beta distribution.
+        """
+        self.results = self.run(use_dataset=True)
+
+        y_name = self._measured_values_names[0]
+        y_sim_name = y_name + '__1'
+        y_err_name = y_name + '__error'
+        y_ = self.results.merge(self._dataset.data)
+
+        y = y_.merge(self._dataset.measurement_error_df,
+                     on=self._dataset_experimental_conditions_df.columns)
+
+        y_sim_ = y[y_sim_name].values
+        y_data_ = y[y_name].values
+        y_error = y[y_err_name].values
+
+        y_sim = np.clip(y_sim_, .0001, .999)
+        y_data = np.clip(y_data_, .0001, .999)
+        measurement_error = np.array(
+            np.clip(y_error, 0.0001, 0.5))  # a standard deviation of 0.50 is random chance for fractional data
+        phi = np.clip((y_data * (1 - y_data) - measurement_error ** 2) / measurement_error ** 2, 0.0001, np.inf)
+        y_data_idx = range(len(y_data))
+
+        return np.sum([-stats.beta.logpdf(
+            y_sim[i],
+            y_data[i] * phi[i],
+            (1 - y_data[i]) * phi[i]) for i in y_data_idx])
 
 
 class Fluorescence(MeasurementModel):

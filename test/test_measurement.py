@@ -563,33 +563,34 @@ class TestWesternBlotModel(TestSolverModel, unittest.TestCase):
                               columns=['cPARP__0', 'cPARP__1', 'cPARP__2', 'cPARP__3'])
         pd.testing.assert_frame_equal(test[test.columns], target[test.columns], check_less_precise=1)
 
-    # def test_get_index_of_logistic_classifier_step(self):
-    #     data = pd.DataFrame([[2, 0, 0, "WT", 1],
-    #                          [2, 0, 1, "WT", 1],
-    #                          [2, 0, 2, "WT", 1],
-    #                          [2, 1, 3, "WT", 1],
-    #                          [2, 2, 4, "WT", 1],
-    #                          [2, 3, 5, "WT", 1],
-    #                          [2, 3, 5, "WT", 1],
-    #                          [1, 4, 7, "WT", 1],
-    #                          [0, 4, 9, "WT", 1]],
-    #                         columns=['PARP', 'cPARP', 'time', 'condition', 'experiment'])
-    #     ds = DataSet(data, {'PARP': 'ordinal', 'cPARP': 'ordinal'})
-    #     wb = WesternBlot(self.sim_result, ds, {'PARP': ['AB_complex'], 'cPARP': ['AB_complex']},
-    #                      ['AB_complex'], experimental_conditions=pd.DataFrame([['WT', 1],
-    #                                                                            ['KO', 1]],
-    #                                                                           columns=['condition', 'experiment']))
-    #     wb.process.remove_step(0)
-    #
-    #     test = wb.run(use_dataset=False)[['cPARP__0', 'cPARP__1', 'cPARP__2', 'cPARP__3', 'condition']]
-    #     target = pd.DataFrame([[0.982079,  0.013896,  0.002964,  0.000893,        'WT'],
-    #                            [0.067612,  0.179068,  0.308197,  0.333025,        'WT'],
-    #                            [0.009782,  0.032921,  0.102461,  0.373839,        'WT'],
-    #                            [0.982079,  0.013896,  0.002964,  0.000893,        'KO'],
-    #                            [0.067973,  0.179768,  0.308543,  0.332184,        'KO'],
-    #                            [0.009809,  0.033010,  0.102698,  0.374196,        'KO']],
-    #                           columns=['cPARP__0',  'cPARP__1',  'cPARP__2',  'cPARP__3', 'condition'])
-    #     pd.testing.assert_frame_equal(test[test.columns], target[test.columns], check_less_precise=1)
+    def test_get_index_of_logistic_classifier_step(self):
+        data = pd.DataFrame([[2, 0, 0, "WT", 1],
+                             [2, 0, 1, "WT", 1],
+                             [2, 0, 2, "WT", 1],
+                             [2, 1, 3, "WT", 1],
+                             [2, 2, 4, "WT", 1],
+                             [2, 3, 5, "WT", 1],
+                             [2, 3, 5, "WT", 1],
+                             [1, 4, 7, "WT", 1],
+                             [0, 4, 9, "WT", 1]],
+                            columns=['PARP', 'cPARP', 'time', 'condition', 'experiment'])
+        ds = DataSet(data, {'PARP': 'ordinal', 'cPARP': 'ordinal'})
+        wb = WesternBlot(self.sim_result, ds, {'PARP': ['AB_complex'], 'cPARP': ['AB_complex']},
+                         ['AB_complex'], experimental_conditions=pd.DataFrame([['WT', 1],
+                                                                               ['KO', 1]],
+                                                                              columns=['condition', 'experiment']))
+        wb.process.remove_step(0)
+        wb.run(use_dataset=True)  # Train to data before trying out of sample predictions.
+
+        test = wb.run(use_dataset=False)[['cPARP__0', 'cPARP__1', 'cPARP__2', 'cPARP__3', 'condition']]
+        target = pd.DataFrame([[0.955810,  0.034055,  0.007452,  0.002259,        'WT'],
+                               [0.038948,  0.115747,  0.255914,  0.405116,        'WT'],
+                               [0.006092,  0.020842,  0.068392,  0.305703,        'WT'],
+                               [0.955810,  0.034055,  0.007452,  0.002259,        'KO'],
+                               [0.039151,  0.116252,  0.256514,  0.404618,        'KO'],
+                               [0.006109,  0.020896,  0.068554,  0.306119,        'KO']],
+                              columns=['cPARP__0',  'cPARP__1',  'cPARP__2',  'cPARP__3', 'condition'])
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns], check_less_precise=1)
 
     def test_likelihood(self):
         data = pd.DataFrame([[2, 0, 0, "WT", 1],
@@ -708,9 +709,53 @@ class TestFractionalKillingModel(TestSolverModel, unittest.TestCase):
         ds = DataSet(data, {'viability': 'quantitative'})
         fk = FractionalKilling(self.sim_result, ds, {'viability':['AB_complex', 'A_free']}, interpolate_first=False)
         fk._replace_interpolate_step('MOCK_STEP')
-        print(fk.process.steps)
         self.assertTrue(fk.process.steps[-3][1]=='MOCK_STEP')
 
+    def test_mock_dataset(self):
+        param_values = pd.DataFrame([[100, 'WT', 1, 0],
+                                     [150, 'WT', 1, 1],
+                                     [200, 'WT', 1, 2],
+                                     [125, 'WT', 1, 3],
+                                     [175, 'WT', 1, 4],
+                                     [150, 'WT', 1, 5]],
+                                    columns=['kbindAB', 'condition', 'experiment', 'simulation'])
+        sim_result = Simulator(self.model).run(tspan=np.linspace(0, 10, 5), param_values=param_values)
+        data = pd.DataFrame([[0.9, 0, 'WT', 1], [0.50, 10, 'WT', 1], [0.58, 7.5, 'WT', 1]],
+                            columns=['viability', 'time', 'condition', 'experiment'])
+        ds = DataSet(data, {'viability': 'quantitative'})
+        fk = FractionalKilling(sim_result, ds, {'viability': ['AB_complex', 'A_free']},
+                               observables=['AB_complex', 'A_free'],
+                               interpolate_first=False)
+        target = pd.DataFrame([[0, 0, 'WT', 1], [1, 10, 'WT', 1], [0, 7.5, 'WT', 1]],
+                              columns=['viability', 'time', 'condition', 'experiment'])
+        _data_columns = list({'viability': ['AB_complex', 'A_free']}.keys())
+        test = fk._create_mock_dataset(fk._dataset.data, _data_columns)
+        pd.testing.assert_frame_equal(target[test.columns], test[test.columns])
+        print(ds._measurement_error)
+
+    def test_likelihood(self):
+        np.random.seed(10)
+        param_values = pd.DataFrame([[100, 'WT', 1, 0],
+                                     [150, 'WT', 1, 1],
+                                     [200, 'WT', 1, 2],
+                                     [125, 'WT', 1, 3],
+                                     [175, 'WT', 1, 4],
+                                     [150, 'WT', 1, 5]],
+                                    columns=['kbindAB', 'condition', 'experiment', 'simulation'])
+        sim_result = Simulator(self.model).run(tspan=np.linspace(0, 10, 5), param_values=param_values)
+        data = pd.DataFrame([[0.9, 0, 'WT', 1, 0], [0.50, 10, 'WT', 1, 2], [0.58, 7.5, 'WT', 1, 1]],
+                            columns=['viability', 'time', 'condition', 'experiment', 'A_free'])
+        ds = DataSet(data, {'viability': 'quantitative', 'A_free':'ordinal'}, measurement_error=0.05)
+
+        fk = FractionalKilling(sim_result, ds, {'viability': ['AB_complex', 'A_free']},
+                               observables=['AB_complex', 'A_free'],
+                               interpolate_first=False)
+        self.assertEqual(fk.likelihood(), 101.74464229149089)
+
+        # print(fk.experimental_conditions_df)
+        # # print({k: v for k, v in fk.process.get_params().items() if 'do_fit_transform' in k})
+        # fk.likelihood()
+        #
 
 
 

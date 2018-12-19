@@ -25,19 +25,24 @@ class DataSet(object):
     manipulated_variables: dict
         param_mean and param_cov arguments of the :class:`~opt2q.noise.NoiseModel`
 
+    measurement_error: float, list or dict (optional)
+        Variance of the data. Or the probability of error of the reported categorical data.
+        As a dict, variance terms (floats) are indexed by the name(s) of the measured_variables.
+        Todo: Redo the measurement_error! Allow it to vary with time, experimental condition, etc.
+        Todo: Define weather it is relative or absolute error
+        Todo: Allow updating the error term by the calibrator.
+
     kwargs: dict
         Additional options:
 
         ``observable``: list
             Names observables in a PySB :class:`models <pysb.core.Model>` that this dataset should require.
-        ``measurement_error``: float or dict
-            Variance of the data. Or the probability of error reported categorical data.
-            As a dict, variance terms (floats) are indexed by the name(s) of the measured_variables.
+
     """
 
     measurement_types = ['quantitative', 'semi-quantitative', 'ordinal', 'nominal']
 
-    def __init__(self, data, measured_variables, manipulated_variable=None, *args, **kwargs):
+    def __init__(self, data, measured_variables, manipulated_variable=None, measurement_error=None, *args, **kwargs):
         measured_vars = self._convert_measured_variables_to_dict(measured_variables)
         self.data = self._check_data(data, measured_vars)
         self.experimental_conditions = self._get_experimental_conditions_df(self.data, measured_vars)
@@ -46,16 +51,16 @@ class DataSet(object):
         observables = kwargs.get('observables', [])
         self._observables = self._check_observables(observables)
 
-        measurement_error = kwargs.get('measurement_error', None)
         self._measurement_error = self._check_measurement_error(measurement_error, self.measured_variables)
+        self.measurement_error_df = self._get_errors_df()
 
+        # ordinal error term
         self._ordinal_errors_matrices = dict()
         _ordinal_variables_names = [k for k, v in self.measured_variables.items() if v is 'ordinal']
         _ordinal_error_matrices = self._get_ordinal_errors_matrices(
             self._ordinal_errors_matrices, _ordinal_variables_names)
         _ordinal_vars_df_one_hot_representation = self._one_hot_transform_of_data(_ordinal_variables_names)
 
-        # todo: Make these accessible for modification by the user/calibrator.
         self._ordinal_errors_df = self._apply_ordinal_errors_matrices_to_one_hot_data(
             _ordinal_vars_df_one_hot_representation, _ordinal_variables_names)
         self._ordinal_variables_names = _ordinal_variables_names
@@ -163,8 +168,10 @@ class DataSet(object):
     def _check_measurement_error(measurement_error, measured_variables):
         """
         Returns a dictionary or error terms for each measured value.
-        :param measurement_error:
-        :return:
+
+        Parameter
+        ---------
+        measurement_error:
         """
         if isinstance(measurement_error, float):
             return {k: measurement_error for k in measured_variables.keys()}
@@ -178,6 +185,15 @@ class DataSet(object):
         else:
             raise ValueError('measurement_error must be a float or dict with float item')
         return measurement_error
+
+    def _get_errors_df(self):
+        errors_df = pd.DataFrame()
+        for k, v in self.measured_variables.items():
+            if v is not 'ordinal':
+                errors_df[k+'__error'] = self._measurement_error[k] * self.data[k]
+
+        errors_df[self.experimental_conditions.columns] = self.experimental_conditions
+        return errors_df
 
     def _get_ordinal_errors_matrices(self, ordinal_matrix_dict, ordinal_variables_names):
         """

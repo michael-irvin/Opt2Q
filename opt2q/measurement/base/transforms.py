@@ -234,7 +234,7 @@ class Transform(object):
         complete_cols = set()
         for col in user_col_set:
             complete_cols |= set([s for s in x_col_set if isinstance(col, str) and
-                                  re.search(f'{col}(?=_{2}|[$^])|(?<=[$^)(-]){col}', s)])
+                                  re.search(f'{col}(?=[$^-])|{col}(?=__)|(?<=[$^-]){col}', s)])
         return user_col_set | complete_cols
 
     @staticmethod
@@ -1295,6 +1295,7 @@ class SampleAverage(Transform):
             x_ = x
 
         cols_to_scale = self._transform_get_columns(x_, self._columns, self._columns_set)
+
         return self._transform(x_, cols_to_scale)
 
 

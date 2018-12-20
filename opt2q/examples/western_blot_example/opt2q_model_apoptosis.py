@@ -9,7 +9,7 @@ from opt2q.noise import NoiseModel
 from opt2q.simulator import Simulator
 from opt2q.data import DataSet
 from opt2q.measurement import WesternBlot
-from opt2q.utils import profile
+from opt2q.measurement.base import SampleAverage, Interpolate
 
 # ------- simulate extrinsic noise -------
 params_m = pd.DataFrame([['kc3', 1.0, '-', True],
@@ -44,8 +44,7 @@ results_df = results.opt2q_dataframe
 results_df = results_df.reset_index()
 results_df['time_axis'] = results_df['time'].apply(lambda x: x/500.)
 
-# ------- cell lysis step of pipeline -------
-from opt2q.measurement.base import SampleAverage, Interpolate
+# ------- plot cell lysis step of pipeline -------
 interpolate = Interpolate('time',
                           ['cPARP_obs', 'PARP_obs'],
                           [1500, 2000, 2500, 3500, 4500],
@@ -79,7 +78,7 @@ axes.legend(handles=[
 plt.show()
 
 # ------ plot simulation results -------
-fig2, (ax, ax1) = plt.subplots(1, 2, figsize=(10, 6), sharey='all', gridspec_kw={'width_ratios':[2, 1]})
+fig2, (ax, ax1) = plt.subplots(1, 2, figsize=(10, 6), sharey='all', gridspec_kw={'width_ratios': [2, 1]})
 
 legend_handles = []
 for i, (label, df) in enumerate(results_df.groupby('inhibitor')):
@@ -138,17 +137,3 @@ for label, df in western_blot_results[western_blot_results['inhibitor'] == '-'].
                         alpha=0.05*np.mean(df[col])**2)
 plt.ylim((0, 1))
 plt.savefig('simulated_wb.png')
-print("Finished file")
-# western_blot_results['loc1'] = 0.3
-# western_blot_results['loc2'] = 0.7
-#
-# result_obs = {'cPARP': 'loc1', 'PARP':'loc2'}
-# result_size = {'cPARP': [100, 200, 400, 600, 1000], 'PARP': [200, 500, 1000]}
-# fig, ax = plt.subplots(figsize=(8, 3))
-# for label, df in western_blot_results[western_blot_results['inhibitor'] == '+'].groupby('time'):
-#     for col in [i for i in df.columns if '__' in i]:
-#         obs, level = tuple([k_rvs[::-1] for k_rvs in col[::-1].split('__')][::-1])
-#         df.plot.scatter(x='time_axis', y=result_obs[obs], ax=ax, s=result_size[obs][int(level)],
-#                         alpha=0.05*np.mean(df[col])**2, color=colors[0])
-# plt.ylim((0, 1))
-# plt.show()

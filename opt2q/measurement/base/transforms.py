@@ -1017,14 +1017,13 @@ class LogisticClassifier(Transform):
             y_extra_columns = set(y.columns) - set(y_cols)
             combined_x_y = self._prep_data(x, y, y_cols, x_extra_columns, y_extra_columns)
             data_cols = combined_x_y[y_cols]._get_numeric_data().columns
-            combined_x_y[data_cols] = combined_x_y[data_cols].astype(int)
+            combined_x_y[data_cols] = combined_x_y[data_cols] #.astype(int)
             for y_col, x_col in columns_dict.items():
                 self._results_columns_dict.update(
                     {y_col: ['{}__{}'.format(str(y_col), cat) for cat in np.unique(combined_x_y[y_col])]})
         else:
             combined_x_y = x
             combined_x_y[y_cols] = pd.DataFrame(columns=y_cols)
-        # todo ^^^^ move this to a separate function
 
         # do transform
         result_df = pd.DataFrame()
@@ -1768,6 +1767,7 @@ class Pipeline(Transform):
         xt = x
         for name, transformation in self.steps:
             xt = transformation.transform(xt)
+
             # Note: All transformations must have a run method. If they are sub-class of process, they will.
         return xt
 

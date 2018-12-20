@@ -141,7 +141,6 @@ class WesternBlot(MeasurementModel):
     def run(self, use_dataset=True):
         if use_dataset:
             x_ds = self.interpolation_ds.transform(self.simulation_result_df[self._results_cols])
-
             result_ds = self.process.transform(x_ds)
             self.results = result_ds
             return self.results

@@ -180,3 +180,26 @@ def derivative(x):
     and backward differences for the first and last points respectively.
     """
     return pd.DataFrame(np.gradient(x, axis=0), columns=x.columns)
+
+
+@transform_function
+def column_max(x):
+    return pd.DataFrame(x.max()).T
+
+
+@transform_function
+def where_max(x, var=None):
+    """
+    Return row of x where ``var`` is max.
+    """
+    idx_max = x[var].idxmax()
+    return pd.DataFrame([x.loc[idx_max].values], columns=x.columns)
+
+
+@transform_function
+def where_min(x, var=None):
+    """
+    Return row of x where ``var`` is max.
+    """
+    idx_min = x[var].idxmin()
+    return pd.DataFrame([x.loc[idx_min].values], columns=x.columns)

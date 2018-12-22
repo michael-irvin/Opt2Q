@@ -57,7 +57,7 @@ class MeasurementModel(object):
 
     """
     def __init__(self, simulation_result,  dataset=None, observables=None, time_points=None,
-                 experimental_conditions=None):
+                 experimental_conditions=None, time_dependent=True):
 
         opt2q_df, pysb_df = self._check_simulation_result(simulation_result)
         exp_con_df, exp_con_cols = self._get_ec_from_sim_result(opt2q_df, pysb_df)  # df and cols include 'time'
@@ -69,7 +69,7 @@ class MeasurementModel(object):
             self._observables = self._get_observables(pysb_df, self._dataset, observables)
 
         self._required_observables = self._get_required_observables(self._observables, self._dataset_observables)
-
+                
         if _is_vector_like(time_points):
             self._time_points = _convert_vector_like_to_list(time_points)  # create only if user-specifies
 

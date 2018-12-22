@@ -1,6 +1,6 @@
 # MW Irvin -- Lopez Lab -- 2018-08-31
 from opt2q.measurement.base import Interpolate, Pipeline, SampleAverage, Scale, Standardize, \
-    LogisticClassifier, CumulativeComputation
+    LogisticClassifier, CumulativeComputation, ScaleGroups, Transform
 from opt2q.measurement.base.functions import log_scale, TransformFunction, polynomial_features
 from opt2q.utils import _is_vector_like
 from opt2q.data import DataSet
@@ -1318,5 +1318,48 @@ class TestCumulativeComputation(unittest.TestCase):
             [5.0,   np.NaN, 'b', 2.0, np.NaN],
             [9.0,   1.0,    'b', 4.0,    0.0]],
             columns=['A__sum', 'B__sum', 'C', 'A', 'B'])
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
+
+
+class TestSampleScale(unittest.TestCase):
+    def test_inheritance(self):
+        test = ScaleGroups(columns='cPARP_obs__k', groupby='simulation')
+        assert isinstance(test, Transform)
+        self.assertListEqual(test._columns, ['cPARP_obs__k'])
+
+    def test_transform_in_groups(self):
+        df = pd.DataFrame([[2.0, 1.0, 'a'],
+                           [3.0, np.nan, 'a'],
+                           [1.0, 0.0, 'a'],
+                           [3.0, 1.0, 'b'],
+                           [2.0, np.nan, 'b'],
+                           [4.0, 0.0, 'b']],
+                          columns=list('ABC'))
+        test = ScaleGroups(columns='A', groupby='C').transform(df)
+        target = pd.DataFrame([[3.0, 1.0, 'a'],
+                               [3.0, np.nan, 'a'],
+                               [3.0, 0.0, 'a'],
+                               [4.0, 1.0, 'b'],
+                               [4.0, np.nan, 'b'],
+                               [4.0, 0.0, 'b']],
+                              columns=list('ABC'))
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
+
+    def test_transform(self):
+        df = pd.DataFrame([[2.0, 1.0, 'a'],
+                           [3.0, np.nan, 'a'],
+                           [1.0, 0.0, 'a'],
+                           [3.0, 1.0, 'b'],
+                           [2.0, np.nan, 'b'],
+                           [4.0, 0.0, 'b']],
+                          columns=list('ABC'))
+        test = ScaleGroups(columns='B').transform(df)
+        target = pd.DataFrame([[2.0, 1.0, 'a'],
+                               [3.0, 1.0, 'a'],
+                               [1.0, 1.0, 'a'],
+                               [3.0, 1.0, 'b'],
+                               [2.0, 1.0, 'b'],
+                               [4.0, 1.0, 'b']],
+                              columns=list('ABC'))
         pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
 

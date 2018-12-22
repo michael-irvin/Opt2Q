@@ -326,6 +326,7 @@ class FractionalKilling(MeasurementModel):
         self.results = None
         self._results_cols = list(set(_process_observables) | (set(self.experimental_conditions_df.columns)) |
                                   {'time', 'simulation'})
+
     @staticmethod
     def _create_mock_dataset(data, data_columns):
         # todo make mock data something that can also be user-defined.
@@ -405,7 +406,7 @@ class FractionalKilling(MeasurementModel):
             it will do "out of sample" predictions; i.e. doing the transform on experimental conditions in
             simulation result but not in the dataset.
         """
-        if use_dataset:
+        if use_dataset and 'interpolate' in [x[0] for x in self.process.steps]:
             self._replace_interpolate_step(self.interpolation_ds)
             result_ds = self.process.transform(self.simulation_result_df[self._results_cols])
             self._replace_interpolate_step(self.interpolation)

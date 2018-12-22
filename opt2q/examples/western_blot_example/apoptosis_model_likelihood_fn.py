@@ -52,7 +52,7 @@ wb.process.set_params(**{'sample_average__sample_size': 200})
 results0 = wb.run(use_dataset=True)
 
 
-# -------- calibrate model -----------
+# -------- likelihood function -----------
 @objective_function(noise_model=noise, simulator=sim, measurement_model=wb, return_results=False, evals=0)
 def likelihood_fn(x):
     wt_activity = 10**x[0]                                               # x0 = float [(-3, 3),

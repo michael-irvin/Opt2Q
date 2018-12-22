@@ -12,7 +12,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
 from mord import LogisticSE, obj_margin, grad_margin
 from opt2q.utils import *
-from opt2q.measurement.base.functions import TransformFunction, log_scale
+from opt2q.measurement.base.functions import TransformFunction, log_scale, column_max, where_max, where_min
 from opt2q.data import DataSet
 
 
@@ -1479,6 +1479,108 @@ class Scale(Transform):
         return scaled_df.rename(columns={col : f'{col}__{name}' for col in scaled_columns_set})
 
 
+class ScaleGroups(Scale):
+    """
+    Conducts scaling operations on groups of values in the DataFrame.
+
+    The scaling operation may change the number of rows in the scaled column; these columns and non-scaled columns
+    are copied to retain all the data in the dataframe.
+
+    Parameters
+    ----------
+    columns: str or list of strings, optional
+        The column name(s) of the variable(s) being scaled. Defaults to all numeric columns of the
+        :class:`~pandas.DataFrame`, ``x``, that is passed to the
+        :meth:`~opt2q.measurement.base.transforms.Scale.transform` method.
+
+        All non-numeric columns are ignored (even if they where named in this argument).
+
+    groupby: str, or list, optional
+        The name of the column(s) by which to group the operation. Each unique value in the column(s) denotes a
+        separate group. Defaults to None, and conducts a single operation along the length on the whole DataFrame.
+
+        Note: the ``groupby`` and ``columns`` arguments cannot reference the same column(s).
+
+    scale_fn: str or func, optional
+        As a string is must name one of the functions in
+        :attr:`~opt2q.measurement.base.transforms.Scale.scale_functions`
+        Defaults to 'log2'
+
+    scale_fn_kwargs: dict
+        kwargs for ``scale_fn``
+
+    keep_old_columns: bool, false
+        If true, the original column(s) remain in the result. If the newly scaled columns are not already renamed,
+        they assume the following name: 'col__name', where "col" is the column's original name and "name" is the name
+        of the transform.
+
+    Attributes
+    ----------
+    scale_functions: dict
+        Dictionary of scaling functions and their names.
+    """
+
+    scale_functions = {'log2': (log_scale, {'base': 2, 'clip_zeros': True}),
+                       'log10': (log_scale, {'base': 10, 'clip_zeros': True}),
+                       'loge': (log_scale, {'base': np.e, 'clip_zeros': True}),
+                       'max': (column_max, {})}
+
+    def __init__(self, columns=None, keep_old_columns=False, drop_columns=None, groupby=None,
+                 scale_fn='max', **scale_fn_kwargs):
+        super().__init__(columns=columns, keep_old_columns=keep_old_columns, groupby=groupby,
+                         scale_fn=scale_fn, **scale_fn_kwargs)
+
+        self._drop_columns, self._drop_columns_set = self._check_columns(drop_columns)
+
+    # transform
+    def transform(self, x, **kwargs):
+        """
+        Scale values in a :class:`~pandas.DataFrame`, x.
+
+        Parameter
+        ---------
+        x: :class:`~pandas.DataFrame`
+            The values to be scaled.
+        """
+        if self._drop_columns is not None:
+            drop_these = list(self._drop_columns_set.intersection(set(x.columns)))
+            x_ = x.drop(columns=drop_these)
+        else:
+            x_ = x
+
+        cols_to_scale = self._transform_get_columns(x_, self._columns, self._columns_set)
+        return self._transform(x_, cols_to_scale, kwargs)
+
+    def _transform_in_groups(self, x, _scale_these_cols, kwargs):
+        _scale_these_cols -= set(self._group_by)
+        scaled_df = pd.DataFrame()
+        for name, group in x.groupby(self._group_by):
+            scaled_group = self._transform_not_in_groups(group, _scale_these_cols, kwargs)
+            scaled_df = pd.concat([scaled_df, scaled_group], ignore_index=True, sort=False)
+        return scaled_df
+
+    def _transform_not_in_groups(self, x, _scale_these_cols, kwargs):
+        cols = list(_scale_these_cols)
+        remaining_cols = list(set(x.columns) - _scale_these_cols)
+        scaled_df = self.scale_fn(x[cols], **self.scale_fn_kwargs)
+
+        if self.keep_old_columns:
+            scaled_df = self._rename_scaled_columns(scaled_df, set(cols), kwargs.get('name', 'scale'))
+            scaled_df[cols] = x[cols]
+
+        if len(remaining_cols) == 0:
+            return scaled_df
+
+        x_remaining = x[remaining_cols].drop_duplicates().reset_index(drop=True)
+        len_x_remaining = x_remaining.shape[0]
+
+        x_remaining_repeated = x_remaining.iloc[np.tile(x_remaining.index, len(scaled_df))].reset_index(drop=True)
+        scaled_df_repeated = scaled_df.iloc[np.repeat(scaled_df.index, len_x_remaining)].reset_index(drop=True)
+
+        scaled_df_repeated[remaining_cols] = x_remaining_repeated
+        return scaled_df_repeated
+
+
 class Standardize(Transform):
     """
     Standardizes (i.e. scales values to have zero mean and unit variance) of values in a DataFrame
@@ -1766,8 +1868,8 @@ class Pipeline(Transform):
         """
         xt = x
         for name, transformation in self.steps:
-            xt = transformation.transform(xt)
-
+            xt = transformation.transform(xt, name=name)
+            print(xt)
             # Note: All transformations must have a run method. If they are sub-class of process, they will.
         return xt
 

@@ -11,6 +11,7 @@ __all__ = ['MeasurementModel',
            'Pipeline',
            'SampleAverage',
            'Scale',
+           'ScaleGroups',
            'Standardize',
 
            # parent classes

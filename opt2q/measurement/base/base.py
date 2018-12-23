@@ -59,6 +59,8 @@ class MeasurementModel(object):
     def __init__(self, simulation_result,  dataset=None, observables=None, time_points=None,
                  experimental_conditions=None, time_dependent=True):
 
+        self._time_dependent = True if time_dependent is not False else False  # Defaults to True
+
         opt2q_df, pysb_df = self._check_simulation_result(simulation_result)
         exp_con_df, exp_con_cols = self._get_ec_from_sim_result(opt2q_df, pysb_df)  # df and cols include 'time'
 
@@ -69,7 +71,7 @@ class MeasurementModel(object):
             self._observables = self._get_observables(pysb_df, self._dataset, observables)
 
         self._required_observables = self._get_required_observables(self._observables, self._dataset_observables)
-                
+
         if _is_vector_like(time_points):
             self._time_points = _convert_vector_like_to_list(time_points)  # create only if user-specifies
 
@@ -80,12 +82,16 @@ class MeasurementModel(object):
             exp_con_df, exp_con_cols, dataset)
         self._ec_df_pre = self._get_experimental_conditions_from_user(
             exp_con_df, exp_con_cols, self._dataset_ec_df_pre, experimental_conditions)
+        if self._time_dependent:
+            self._dataset_experimental_conditions_df = self._add_default_time_points_to_experimental_conditions(
+                self._dataset_ec_df_pre, self._default_time_points)
+            self._experimental_conditions_df = self._add_default_time_points_to_experimental_conditions(
+                self._ec_df_pre, self._default_time_points
+            )
+        else:
+            self._dataset_experimental_conditions_df = self._dataset_ec_df_pre
+            self._experimental_conditions_df = self._ec_df_pre
 
-        self._dataset_experimental_conditions_df = self._add_default_time_points_to_experimental_conditions(
-            self._dataset_ec_df_pre, self._default_time_points)
-        self._experimental_conditions_df = self._add_default_time_points_to_experimental_conditions(
-            self._ec_df_pre, self._default_time_points
-        )
         self._opt2q_df = opt2q_df
         # Todo: Add @property and @...setter for simulation_result, dataset!!
         # Todo: Add @property and @...setter for observables, time_points, experimental_conditions!!
@@ -105,8 +111,7 @@ class MeasurementModel(object):
         opt2q_df.reset_index(inplace=True)
         return opt2q_df, pysb_df
 
-    @staticmethod
-    def _get_ec_from_sim_result(opt2q_df, pysb_df):
+    def _get_ec_from_sim_result(self, opt2q_df, pysb_df):
         """
         Get experimental conditions dataframe from simulation result and make the 'time' column is NaNs.
 
@@ -123,11 +128,17 @@ class MeasurementModel(object):
         list_ec_cols = list(ec_cols)
         default_ec_df = opt2q_df[list_ec_cols]
         if default_ec_df.shape[1] == 0:
-            return pd.DataFrame([np.NaN], columns=['time']), ec_cols | {'time'}
+            if self._time_dependent:
+                return pd.DataFrame([np.NaN], columns=['time']), ec_cols | {'time'}
+            else:
+                return pd.DataFrame(), ec_cols
         else:
             default_ec_df = default_ec_df.drop_duplicates().reset_index(drop=True)
-            default_ec_df['time'] = np.NaN
-            return default_ec_df, ec_cols | {'time'}
+            if not self._time_dependent:
+                return default_ec_df, ec_cols
+            else:
+                default_ec_df['time'] = np.NaN
+                return default_ec_df, ec_cols | {'time'}
 
     @staticmethod
     def _check_dataset(ds):
@@ -227,12 +238,13 @@ class MeasurementModel(object):
         else:
             dataset_ec_df = dataset.experimental_conditions
             dataset_ec_cols = dataset_ec_df.columns
-            self._check_that_cols_match(set(dataset_ec_cols) | {'time'}, sim_result_ec_cols_set)
+            dataset_ec_cols_set = set(dataset_ec_cols) | {'time'} if self._time_dependent else set(dataset_ec_cols)
+            self._check_that_cols_match(dataset_ec_cols_set, sim_result_ec_cols_set)
 
         if set(dataset_ec_cols) == {'time'}:
             return dataset_ec_df  # vector-like DataFrame
 
-        elif 'time' not in dataset_ec_cols:
+        elif 'time' not in dataset_ec_cols and self._time_dependent:
             dataset_ec_df = self._add_time_column_w_nans(dataset_ec_df)
 
         merge_on_cols = list(set(dataset_ec_cols) - {'time'})
@@ -244,7 +256,8 @@ class MeasurementModel(object):
     def _get_experimental_conditions_from_user(self, sim_result_ec_df, sim_result_ec_cols_set, dataset_ec_df, usr_ec):
         if usr_ec is None and dataset_ec_df is None:
             user_ec_df = sim_result_ec_df[list(sim_result_ec_cols_set-{'time'})]
-            user_ec_df = self._add_time_column_w_nans(user_ec_df)
+            if self._time_dependent:
+                user_ec_df = self._add_time_column_w_nans(user_ec_df)
             return user_ec_df
         elif usr_ec is None:
             return dataset_ec_df
@@ -253,7 +266,7 @@ class MeasurementModel(object):
         if len(user_ec_cols - sim_result_ec_cols_set) > 0:
             raise ValueError("The following experimental conditions columns are not in the simulation "
                              "result, and cannot be used: " + _list_the_errors(user_ec_cols - sim_result_ec_cols_set))
-        if 'time' not in usr_ec.columns:
+        if 'time' not in usr_ec.columns and self._time_dependent:
             usr_ec = self._add_time_column_w_nans(usr_ec)
         merge_on_cols = list(user_ec_cols - {'time'})
         merge_ec_df = self._intersect_w_sim_result_ec(usr_ec, sim_result_ec_df, list(sim_result_ec_cols_set),

@@ -1,4 +1,6 @@
 # MW Irvin -- Lopez Lab -- 2018-08-23
+import numpy as np
+np.random.seed(10)
 from pysb import Monomer, Parameter, Initial, Observable, Rule
 from pysb.bng import generate_equations
 from pysb.testing import *
@@ -6,7 +8,7 @@ from opt2q.simulator import Simulator
 from opt2q.measurement.base import MeasurementModel, SampleAverage, Interpolate
 from opt2q.measurement import WesternBlot, FractionalKilling
 from opt2q.data import DataSet
-import numpy as np
+from opt2q.examples.cell_viability_example.cell_viability_likelihood_fn import fk
 import pandas as pd
 import unittest
 import warnings
@@ -757,6 +759,22 @@ class TestFractionalKillingModel(TestSolverModel, unittest.TestCase):
         # fk.likelihood()
         #
 
+    def test_time_independent(self):
+        # polynomial etc transforms are ignoring the time axis because they
+        data = pd.DataFrame([[0.9, 'WT', 1, 0], [0.50, 'WT', 1, 2], [0.58, 'WT', 1, 1]],
+                            columns=['viability', 'condition', 'experiment', 'A_free'])
+        ds = DataSet(data, {'viability': 'quantitative', 'A_free':'ordinal'}, measurement_error=0.05)
+
+        fk = FractionalKilling(self.sim_result, ds, {'viability': ['AB_complex', 'time']},
+                               observables=['AB_complex', 'A_free'],
+                               interpolate_first=False,
+                               time_dependent=False)
+        pd.testing.assert_frame_equal(fk._dataset_experimental_conditions_df[['condition', 'experiment']],
+                                      pd.DataFrame([['WT', 1]], columns=['condition', 'experiment']))
+
+    def test_likelihood_time_independent(self):
+        test = fk.likelihood()
+        self.assertAlmostEqual(test, 13013.753887778897, 4)
 
 
 

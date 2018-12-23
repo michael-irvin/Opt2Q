@@ -67,7 +67,7 @@ class WesternBlot(MeasurementModel):
     """
 
     def __init__(self, simulation_result, dataset, measured_values, observables=None, time_points=None,
-                 experimental_conditions=None,):
+                 experimental_conditions=None):
 
         super().__init__(simulation_result,
                          dataset=dataset,
@@ -285,33 +285,25 @@ class FractionalKilling(MeasurementModel):
     """
 
     def __init__(self, simulation_result, dataset, measured_values, observables=None, time_points=None,
-                 experimental_conditions=None, interpolate_first=True):
+                 experimental_conditions=None, interpolate_first=True, time_dependent=True):
 
         super().__init__(simulation_result,
                          dataset=dataset,
                          observables=observables,
                          time_points=time_points,
-                         experimental_conditions=experimental_conditions)
+                         experimental_conditions=experimental_conditions,
+                         time_dependent=time_dependent)
 
         _measured_values, _process_observables = self._check_measured_values_dict(measured_values, dataset)
         self._measured_values_dict = _measured_values
         self._measured_values_names = list(_measured_values.keys())
 
-        self.interpolation_ds = Interpolate('time',
-                                            list(_process_observables),
-                                            self._dataset_experimental_conditions_df,
-                                            groupby='simulation')
-
-        self.interpolation = Interpolate('time',
-                                         list(_process_observables),
-                                         self.experimental_conditions_df,
-                                         groupby='simulation')
-        self._interpolate_first = False if not interpolate_first else True  # Non-bool Defaults to True
-
         _data_columns = list(measured_values.keys())
         _mock_data_col = _data_columns[0]
         self._mock_dataset = self._create_mock_dataset(self._dataset.data, _data_columns)
 
+        self._data_error_col_name = list(set(self._dataset.measurement_error_df.columns) -
+                                         set(self._dataset_experimental_conditions_df.columns))
         self.process = Pipeline(
             steps=[('log_scale', Scale(columns=list(_process_observables), scale_fn='log10')),
                    ('standardize', Standardize(columns=list(_process_observables), groupby=None)),
@@ -321,11 +313,23 @@ class FractionalKilling(MeasurementModel):
                                                     groupby=list(set(self.experimental_conditions_df.columns) -
                                                                  {'simulation'}), apply_noise=False))])
 
-        self._add_interpolate_step()
+        if self._time_dependent:
+            self.interpolation_ds = Interpolate('time',
+                                                list(_process_observables),
+                                                self._dataset_experimental_conditions_df,
+                                                groupby='simulation')
+
+            self.interpolation = Interpolate('time',
+                                             list(_process_observables),
+                                             self.experimental_conditions_df,
+                                             groupby='simulation')
+            self._interpolate_first = False if not interpolate_first else True  # Non-bool Defaults to True
+
+            self._add_interpolate_step()
 
         self.results = None
         self._results_cols = list(set(_process_observables) | (set(self.experimental_conditions_df.columns)) |
-                                  {'time', 'simulation'})
+                                  {'time', 'simulation'})  # columns involved in generating the result
 
     @staticmethod
     def _create_mock_dataset(data, data_columns):
@@ -389,7 +393,7 @@ class FractionalKilling(MeasurementModel):
                     # But what if you want to reference only a feature that gets created via a proceeding scaling step?
                     if isinstance(i, str):
                         mentioned_obs = i.split('__')[0]
-                        obs |= {mentioned_obs} if mentioned_obs in self._default_observables else set()
+                        obs |= {mentioned_obs} if mentioned_obs in self._default_observables|{'time'} else set()
             else:
                 raise ValueError("'measured_values' must be a dict of lists")
 
@@ -446,15 +450,15 @@ class FractionalKilling(MeasurementModel):
 
         y_name = self._measured_values_names[0]
         y_sim_name = y_name + '__1'
-        y_err_name = y_name + '__error'
+        # y_err_name = y_name + '__error'
         y_ = self.results.merge(self._dataset.data)
 
         y = y_.merge(self._dataset.measurement_error_df,
-                     on=self._dataset_experimental_conditions_df.columns)
+                     on=list(self._dataset_experimental_conditions_df.columns))
 
         y_sim_ = y[y_sim_name].values
         y_data_ = y[y_name].values
-        y_error = y[y_err_name].values
+        y_error = y[self._data_error_col_name].values
 
         y_sim = np.clip(y_sim_, .0001, .999)
         y_data = np.clip(y_data_, .0001, .999)

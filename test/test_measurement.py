@@ -776,5 +776,18 @@ class TestFractionalKillingModel(TestSolverModel, unittest.TestCase):
         test = fk.likelihood()
         self.assertAlmostEqual(test, 13013.753887778897, 4)
 
+    def test_update_sim_result_time_independent(self):
+        np.random.seed(10)
+        data = pd.DataFrame([[0.9, 'WT', 1, 0], [0.50, 'WT', 1, 2], [0.58, 'WT', 1, 1]],
+                            columns=['viability', 'condition', 'experiment', 'A_free'])
+        ds = DataSet(data, {'viability': 'quantitative', 'A_free':'ordinal'}, measurement_error=0.05)
+        param_values = pd.DataFrame([[100, 'WT', 1, 0]],
+                                    columns=['kbindAB', 'condition', 'experiment', 'simulation'])
+        sim_result = Simulator(self.model).run(tspan=np.linspace(0, 10, 5), param_values=param_values)
+        fk = FractionalKilling(self.sim_result, ds, {'viability': ['AB_complex', 'time']},
+                               observables=['AB_complex', 'A_free'],
+                               interpolate_first=False,
+                               time_dependent=False)
+        fk.update_simulation_result(sim_result)
 
 

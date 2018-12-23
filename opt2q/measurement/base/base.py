@@ -400,7 +400,7 @@ class MeasurementModel(object):
 
         # todo: check that the experimental conditions in dataset and ec are the ones in the updated sim_res.
 
-        if not hasattr(self, '_time_points'):
+        if not hasattr(self, '_time_points') and self._time_dependent:
             # update default_time_points because this will overwrite NaN dataset_ec_df and ec_df
             self._default_time_points = self._get_default_time_points(None, self._dataset, sim_res_df)
 

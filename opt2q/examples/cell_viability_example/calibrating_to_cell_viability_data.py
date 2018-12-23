@@ -1,9 +1,9 @@
 # MW Irvin -- Lopez Lab -- 2018-12-19
 
 """
-=========================
-Logistic Classifier Model
-=========================
+=================================================
+Apoptosis Model Calibrated to Cell Viability Data
+=================================================
 
 Nominal observations provide information about the quantifiable attributes (i.e. markers) on which they depend.
 
@@ -16,4 +16,28 @@ caspase indicator, and the time when that maximum occurs, predicts cellular comm
 The following uses the :class:`~opt2q.measurement.FractionalKilling` to calibrate a model of apoptosis to cell viability
 measurements by Albeck and Sorger.
 """
+
+import numpy as np
+from opt2q.examples.cell_viability_example.cell_viability_likelihood_fn import likelihood_fn
+from scipy.optimize import differential_evolution
+
+# Differential Evolution Optimization of likelihood fn
+x = differential_evolution(
+        likelihood_fn,
+        bounds=[(-3, 3),
+                (-3, 3),
+                (1, 3),
+                (0, 1),
+                (0, 1),
+                (0, 1),
+                (-100, 100),
+                (-100, 100),
+                (-100, 100),
+                (-100, 100),
+                (-100, 100),
+                (-10, 10)])
+
+print(x)
+np.save('calibrated_params_cell_viability_scipy_diff_evolution.npy', x)
+
 

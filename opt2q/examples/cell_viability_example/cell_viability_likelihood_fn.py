@@ -43,7 +43,7 @@ param_cov = pd.DataFrame([['kc3', 'kc3', 0.009],
                          columns=['param_i', 'param_j', 'value'])
 
 # ------- Noise Model -------
-NoiseModel.default_sample_size = 100
+NoiseModel.default_sample_size = 200
 noise = NoiseModel(param_mean=param_m, param_covariance=param_cov)
 parameters = noise.run()
 
@@ -67,9 +67,6 @@ fk.process.add_step(('polynomial',Scale(columns=['cPARP_obs', 'time'], scale_fn=
                     'standardize')  # add after the 'standardize' step
 fk.run()
 
-for k, v in fk.process.get_params().items():
-    print(k, v)
-
 
 # -------- likelihood function -----------
 @objective_function(noise_model=noise, simulator=sim, measurement_model=fk, return_results=False, evals=0)
@@ -82,12 +79,12 @@ def likelihood_fn(x):
     kc4_var = (kc4*x[4])**2                                         # float  (0, 1),
     kc_cov = kc3_var*x[5]                                           # float  (0, 1),
 
-    viability_coef = np.array([x[6],                                # float  (-100, 100)
-                               x[7],                                # float  (-100, 100)
-                               x[8],                                # float  (-100, 100)
-                               x[9],                                # float  (-100, 100)
-                               x[10]])                              # float  (-100, 100)
-    viability_intercept = np.array(x[11])                           # float  (-10, 10)
+    viability_coef = np.array([[x[6],                               # float  (-100, 100),
+                                x[7],                               # float  (-100, 100),
+                                x[8],                               # float  (-100, 100),
+                                x[9],                               # float  (-100, 100),
+                                x[10]]])                            # float  (-100, 100),
+    viability_intercept = np.array([x[11]])                         # float  (-10, 10)]
 
     kc3_val = np.array([['kc3', kc3, True]])
     kc4_val = np.array([['kc4', kc4, True]])
@@ -100,6 +97,7 @@ def likelihood_fn(x):
 
     param_m = pd.concat([kc3_mean_df, kc4_mean_df, ligand], sort=False, ignore_index=True)
     param_m['TRAIL_conc'] = np.tile(cell_viability['TRAIL_conc'].values, 3)
+    param_m['value'] = param_m['value'].astype(float)
     param_cov = pd.DataFrame([['kc3', 'kc3', kc3_var],
                               ['kc4', 'kc4', kc4_var],
                               ['kc4', 'kc3', kc_cov]],
@@ -107,8 +105,6 @@ def likelihood_fn(x):
 
     measurement_model_params = {'classifier__coefficients__viability__coef_':viability_coef,
                                 'classifier__coefficients__viability__intercept_': viability_intercept}
-
-
 
     likelihood_fn.noise_model.update_values(param_mean=param_m,
                                             param_covariance=param_cov)

@@ -91,14 +91,18 @@ class DataSet(object):
                              .format(type(measured_vars).__name__))
 
     @staticmethod
-    def _check_data(data, measured_vars):
+    def _check_data(data_, measured_vars):
         """
         Must be a dataframe. With columns mentioned in ``measured_variables``.
 
         Additional columns (including 'time' columns) are considered experimental conditions settings.
         """
-        if not isinstance(data, pd.DataFrame):
+        if not isinstance(data_, pd.DataFrame):
             raise ValueError("'data' can only be a pandas DataFrame. Not a {}".format(type(data).__name__))
+
+        data = data_.reset_index()
+        if 'index' in data:
+            data = data.drop(columns=['index'])
 
         data_cols = set(data.columns)
         required_cols = set(measured_vars.keys())

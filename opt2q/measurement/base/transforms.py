@@ -814,8 +814,7 @@ class LogisticClassifier(Transform):
         self._columns_dict = columns_dict
 
         # set data df
-        data_df = self._check_dataset(dataset, columns_dict)
-        self._data_df = data_df
+        self._data_df = self._check_dataset(dataset, columns_dict)
 
         # set params dictating transform steps
         self._transform_get_columns = \
@@ -1016,6 +1015,7 @@ class LogisticClassifier(Transform):
         if self.do_fit_transform or self._logistic_models_dict == dict():
             y_extra_columns = set(y.columns) - set(y_cols)
             combined_x_y = self._prep_data(x, y, y_cols, x_extra_columns, y_extra_columns)
+
             data_cols = combined_x_y[y_cols]._get_numeric_data().columns
             combined_x_y[data_cols] = combined_x_y[data_cols] #.astype(int)
             for y_col, x_col in columns_dict.items():
@@ -1054,7 +1054,6 @@ class LogisticClassifier(Transform):
             # repeat y for every unique row in x.
             x_idx_repeats = np.repeat(x_idx, len(y_idx))
             y_idx_repeats = np.tile(y_idx, len(x_idx))
-
             prepped_block = x.iloc[x_idx_repeats].reset_index(drop=True)
             prepped_block[y_cols] = y.iloc[y_idx_repeats][y_cols].reset_index(drop=True)
 

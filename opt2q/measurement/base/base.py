@@ -230,8 +230,6 @@ class MeasurementModel(object):
          We need to keep the NaN here because if the user seeks to update the time_points, the experimental conditions
          that are using default time-points would have to be updated (these experimental conditions have to be
          remembered).
-
-         Todo: Currently dataset experimental conditions columns must match the simulation result. Reconsider this.
         """
         if dataset is None:
             return None  # Likelihood requires dataset.

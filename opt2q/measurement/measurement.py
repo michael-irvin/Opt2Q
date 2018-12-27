@@ -139,6 +139,17 @@ class WesternBlot(MeasurementModel):
         return measured_values_dict, obs
 
     def run(self, use_dataset=True):
+        """
+        Run the measurement transform process
+        Parameters
+        ----------
+        use_dataset: bool
+            When true, it will run the simulation and return values for all the experiments mentioned in the dataset.
+            Otherwise, it will return values for all the experiments specified in the ``experimental_conditions``
+            argument or in the simulation result whether it is mentioned in the data or not (This is useful for out
+            of sample calculations).
+        """
+
         if use_dataset:
             x_ds = self.interpolation_ds.transform(self.simulation_result_df[self._results_cols])
             result_ds = self.process.transform(x_ds)
@@ -183,6 +194,7 @@ class WesternBlot(MeasurementModel):
 
         self.results = self.run(use_dataset=True)
         ordinal_errors = self._dataset._ordinal_errors_df
+
         exp_conditions_cols = list(self._dataset.experimental_conditions.columns)
         columns_for_merge = exp_conditions_cols + ['simulation']
 

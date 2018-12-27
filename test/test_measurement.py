@@ -669,6 +669,36 @@ class TestWesternBlotModel(TestSolverModel, unittest.TestCase):
         results = wb.likelihood()
         self.assertAlmostEqual(results, 12.072994981309265, 3)
 
+    def test_likelihood_with_different_index_in_data(self):
+        data = pd.DataFrame([[1, 0, 0, "KO", 1],
+                             [2, 0, 1, "KO", 1],
+                             [3, 0, 2, "KO", 1],
+                             [2, 0, 0, "WT", 1],
+                             [2, 0, 1, "WT", 1],
+                             [2, 0, 2, "WT", 1],
+                             [2, 1, 3, "WT", 1],
+                             [2, 2, 4, "WT", 1],
+                             [2, 3, 5, "WT", 1],
+                             [1, 3, 5, "WT", 1],
+                             [1, 4, 7, "WT", 1],
+                             [0, 4, 9, "WT", 1]],
+                            columns=['PARP', 'cPARP', 'time', 'condition', 'experiment'])
+        ds = DataSet(data[data.condition=="WT"], {'PARP': 'ordinal', 'cPARP': 'ordinal'})
+        sim = Simulator(self.model)
+        sim.param_values = pd.DataFrame([[100, 'WT', 1,  0], [150, 'WT', 1,  1]],
+                                        columns=['kbindAB', 'condition', 'experiment', 'simulation'])
+        sim_result = sim.run(tspan=np.linspace(0, 10, 3))
+        wb = WesternBlot(sim_result, ds, {'PARP': ['AB_complex'], 'cPARP': ['AB_complex']},
+                         ['AB_complex'], experimental_conditions=pd.DataFrame([['WT', 1],
+                                                                               ['KO', 1]],
+                                                                              columns=['condition', 'experiment']))
+        wb.process.add_step(('sample_average',
+                             SampleAverage(columns=['AB_complex'], drop_columns='simulation',
+                                          groupby=list(set(wb.experimental_conditions_df.columns)- {'simulation'}),
+                                          apply_noise=True, variances=0.0, sample_size=4)), index=0)
+        results = wb.likelihood()
+        self.assertAlmostEqual(results, 12.072994981309265, 3)
+
 
 class TestFractionalKillingModel(TestSolverModel, unittest.TestCase):
     def test_check_measured_values_dict_too_many_keys(self):

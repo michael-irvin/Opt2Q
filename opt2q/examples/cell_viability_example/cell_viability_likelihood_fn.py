@@ -11,7 +11,6 @@ from opt2q.measurement.base import Scale, ScaleGroups, SampleAverage
 from opt2q.measurement.base.functions import derivative, where_max, polynomial_features
 from opt2q.measurement import FractionalKilling
 from opt2q.calibrator import objective_function
-
 from opt2q.data import DataSet
 
 # ------- Data -------

@@ -16,7 +16,7 @@ from opt2q.measurement.base.functions import derivative, where_max
 from opt2q.examples.cell_viability_example.cell_viability_likelihood_fn import likelihood_fn
 
 calibration_results = np.array([-0.70636527,   0.64134076,   1.00516322,   0.97326623,   0.60482481,
-                                 0.12083115,   90.5471205,  46.22491245,  -70.75661173,
+                                 0.12083115,   -70.75661173, 90.5471205,  46.22491245,
                                  66.16385524,  3.58463852, 0.64228147])  # -121
 
 # calibration_results = np.array([ -0.88802359,   0.71834574,   1.00998571,   0.99977224,   0.58950459,

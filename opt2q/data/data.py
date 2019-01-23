@@ -98,7 +98,7 @@ class DataSet(object):
         Additional columns (including 'time' columns) are considered experimental conditions settings.
         """
         if not isinstance(data_, pd.DataFrame):
-            raise ValueError("'data' can only be a pandas DataFrame. Not a {}".format(type(data).__name__))
+            raise ValueError("'data' can only be a pandas DataFrame. Not a {}".format(type(data_).__name__))
 
         data = data_.reset_index()
         if 'index' in data:

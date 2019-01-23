@@ -22,10 +22,10 @@ class TestDataSet(TestData, unittest.TestCase):
     def test_empty_dataset(self):
         ds = DataSet(pd.DataFrame(), [])
         test = ds.data
-        target = pd.DataFrame()
+        target = pd.DataFrame().reset_index(drop=True)
         pd.testing.assert_frame_equal(test, target)
         test = ds.experimental_conditions
-        target = pd.DataFrame()
+        target = pd.DataFrame().reset_index(drop=True)
         pd.testing.assert_frame_equal(test, target)
         test = ds.measured_variables
         target = dict()

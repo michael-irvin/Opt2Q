@@ -1172,6 +1172,8 @@ class SampleAverage(Transform):
         self._drop_columns, self._drop_columns_set = self._check_columns(drop_columns)
         self._group_by = self._check_group_by(groupby, self._columns_set)  # returns List or None
 
+        self._random_normal = np.random.normal
+
         # non-bool defaults to False
         self._apply_noise = apply_noise is True and isinstance(apply_noise, bool)
 
@@ -1266,7 +1268,8 @@ class SampleAverage(Transform):
         default_noise_term = self.noise_term['default']
         for k, m in avr.items():
             v = std[k]/np.sqrt(n) + self.noise_term.get(k, default_noise_term)
-            results[k] = np.random.normal(m, v, self.sample_size)
+            # np.random.seed(n) in test suite is not reproducible
+            results[k] = self._random_normal(m, v, self.sample_size)
 
         incomplete_results = results.iloc[
             np.tile(range(self.sample_size), len(df_remaining))].reset_index(drop=True)

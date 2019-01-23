@@ -728,3 +728,4 @@ class TestNoise(unittest.TestCase):
             test_text = ax.get_legend().get_texts()[i].get_text()
             target_text = legend[i]
             self.assertEqual(test_text, target_text)
+

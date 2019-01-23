@@ -1008,7 +1008,8 @@ class LogisticClassifier(Transform):
         Runs the logistic regression
         """
 
-        columns_set, columns_dict = self._transform_get_columns(x)
+        columns_set, columns_dict = self._transform_get_columns(x)  # Todo: xcol needs consistent order!
+        print(columns_dict)
         x_extra_columns = set(x.columns) - columns_set
         y_cols = list(self._columns_dict.keys())
 
@@ -1084,7 +1085,7 @@ class LogisticClassifier(Transform):
             missing_cols = self._columns_set - scalable_cols
             raise ValueError("'x' is missing the following numeric columns: " + _list_the_errors(missing_cols))
 
-        columns_dict = {k: list(self._parse_column_names(scalable_cols, set(v)))
+        columns_dict = {k: sorted(list(self._parse_column_names(scalable_cols, set(v))))
                         for k, v in self._columns_dict.items()}
         columns_set = set()
         for k, v in columns_dict.items():

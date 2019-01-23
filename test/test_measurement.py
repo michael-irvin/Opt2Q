@@ -782,7 +782,7 @@ class TestFractionalKillingModel(TestSolverModel, unittest.TestCase):
         fk = FractionalKilling(sim_result, ds, {'viability': ['AB_complex', 'A_free']},
                                observables=['AB_complex', 'A_free'],
                                interpolate_first=False)
-        self.assertEqual(fk.likelihood(), 101.74464229149089)
+        self.assertEqual(fk.likelihood(), 673.2677074114804)
 
         # print(fk.experimental_conditions_df)
         # # print({k: v for k, v in fk.process.get_params().items() if 'do_fit_transform' in k})
@@ -804,7 +804,7 @@ class TestFractionalKillingModel(TestSolverModel, unittest.TestCase):
 
     def test_likelihood_time_independent(self):
         test = fk.likelihood()
-        self.assertAlmostEqual(test, 13013.753887778897, 4)
+        self.assertAlmostEqual(test, 12756.807004179784, 4)
 
     def test_update_sim_result_time_independent(self):
         np.random.seed(10)

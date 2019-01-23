@@ -13,6 +13,8 @@ from opt2q.measurement import FractionalKilling
 from opt2q.calibrator import objective_function
 from opt2q.data import DataSet
 
+sample_size = 10  # 200 Use a small number when using this in the plots sot that it imports faster.
+
 # ------- Data -------
 script_dir = os.path.dirname(__file__)
 file_path = os.path.join(script_dir, 'Cell_Viability_Data.csv')
@@ -42,7 +44,7 @@ param_cov = pd.DataFrame([['kc3', 'kc3', 0.009],
                          columns=['param_i', 'param_j', 'value'])
 
 # ------- Noise Model -------
-NoiseModel.default_sample_size = 200
+NoiseModel.default_sample_size = sample_size
 noise = NoiseModel(param_mean=param_m, param_covariance=param_cov)
 parameters = noise.run()
 

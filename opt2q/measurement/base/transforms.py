@@ -1009,7 +1009,6 @@ class LogisticClassifier(Transform):
         """
 
         columns_set, columns_dict = self._transform_get_columns(x)  # Todo: xcol needs consistent order!
-        print(columns_dict)
         x_extra_columns = set(x.columns) - columns_set
         y_cols = list(self._columns_dict.keys())
 

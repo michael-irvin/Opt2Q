@@ -8,7 +8,7 @@ from collections import OrderedDict
 from scipy.interpolate import interp1d
 from scipy import optimize
 from sklearn.utils.validation import check_X_y
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.linear_model import LogisticRegression
 from mord import LogisticSE, obj_margin, grad_margin
 from opt2q.utils import *
@@ -1664,11 +1664,79 @@ class SKLColumnWiseScalarIndependentColumns(Transform):
 
 
 class Standardize(SKLColumnWiseScalarIndependentColumns):
+    """
+    Standardizes (i.e. scales values to have zero mean and unit variance) of values in a DataFrame
+
+    Parameters
+    ----------
+    columns: str or list of strings, optional
+        The column name(s) of the variable(s) being scaled. Defaults to all numeric columns of the
+        :class:`~pandas.DataFrame`, ``x``, that is passed to the
+        :meth:`~opt2q.measurement.base.transforms.Standardize.transform` method.
+
+        All non-numeric columns are ignored (even if they where named in this argument).
+
+    groupby: str, or list, optional
+        The name of the column(s) by which to group the operation. Each unique value in the column(s) denotes a
+        separate group. Defaults to None, and conducts a single operation along the length on the whole DataFrame.
+
+        Note: the ``groupby`` and ``columns`` arguments cannot reference the same column(s).
+
+    do_fit_transform: bool, optional
+        When True, Simply scale the values of ``x`` to a (column-wise) mean of zero and unit variance.
+        When False, use scaling parameters from most the previous scaling to transform  ``x``.
+    """
     def __init__(self, columns=None, groupby=None, do_fit_transform=True):
         super().__init__(skl_fn=StandardScaler,
                          columns=columns,
                          groupby=groupby,
                          do_fit_transform=do_fit_transform)
+
+
+class ScaleToMinMax(SKLColumnWiseScalarIndependentColumns):
+    """
+    Scales of values a DataFrame to have a defined range (e.g. 0 and 1)
+
+    Parameters
+    ----------
+    feature_range: tuple, optional
+        Desired range of transformed data. Defaults to (0, 1)
+
+    columns: str or list of strings, optional
+        The column name(s) of the variable(s) being scaled. Defaults to all numeric columns of the
+        :class:`~pandas.DataFrame`, ``x``, that is passed to the
+        :meth:`~opt2q.measurement.base.transforms.Standardize.transform` method.
+
+        All non-numeric columns are ignored (even if they where named in this argument).
+
+    groupby: str, or list, optional
+        The name of the column(s) by which to group the operation. Each unique value in the column(s) denotes a
+        separate group. Defaults to None, and conducts a single operation along the length on the whole DataFrame.
+
+        Note: the ``groupby`` and ``columns`` arguments cannot reference the same column(s).
+
+    do_fit_transform: bool, optional
+        When True, Simply scale the values of ``x`` to a (column-wise) mean of zero and unit variance.
+        When False, use scaling parameters from most the previous scaling to transform  ``x``.
+    """
+
+    def __init__(self, feature_range=(0,1), columns=None, groupby=None, do_fit_transform=True):
+        _minmax = self._check_feature_range(feature_range)
+        super().__init__(skl_fn=MinMaxScaler,
+                         skl_fn_kwargs= {'feature_range': _minmax},
+                         columns=columns,
+                         groupby=groupby,
+                         do_fit_transform=do_fit_transform)
+
+    @staticmethod
+    def _check_feature_range(feature_range):
+        if not isinstance(feature_range, tuple):
+            raise ValueError("'feature_range' must be a tuple")
+        if not len(feature_range) == 2 or feature_range[0] >= feature_range[1]:
+            raise ValueError(
+                "'feature_range' can only have two values. The first (or min) must be smaller than the second."
+            )
+        return feature_range
 
 
 class StandardizeOld(Transform):

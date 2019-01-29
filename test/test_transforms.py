@@ -1,6 +1,6 @@
 # MW Irvin -- Lopez Lab -- 2018-08-31
 from opt2q.measurement.base import Interpolate, Pipeline, SampleAverage, Scale, Standardize, \
-    LogisticClassifier, CumulativeComputation, ScaleGroups, Transform
+    LogisticClassifier, CumulativeComputation, ScaleGroups, Transform, ScaleToMinMax
 from opt2q.measurement.base.functions import log_scale, TransformFunction, polynomial_features
 from opt2q.utils import _is_vector_like
 from opt2q.data import DataSet
@@ -1372,3 +1372,90 @@ class TestSampleScale(unittest.TestCase):
                               columns=list('ABC'))
         pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
 
+
+class TestMinMaxScale(unittest.TestCase):
+    def test_check_feature_range(self):
+        mm = ScaleToMinMax()
+        with self.assertRaises(ValueError) as error:
+            mm._check_feature_range([])
+        self.assertTrue(error.exception.args[0] == "'feature_range' must be a tuple")
+
+        with self.assertRaises(ValueError) as error:
+            mm._check_feature_range((1, 2, 3))
+        self.assertTrue(error.exception.args[0] ==
+                        "'feature_range' can only have two values. The first (or min) must be smaller than the second.")
+
+        with self.assertRaises(ValueError) as error:
+            mm._check_feature_range((1, 1))
+        self.assertTrue(error.exception.args[0] ==
+                        "'feature_range' can only have two values. The first (or min) must be smaller than the second.")
+
+    def test_do_fit_transform(self):
+        mm = ScaleToMinMax(do_fit_transform=False)
+        assert mm._transform_get_scale_fn == mm._scale_fn_wo_fit
+        test = mm._transform_get_scale_fn(pd.DataFrame([1, 2, 3])).transform(pd.DataFrame([3]))
+        target = np.array([[1]])
+        np.testing.assert_array_almost_equal(test, target, decimal=7)
+        self.assertListEqual(['__default'], list(mm._transform_scale_fn_dict.keys()))
+
+    def test_transform_not_in_groups(self):
+        mm = ScaleToMinMax()
+        test = mm._transform_not_in_groups(pd.DataFrame([[1, 1],
+                                                         [2, 1],
+                                                         [3, 1]]), {0})
+        target = pd.DataFrame([[ 0.0, 1],
+                               [ 0.5, 1],
+                               [ 1.0, 1]])
+        pd.testing.assert_frame_equal(test, target)
+
+    def test_transform_in_groups(self):
+        mm = ScaleToMinMax(groupby=1)
+        test = mm._transform_in_groups(pd.DataFrame([[1, 1],
+                                                     [2, 1],
+                                                     [3, 1],
+                                                     [0, 2],
+                                                     [4, 2]]), {0})
+        target = pd.DataFrame([[0.0, 1],
+                               [0.5, 1],
+                               [1.0, 1],
+                               [0,       2],
+                               [1.,      2]])
+        pd.testing.assert_frame_equal(test, target)
+        mm.do_fit_transform = False
+        test = mm._transform_in_groups(pd.DataFrame([[1,   1],
+                                                     [2.5, 1],
+                                                     [3,   1],
+                                                     [1,   2],
+                                                     [5,   2]]), {0})
+        target = pd.DataFrame([[0.00, 1],
+                               [0.75, 1],
+                               [1.00, 1],
+                               [0.25, 2],
+                               [1.25, 2]])
+        pd.testing.assert_frame_equal(test, target)
+
+    def test_transform(self):
+        mm = ScaleToMinMax(groupby=1)
+        test = mm.transform(pd.DataFrame([[1, 1],
+                                          [2, 1],
+                                          [3, 1],
+                                          [0, 2],
+                                          [2, 2]]))
+        target = pd.DataFrame([[0.0, 1],
+                               [0.5, 1],
+                               [1.0, 1],
+                               [0, 2],
+                               [1., 2]])
+        pd.testing.assert_frame_equal(test, target)
+        mm.do_fit_transform = False
+        test = mm.transform(pd.DataFrame([[1, 1],
+                                          [2.5, 1],
+                                          [3, 1],
+                                          [1, 2],
+                                          [5, 2]]))
+        target = pd.DataFrame([[0.00, 1],
+                               [0.75, 1],
+                               [1.00, 1],
+                               [0.50, 2],
+                               [2.50, 2]])
+        pd.testing.assert_frame_equal(test, target)

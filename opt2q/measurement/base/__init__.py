@@ -12,6 +12,7 @@ __all__ = ['MeasurementModel',
            'SampleAverage',
            'Scale',
            'ScaleGroups',
+           'ScaleToMinMax'
            'Standardize',
 
            # parent classes

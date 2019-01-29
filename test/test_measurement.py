@@ -6,7 +6,7 @@ from pysb.bng import generate_equations
 from pysb.testing import *
 from opt2q.simulator import Simulator
 from opt2q.measurement.base import MeasurementModel, SampleAverage, Interpolate
-from opt2q.measurement import WesternBlot, FractionalKilling
+from opt2q.measurement import WesternBlot, FractionalKilling, Fluorescence
 from opt2q.data import DataSet
 from opt2q.examples.cell_viability_example.cell_viability_likelihood_fn import fk
 import pandas as pd
@@ -741,7 +741,7 @@ class TestFractionalKillingModel(TestSolverModel, unittest.TestCase):
         ds = DataSet(data, {'viability': 'quantitative'})
         fk = FractionalKilling(self.sim_result, ds, {'viability':['AB_complex', 'A_free']}, interpolate_first=False)
         fk._replace_interpolate_step('MOCK_STEP')
-        self.assertTrue(fk.process.steps[-3][1]=='MOCK_STEP')
+        self.assertTrue(fk.process.steps[-3][1] == 'MOCK_STEP')
 
     def test_mock_dataset(self):
         param_values = pd.DataFrame([[100, 'WT', 1, 0],
@@ -782,7 +782,7 @@ class TestFractionalKillingModel(TestSolverModel, unittest.TestCase):
         fk = FractionalKilling(sim_result, ds, {'viability': ['AB_complex', 'A_free']},
                                observables=['AB_complex', 'A_free'],
                                interpolate_first=False)
-        self.assertEqual(fk.likelihood(), 673.2677074114804)
+        self.assertEqual(fk.likelihood(), 673.2677074114888)
 
         # print(fk.experimental_conditions_df)
         # # print({k: v for k, v in fk.process.get_params().items() if 'do_fit_transform' in k})
@@ -804,7 +804,7 @@ class TestFractionalKillingModel(TestSolverModel, unittest.TestCase):
 
     def test_likelihood_time_independent(self):
         test = fk.likelihood()
-        self.assertAlmostEqual(test, 12756.807004179784, 4)
+        self.assertAlmostEqual(test, 13192.340745562273, 4)
 
     def test_update_sim_result_time_independent(self):
         np.random.seed(10)
@@ -819,5 +819,12 @@ class TestFractionalKillingModel(TestSolverModel, unittest.TestCase):
                                interpolate_first=False,
                                time_dependent=False)
         fk.update_simulation_result(sim_result)
+
+
+class TestFluorescence(TestSolverModel, unittest.TestCase):
+    def test_observables(self):
+        fl = Fluorescence(self.sim_result)
+        print(fl._dataset)
+        print(fl._dataset_experimental_conditions_df)
 
 

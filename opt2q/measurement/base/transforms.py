@@ -1583,7 +1583,95 @@ class ScaleGroups(Scale):
         return scaled_df_repeated
 
 
-class Standardize(Transform):
+class SKLColumnWiseScalarIndependentColumns(Transform):
+    """
+    Scales columns of a :class:`~pandas.DataFrame` using sklearn preprocessing tools.
+    """
+    def __init__(self, skl_fn, skl_fn_kwargs=None, columns=None, groupby=None, do_fit_transform=True):
+        super(SKLColumnWiseScalarIndependentColumns).__init__()
+
+        self._skl_preprocessor_kwargs = dict() if skl_fn_kwargs is None else skl_fn_kwargs
+        self._skl_preprocessor = skl_fn
+
+        self._columns, self._columns_set = self._check_columns(columns)
+        self._group_by = self._check_group_by(groupby, self._columns_set)  # returns list or None
+
+        # non-bool defaults to True
+        self._do_fit_transform = do_fit_transform is True or not isinstance(do_fit_transform, bool)
+
+        # transform related methods
+        self._transform_scale_fn_dict = dict()
+        self._transform_get_scale_fn = [self._scale_fn_wo_fit, self._scale_fn_w_fit][self.do_fit_transform]
+        self._transform = [self._transform_not_in_groups, self._transform_in_groups][self._group_by is not None]
+
+        # set params
+        self.set_params_fn = {'do_fit_transform': self._set_do_fit_transform}
+
+    @property
+    def _get_params_dict(self):
+        return {'do_fit_transform': self.do_fit_transform}
+
+    @property
+    def do_fit_transform(self):
+        return self._do_fit_transform
+
+    @do_fit_transform.setter
+    def do_fit_transform(self, v):
+        self._set_do_fit_transform(v)
+
+    def _set_do_fit_transform(self, v):
+        # non-bool defaults to True
+        self._do_fit_transform = v is True or not isinstance(v, bool)
+        self._transform_get_scale_fn = [self._scale_fn_wo_fit, self._scale_fn_w_fit][v]
+
+    def _scale_fn_wo_fit(self, x_scale_cols_only, name='__default'):
+        if name in self._transform_scale_fn_dict:
+            return self._transform_scale_fn_dict[name]
+        return self._scale_fn_w_fit(x_scale_cols_only, name)
+
+    def _scale_fn_w_fit(self, x_scale_cols_only, name='__default'):
+        self._transform_scale_fn_dict[name] = self._skl_preprocessor(**self._skl_preprocessor_kwargs)\
+            .fit(x_scale_cols_only)
+        return self._transform_scale_fn_dict[name]
+
+    def transform(self, x, **kwargs):
+        """
+        Standardize values in ``x``.
+        """
+        cols_to_scale = self._transform_get_columns(x, self._columns, self._columns_set)
+
+        return self._transform(x, cols_to_scale)
+
+    def _transform_in_groups(self, x, _scale_these_cols):
+        _scale_these_cols -= set(self._group_by)
+        cols = list(_scale_these_cols)
+        remaining_cols = list(set(x.columns)-_scale_these_cols)
+        scaled_df = pd.DataFrame()
+        for name, group in x.groupby(self._group_by):
+            scaled_ = self._transform_get_scale_fn(group[cols], name=name).transform(group[cols])
+            scaled_group = pd.DataFrame(scaled_, columns=cols)
+            scaled_group[remaining_cols] = group[remaining_cols].reset_index(drop=True)
+            scaled_df = pd.concat([scaled_df, scaled_group], ignore_index=True, sort=False)
+        return scaled_df
+
+    def _transform_not_in_groups(self, x, _scale_these_cols):
+        cols = list(_scale_these_cols)
+        remaining_cols = list(set(x.columns) - _scale_these_cols)
+        scaled_ = self._transform_get_scale_fn(x[cols], name='__default').transform(x[cols])
+        scaled_df = pd.DataFrame(scaled_, columns=cols)
+        scaled_df[remaining_cols] = x[remaining_cols]
+        return scaled_df
+
+
+class Standardize(SKLColumnWiseScalarIndependentColumns):
+    def __init__(self, columns=None, groupby=None, do_fit_transform=True):
+        super().__init__(skl_fn=StandardScaler,
+                         columns=columns,
+                         groupby=groupby,
+                         do_fit_transform=do_fit_transform)
+
+
+class StandardizeOld(Transform):
     """
     Standardizes (i.e. scales values to have zero mean and unit variance) of values in a DataFrame
 
@@ -1607,7 +1695,7 @@ class Standardize(Transform):
         When False, use scaling parameters from most the previous scaling to transform  ``x``.
     """
     def __init__(self, columns=None, groupby=None, do_fit_transform=True):
-        super(Standardize).__init__()
+        super(StandardizeOld).__init__()
         self._columns, self._columns_set = self._check_columns(columns)
         self._group_by = self._check_group_by(groupby, self._columns_set)  # returns list or None
 

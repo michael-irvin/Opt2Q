@@ -490,7 +490,8 @@ class Fluorescence(MeasurementModel):
     Simulates Fluorescence Measurements.
 
     Conducts a series of transformations on a :class:`~pysb.simulator.SimulationResult` to represent attributes of the
-    Fluorescence (semi-quantitative) measurement.
+    Fluorescence (semi-quantitative) measurement. The fluorescent intensity of a molecular indicator scales with protein
+    abundance such that it could be modeled with a monotonic (commonly linear) function.
 
     Parameters
     ----------
@@ -505,7 +506,8 @@ class Fluorescence(MeasurementModel):
         :class:`~pysb.simulator.SimulationResult` ``opt2q_dataframe`` pertain to the data.
 
     measured_values: dict, optional
-        A dictionary of (keys) measured variables (as named in the DataSet) and a list of corresponding PySB model observables.
+        A dictionary of (keys) measured variables (as named in the DataSet) and a list of corresponding PySB model
+        observables. If a ``dataset`` is provided, ``measured_value`` is required.
 
     observables: vector-like, optional
         Lists the names (str) of the PySB PySB :class:`pysb.core.Model` observables and/or species involved in the
@@ -550,31 +552,43 @@ class Fluorescence(MeasurementModel):
                          time_points=time_points,
                          experimental_conditions=experimental_conditions)
 
-        # Note self.observables can be user defined or all mentioned in the PySB model.
-        # - DS - MV
-        #   measured_values = self.observables
-        #   process observables = self.observables (defaults to ALL obs in model)
-        #   likelihood = Raise Error
+        _process_observables = self.get_process_observables()
 
-        # - DS + MV
-        #   measured_values = arg: measured_values.keys()
-        #   process observables = arg: measured_values.values() + whatever is in self._observables (or {}, dft)
-        #   likelihood = Raise Error
+        self.interpolation = Interpolate('time',
+                                         list(_process_observables),
+                                         self.experimental_conditions_df,
+                                         groupby='simulation')
 
-        # + DS - MV
-        #   measured_values = dataset.measured_variables.keys() if not 'ordinal' and in self._default_observables
-        #   process observables = the same as measured_values
-        #   likelihood = _likelihood
+        self.process = Pipeline(steps=[('normalize', Scale())])
 
-        # + DS + MV
-        #   measured_values = measured_values.keys() (Use the same function as above)
-        #   process observables = self.observables
-        #   likelihood = _likelihood
-
-        # ---- which experimental conditions? ----
-        # Differs if the DataSet is present or not.
-
-        # ---- Likelihood ----
-        # Raise and error if DataSet is None.
+        if self._dataset is None:
+            self._run = self._run_without_dataset
+        else:
+            self._run = self._run_without_dataset
 
 
+
+        # Process is interpolate and scale
+        # Run, runs the process (out of sample normalizations and etc have a do_fit_transform=False)
+        # Likelihood: if dataset is none Likelihood is raise error else Likelihood is normal pdf of data and simulation.
+
+    def get_process_observables(self):
+        """
+        Observables passed to the process
+
+        If a dataset is provided,
+        """
+        obs = self.observables
+        if self._dataset is None:
+            return obs
+        else:
+            pass
+
+    def run(self):
+        return self._run()
+
+    def _run_without_dataset(self):
+        """
+        Run the measurement process without considering the dataset
+        """
+        pass

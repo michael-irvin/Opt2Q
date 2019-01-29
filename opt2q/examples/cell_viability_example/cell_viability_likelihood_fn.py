@@ -13,7 +13,7 @@ from opt2q.measurement import FractionalKilling
 from opt2q.calibrator import objective_function
 from opt2q.data import DataSet
 
-sample_size = 500  # 200 Use a small number when using this in the plots sot that it imports faster.
+sample_size = 4
 
 # ------- Data -------
 script_dir = os.path.dirname(__file__)

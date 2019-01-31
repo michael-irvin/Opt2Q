@@ -5,10 +5,11 @@ from pysb import Monomer, Parameter, Initial, Observable, Rule
 from pysb.bng import generate_equations
 from pysb.testing import *
 from opt2q.simulator import Simulator
-from opt2q.measurement.base import MeasurementModel, SampleAverage, Interpolate
+from opt2q.measurement.base import MeasurementModel, SampleAverage, Scale
 from opt2q.measurement import WesternBlot, FractionalKilling, Fluorescence
 from opt2q.data import DataSet
 from opt2q.examples.cell_viability_example.cell_viability_likelihood_fn import fk
+from opt2q.utils import parse_column_names
 import pandas as pd
 import unittest
 import warnings
@@ -779,10 +780,10 @@ class TestFractionalKillingModel(TestSolverModel, unittest.TestCase):
                             columns=['viability', 'time', 'condition', 'experiment', 'A_free'])
         ds = DataSet(data, {'viability': 'quantitative', 'A_free':'ordinal'}, measurement_error=0.05)
 
-        fk = FractionalKilling(sim_result, ds, {'viability': ['AB_complex', 'A_free']},
+        ff = FractionalKilling(sim_result, ds, {'viability': ['AB_complex', 'A_free']},
                                observables=['AB_complex', 'A_free'],
                                interpolate_first=False)
-        self.assertEqual(fk.likelihood(), 673.2677074114888)
+        self.assertEqual(ff.likelihood(), 673.2677074114888)
 
         # print(fk.experimental_conditions_df)
         # # print({k: v for k, v in fk.process.get_params().items() if 'do_fit_transform' in k})
@@ -795,11 +796,11 @@ class TestFractionalKillingModel(TestSolverModel, unittest.TestCase):
                             columns=['viability', 'condition', 'experiment', 'A_free'])
         ds = DataSet(data, {'viability': 'quantitative', 'A_free':'ordinal'}, measurement_error=0.05)
 
-        fk = FractionalKilling(self.sim_result, ds, {'viability': ['AB_complex', 'time']},
+        ff = FractionalKilling(self.sim_result, ds, {'viability': ['AB_complex', 'time']},
                                observables=['AB_complex', 'A_free'],
                                interpolate_first=False,
                                time_dependent=False)
-        pd.testing.assert_frame_equal(fk._dataset_experimental_conditions_df[['condition', 'experiment']],
+        pd.testing.assert_frame_equal(ff._dataset_experimental_conditions_df[['condition', 'experiment']],
                                       pd.DataFrame([['WT', 1]], columns=['condition', 'experiment']))
 
     def test_likelihood_time_independent(self):
@@ -814,17 +815,246 @@ class TestFractionalKillingModel(TestSolverModel, unittest.TestCase):
         param_values = pd.DataFrame([[100, 'WT', 1, 0]],
                                     columns=['kbindAB', 'condition', 'experiment', 'simulation'])
         sim_result = Simulator(self.model).run(tspan=np.linspace(0, 10, 5), param_values=param_values)
-        fk = FractionalKilling(self.sim_result, ds, {'viability': ['AB_complex', 'time']},
+        ff = FractionalKilling(self.sim_result, ds, {'viability': ['AB_complex', 'time']},
                                observables=['AB_complex', 'A_free'],
                                interpolate_first=False,
                                time_dependent=False)
-        fk.update_simulation_result(sim_result)
+        ff.update_simulation_result(sim_result)
 
 
 class TestFluorescence(TestSolverModel, unittest.TestCase):
     def test_observables(self):
-        fl = Fluorescence(self.sim_result)
-        print(fl._dataset)
-        print(fl._dataset_experimental_conditions_df)
+        sim = Simulator(self.model)
+        sim.param_values = pd.DataFrame([[100,0], [150, 1]],
+                                        columns=['kbindAB', 'simulation'])
+        sim_result = sim.run(tspan=np.linspace(0, 10, 3))
+        fl = Fluorescence(sim_result)
+        test = fl._get_process_observables(fl._dataset, None)[1]
+        target = {'A_free', '__s0', '__s2', 'B_free', '__s1', 'AB_complex'}
+        self.assertSetEqual(test, target)
 
+    def test_observables_user_obs(self):
+        sim = Simulator(self.model)
+        sim.param_values = pd.DataFrame([[100,0], [150, 1]],
+                                        columns=['kbindAB', 'simulation'])
+        sim_result = sim.run(tspan=np.linspace(0, 10, 3))
+        fl = Fluorescence(sim_result, observables=['AB_complex'])
+        test = fl._get_process_observables(fl._dataset, None)[1]
+        target = {'AB_complex'}
+        self.assertSetEqual(test, target)
 
+    def test_get_groupby_columns_no_cols(self):
+        sim = Simulator(self.model)
+        sim.param_values = pd.DataFrame([[100,0], [150, 1]],
+                                        columns=['kbindAB', 'simulation'])
+        sim_result = sim.run(tspan=np.linspace(0, 10, 3))
+        fl = Fluorescence(sim_result, observables=['AB_complex'])
+        test = fl._get_groupby_columns()
+        target = ['simulation']
+        self.assertListEqual(test, target)
+
+    def test_get_groupby_column(self):
+        fl = Fluorescence(self.sim_result, observables=['AB_complex'])
+        test = set(fl._get_groupby_columns())
+        target = {'experiment', 'condition'}
+        self.assertSetEqual(test, target)
+
+    def test_run_wo_dataset(self):
+        sim = Simulator(self.model)
+        sim.param_values = pd.DataFrame([[1e-3, 0], [1.5e-3, 1], [0.3e-3, 2]],
+                                        columns=['kbindAB', 'simulation'])
+        sim_result = sim.run(tspan=np.linspace(0, 1, 3))
+        fl = Fluorescence(sim_result, observables=['A_free'])
+        test = fl.run()
+        target = pd.DataFrame([[0.000000,   0.0,           0],
+                               [0.512295,   0.5,           0],
+                               [1.000000,   1.0,           0],
+                               [0.000000,   0.0,           1],
+                               [0.518291,   0.5,           1],
+                               [1.000000,   1.0,           1],
+                               [0.000000,   0.0,           2],
+                               [0.503731,   0.5,           2],
+                               [1.000000,   1.0,           2]],
+                              columns=['A_free',  'time',  'simulation'])
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
+        sim.param_values = pd.DataFrame([[0.1e-3, 0]], columns=['kbindAB', 'simulation'])
+        sim_result = sim.run(tspan=np.linspace(0, 1, 3))
+        fl.update_simulation_result(sim_result)
+        test = fl.run(do_fit_transform=False)
+        target = pd.DataFrame([[0.000000,   0.0,           0],
+                               [0.516127,   0.5,           0],
+                               [1.029683,   1.0,           0]],
+                              columns=['A_free', 'time', 'simulation'])
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
+
+    def test_run_wo_dataset_groups(self):
+        sim = Simulator(self.model)
+        sim.param_values = pd.DataFrame([[1e-3,   'WT', 0],
+                                         [1.5e-3, 'WT', 1],
+                                         [0.3e-3, 'KO', 2]],
+                                        columns=['kbindAB', 'exp', 'simulation'])
+        sim_result = sim.run(tspan=np.linspace(0, 1, 3))
+        fl = Fluorescence(sim_result, observables=['A_free'])
+        test = fl.run(do_fit_transform=True)
+        target = pd.DataFrame([[0.000000,   0.0, 'KO', 2],
+                               [0.503731,   0.5, 'KO', 2],
+                               [1.000000,   1.0, 'KO', 2],
+                               [0.000000,   0.0, 'WT', 0],
+                               [0.512295,   0.5, 'WT', 0],
+                               [1.000000,   1.0, 'WT', 0],
+                               [0.000000,   0.0, 'WT', 1],
+                               [0.510195,   0.5, 'WT', 1],
+                               [0.984379,   1.0, 'WT', 1]],
+                              columns=['A_free',  'time',  'exp', 'simulation'])
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
+        sim.param_values = pd.DataFrame([[0.1e-3, 'KO', 0]], columns=['kbindAB', 'exp','simulation'])
+        sim_result = sim.run(tspan=np.linspace(0, 1, 3))
+        fl.update_simulation_result(sim_result)
+        test = fl.run(do_fit_transform=False)
+        target = pd.DataFrame([[0.000000,   0.0,'KO', 0],
+                               [0.504569630733837,   0.5,'KO', 0],
+                               [1.006626882968067,   1.0,'KO', 0]],
+                              columns=['A_free', 'time', 'exp', 'simulation'])
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
+
+    def test_check_dataset_wo_measured_values(self):
+        data = pd.DataFrame([[2, 0, 0, "WT", 1],
+                             [2, 0, 1, "WT", 1],
+                             [2, 0, 2, "WT", 1],
+                             [2, 1, 3, "WT", 1],
+                             [2, 2, 4, "WT", 1],
+                             [2, 3, 5, "WT", 1],
+                             [2, 3, 5, "WT", 1],
+                             [1, 4, 7, "WT", 1],
+                             [0, 4, 9, "WT", 1]],
+                            columns=['PARP', 'cPARP', 'time', 'condition', 'experiment'])
+        ds = DataSet(data, {'PARP': 'ordinal', 'cPARP': 'ordinal'})
+        with self.assertRaises(ValueError) as error:
+            Fluorescence(self.sim_result, ds)
+        self.assertTrue(error.exception.args[0] == "You must provide 'measured_values'.")
+
+    def test_check_dataset_bad_measured_values(self):
+        data = pd.DataFrame([[2, 0, 0, "WT", 1],
+                             [2, 0, 1, "WT", 1],
+                             [2, 0, 2, "WT", 1],
+                             [2, 1, 3, "WT", 1],
+                             [2, 2, 4, "WT", 1],
+                             [2, 3, 5, "WT", 1],
+                             [2, 3, 5, "WT", 1],
+                             [1, 4, 7, "WT", 1],
+                             [0, 4, 9, "WT", 1]],
+                            columns=['PARP', 'cPARP', 'time', 'condition', 'experiment'])
+        ds = DataSet(data, {'PARP': 'ordinal', 'cPARP': 'ordinal'})
+        with self.assertRaises(ValueError) as error:
+            Fluorescence(self.sim_result, ds, {'PARP': ['A_free']})
+        self.assertTrue(error.exception.args[0] ==
+                        "'measured_values' contains a variable, 'PARP', not mentioned "
+                        "as a 'quantitative' or 'semi-quantitative' variable in the 'dataset'.")
+
+    def test_check_process_observables(self):
+        data = pd.DataFrame([[2, 0, 0, "WT", 1],
+                             [2, 0, 1, "WT", 1],
+                             [2, 0, 2, "WT", 1],
+                             [2, 1, 3, "WT", 1],
+                             [2, 2, 4, "WT", 1],
+                             [2, 3, 5, "WT", 1],
+                             [2, 3, 5, "WT", 1],
+                             [1, 4, 7, "WT", 1],
+                             [0, 4, 9, "WT", 1]],
+                            columns=['PARP', 'cPARP', 'time', 'condition', 'experiment'])
+        ds = DataSet(data, {'PARP': 'quantitative', 'cPARP': 'semi-quantitative'})
+        fl = Fluorescence(self.sim_result, ds, {'PARP': ['A_free'], 'cPARP':['AB_complex']})
+        test = fl._get_process_observables(fl._dataset, {'PARP': ['A_free'], 'cPARP':['AB_complex']})[0]
+        target = {'PARP': ['A_free'], 'cPARP':['AB_complex']}
+        self.assertDictEqual(test, target)
+
+    def test_run_with_dataset(self):
+        data = pd.DataFrame([[0.00, 0.00, 0, "WT", 1],
+                             [0.90, 0.00, 1, "WT", 1],
+                             [0.98, 0.00, 2, "WT", 1],
+                             [0.99, 0.25, 3, "WT", 1],
+                             [0.99, 0.50, 4, "WT", 1],
+                             [0.99, 0.75, 5, "WT", 1],
+                             [0.99, 0.79, 5, "WT", 1],
+                             [0.52, 0.95, 7, "WT", 1],
+                             [0.14, 0.99, 9, "WT", 1]],
+                            columns=['PARP', 'cPARP', 'time', 'condition', 'experiment'])
+        ds = DataSet(data, {'PARP': 'quantitative', 'cPARP': 'semi-quantitative'},)
+        fl = Fluorescence(self.sim_result, ds,
+                          {'PARP': ['A_free'], 'cPARP': ['AB_complex']},
+                          observables=['A_free'],
+                          experimental_conditions=pd.DataFrame([[1, 'WT'],
+                                                                [5, 'WT'],
+                                                                [6, 'WT']],
+                                                               columns=['time', 'condition']))
+        test = fl.run()
+        target = pd.DataFrame([[0.0,    0.000000,        'WT',   0.0,           1,           0],
+                               [0.2,    0.111110,        'WT',   1.0,           1,           0],
+                               [0.4,    0.222220,        'WT',   2.0,           1,           0],
+                               [0.6,    0.333330,        'WT',   3.0,           1,           0],
+                               [0.8,    0.444440,        'WT',   4.0,           1,           0],
+                               [1.0,    0.555551,        'WT',   5.0,           1,           0],
+                               [1.0,    0.777775,        'WT',   7.0,           1,           0],
+                               [1.0,    1.000000,        'WT',   9.0,           1,           0]],
+                              columns=['A_free',  'AB_complex', 'condition',  'time',  'experiment',  'simulation'])
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
+
+        test = fl.run(use_dataset=False, do_fit_transform=False)
+        target = pd.DataFrame([[ 0.2,    0.111110,        'WT',   1.0,           1,           0],
+                               [ 1.0,    0.555551,        'WT',   5.0,           1,           0],
+                               [ 1.0,    0.666663,        'WT',   6.0,           1,           0]],
+                              columns=['A_free', 'AB_complex', 'condition', 'time', 'experiment', 'simulation'])
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
+
+    def test_run_with_dataset_two_observables_for_one_value(self):
+        data = pd.DataFrame([[0.00, 0.00, 0, "WT", 1],
+                             [0.90, 0.00, 1, "WT", 1],
+                             [0.98, 0.00, 2, "WT", 1],
+                             [0.99, 0.25, 3, "WT", 1],
+                             [0.99, 0.50, 4, "WT", 1],
+                             [0.99, 0.75, 5, "WT", 1],
+                             [0.99, 0.79, 5, "WT", 1],
+                             [0.52, 0.95, 7, "WT", 1],
+                             [0.14, 0.99, 9, "WT", 1]],
+                            columns=['PARP', 'cPARP', 'time', 'condition', 'experiment'])
+        ds = DataSet(data, {'PARP': 'quantitative', 'cPARP': 'semi-quantitative'},)
+        fl = Fluorescence(self.sim_result, ds,
+                          {'PARP': ['A_free','AB_complex']},
+                          observables=['A_free'],
+                          experimental_conditions=pd.DataFrame([[1, 'WT'],
+                                                                [5, 'WT'],
+                                                                [6, 'WT']],
+                                                               columns=['time', 'condition']))
+
+        def add_cols(x):
+            return pd.DataFrame(x['AB_complex']+x['A_free'], columns=['AB_complex+A_free'])
+        fl.process.add_step(
+            ('add_cols', Scale(columns=['AB_complex', 'A_free'], scale_fn=add_cols))
+        )
+        self.assertAlmostEquals(fl.likelihood(), 69.96190165459436, 5)
+
+    def test_run_with_dataset_two_observables_for_one_value_raise_error(self):
+        data = pd.DataFrame([[0.00, 0.00, 0, "WT", 1],
+                             [0.90, 0.00, 1, "WT", 1],
+                             [0.98, 0.00, 2, "WT", 1],
+                             [0.99, 0.25, 3, "WT", 1],
+                             [0.99, 0.50, 4, "WT", 1],
+                             [0.99, 0.75, 5, "WT", 1],
+                             [0.99, 0.79, 5, "WT", 1],
+                             [0.52, 0.95, 7, "WT", 1],
+                             [0.14, 0.99, 9, "WT", 1]],
+                            columns=['PARP', 'cPARP', 'time', 'condition', 'experiment'])
+        ds = DataSet(data, {'PARP': 'quantitative', 'cPARP': 'semi-quantitative'}, )
+        fl = Fluorescence(self.sim_result, ds,
+                          {'PARP': ['A_free', 'AB_complex']},
+                          observables=['A_free'],
+                          experimental_conditions=pd.DataFrame([[1, 'WT'],
+                                                                [5, 'WT'],
+                                                                [6, 'WT']],
+                                                               columns=['time', 'condition']))
+
+        with self.assertRaises(ValueError) as error:
+            fl.likelihood()
+        self.assertTrue(error.exception.args[0] ==
+                        "The measurement model result for PARP can only have one column. "
+                        "It had the following: 'A_free', and 'AB_complex'.")

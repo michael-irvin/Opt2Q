@@ -196,6 +196,10 @@ class DataSet(object):
             if v is not 'ordinal':
                 errors_df[k+'__error'] = self._measurement_error[k] * self.data[k]
 
+            # set zero and negative values equal to 10% of the smallest positive value in the error_df
+            errors_df_min = errors_df[errors_df > 0].min()
+            errors_df = errors_df.clip(0.1 * errors_df_min, axis=1)
+
         errors_df[self.experimental_conditions.columns] = self.experimental_conditions
         return errors_df
 

@@ -216,26 +216,8 @@ class Transform(object):
         return cols_to_scale
 
     @staticmethod
-    def _parse_column_names(x_col_set, user_col_set):
-        """
-        Return the columns in ``x`` that are *like* those in listed in ``cols``.
-
-        If cols contains a column "name", return all columns in ``x`` that begin with "name " or "name__"
-
-        This lets us track column name changes that can occur in the transforms.
-
-        Parameters
-        ----------
-        x_col_set: set
-            numeric columns in ``x``.
-        user_col_set: set
-            columns specified by the user.
-        """
-        complete_cols = set()
-        for col in user_col_set:
-            complete_cols |= set([s for s in x_col_set if isinstance(col, str) and
-                                  re.search(f'{col}(?=[$^-])|{col}(?=__)|(?<=[$^-]){col}', s)])
-        return user_col_set | complete_cols
+    def _parse_column_names(x_cols_set, usr_cols_set):
+        return parse_column_names(x_cols_set, usr_cols_set)
 
     @staticmethod
     def _rename_scaled_columns(scaled_df, scaled_columns_set, name):

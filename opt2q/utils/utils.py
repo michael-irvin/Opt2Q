@@ -5,7 +5,7 @@ import warnings
 import numpy as np
 import pandas as pd
 import time
-
+import re
 
 
 # MW Irvin -- Lopez Lab -- 2018-08-08
@@ -102,6 +102,28 @@ def _convert_vector_like_to_set(vector_like_obj):
         return set([])
 
 
+def parse_column_names(x_col_set, user_col_set):
+    """
+    All the columns names in ``x_col_set`` that are *like* those in listed in ``user_col_set`` to ``user_col_set``.
+
+    If ``user_col_set`` contains a column "name", return all columns in ``x_col_set`` that begin with "name " or "name__"
+
+    This lets us track column name changes that can accompany some transforms.
+
+    Parameters
+    ----------
+    x_col_set: set
+        columns in ``x`` (e.g. simulation result)
+    user_col_set: set
+        columns specified by the user.
+    """
+    complete_cols = set()
+    for col in user_col_set:
+        complete_cols |= set([s for s in x_col_set if isinstance(col, str) and
+                              re.search(f'{col}(?=[+$^-])|{col}(?=__)|(?<=[+$^-]){col}', s)])
+    return user_col_set | complete_cols
+
+
 def profile(func):
     """
     A timer decorator
@@ -121,5 +143,6 @@ def profile(func):
         return value
 
     return function_timer
+
 
 

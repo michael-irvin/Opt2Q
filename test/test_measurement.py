@@ -1058,3 +1058,10 @@ class TestFluorescence(TestSolverModel, unittest.TestCase):
         self.assertTrue(error.exception.args[0] ==
                         "The measurement model result for PARP can only have one column. "
                         "It had the following: 'A_free', and 'AB_complex'.")
+
+    def test_check_simulation_result_non_opt2q(self):
+        # If no experimental conditions are supplied, the results dataframe has no simulation column.
+        result = Simulator(model=self.model, tspan=np.linspace(0, 10, 3)).run()
+        fl = Fluorescence(result, observables=['A_free'])
+        print(fl.run())
+

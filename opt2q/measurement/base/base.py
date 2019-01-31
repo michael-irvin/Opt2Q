@@ -109,6 +109,9 @@ class MeasurementModel(object):
 
         pysb_df.reset_index(inplace=True)
         opt2q_df.reset_index(inplace=True)
+        if 'simulation' not in pysb_df.columns:
+            pysb_df['simulation'] = 0
+            opt2q_df['simulation'] = 0
         return opt2q_df, pysb_df
 
     def _get_ec_from_sim_result(self, opt2q_df, pysb_df):

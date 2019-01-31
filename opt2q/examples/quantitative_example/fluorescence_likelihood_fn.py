@@ -5,6 +5,8 @@ import numpy as np
 from matplotlib import pyplot as plt
 from opt2q.examples.apoptosis_model import model
 from opt2q.simulator import Simulator
+from opt2q.measurement import Fluorescence
+from opt2q.data import DataSet
 
 # ------- Data -------
 script_dir = os.path.dirname(__file__)
@@ -25,8 +27,14 @@ plt.errorbar(fluorescence_data['time'], fluorescence_data['norm_EC-RP'],
 plt.legend()
 fig.show()
 
+# dataset = DataSet(fluorescence_data[['time', 'norm_IC-RP', 'norm_EC-RP']],
+#                   measured_variables={'norm_IC-RP': 'semi-quantitative', 'norm_EC-RP': 'semi-quantitative'})
+# dataset.measurement_error_df = fluorescence_data[['nrm_var_IC-RP', 'nrm_var_EC-RP']].\
+#     rename(columns={'nrm_var_IC-RP': 'norm_IC-RP__error', 'nrm_var_EC-RP': 'norm_EC-RP__error'})
+# print(dataset.measurement_error_df)
+
 # ------- Parameters --------
-parameters = pd.DataFrame([[1.0, 1.0, 'fluorescence_data']], columns=['kc3', 'kc4', 'experiment'])
+parameters = pd.DataFrame([[1.0, 1.0]], columns=['kc3', 'kc4'])
 
 # ------- Dynamics -------
 sim = Simulator(model=model, param_values=parameters, solver='cupsoda')
@@ -41,4 +49,14 @@ plt.plot(results_df['time'], results_df['cPARP_obs'], color=cm.colors[1], alpha=
 plt.legend()
 fig.show()
 
+# ------- Measurement -------
+fl = Fluorescence(results, observables=['Caspase_obs', 'cPARP_obs'])
+measurement_results = fl.run()
+print(measurement_results)
 
+cm = plt.get_cmap('tab10')
+fig = plt.figure()
+plt.plot(measurement_results['time'], measurement_results['Caspase_obs'], color=cm.colors[0], alpha=0.5, label='Active Caspase')
+plt.plot(measurement_results['time'], measurement_results['cPARP_obs'], color=cm.colors[1], alpha=0.5, label='cPARP')
+plt.legend()
+fig.show()

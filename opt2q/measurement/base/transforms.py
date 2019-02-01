@@ -1840,6 +1840,7 @@ class Pipeline(Transform):
         self.steps = self._check_steps(steps)
 
     # Todo: Add a rename step.
+    # Todo: update signature when the steps change
 
     @staticmethod
     def _check_steps(_steps):

@@ -120,6 +120,7 @@ def likelihood_fn(x):
     likelihood_fn.evals += 1
     l = likelihood_fn.measurement_model.likelihood()
 
+    print("num_sims", simulator_parameters.shape)
     print(likelihood_fn.evals)
     print(x)
     print(l)

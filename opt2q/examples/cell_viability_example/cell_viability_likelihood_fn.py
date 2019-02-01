@@ -50,7 +50,7 @@ parameters = noise.run()
 
 # ------- Simulate dynamics -------
 sim = Simulator(model=model, param_values=parameters, solver='cupsoda',
-                solver_options={'verbose': True})
+                solver_options={'verbose': True}, integrator_options={'memory_usage': 'global'})
 results = sim.run(np.linspace(0, 5000, 100))
 
 # ------- Measurement model -------

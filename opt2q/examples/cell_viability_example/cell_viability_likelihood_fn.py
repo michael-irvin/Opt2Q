@@ -114,6 +114,7 @@ def likelihood_fn(x):
     likelihood_fn.simulator.param_values = simulator_parameters
 
     sim_results = likelihood_fn.simulator.run(np.linspace(0, 5000, 100))
+    print(sim_results.opt2q_dataframe)
     likelihood_fn.measurement_model.update_simulation_result(sim_results)
     likelihood_fn.measurement_model.process.set_params(**measurement_model_params)
 

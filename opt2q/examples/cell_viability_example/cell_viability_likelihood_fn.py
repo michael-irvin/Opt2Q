@@ -49,7 +49,8 @@ noise = NoiseModel(param_mean=param_m, param_covariance=param_cov)
 parameters = noise.run()
 
 # ------- Simulate dynamics -------
-sim = Simulator(model=model, param_values=parameters, solver='cupsoda')
+sim = Simulator(model=model, param_values=parameters, solver='cupsoda',
+                solver_options={'verbose': True})
 results = sim.run(np.linspace(0, 5000, 100))
 
 # ------- Measurement model -------

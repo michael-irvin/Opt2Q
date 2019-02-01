@@ -23,7 +23,7 @@ from scipy.optimize import differential_evolution
 
 # Todo: make a better way of updating num_sims
 params_for_update = likelihood_fn.noise_model.param_mean[['TRAIL_conc']].drop_duplicates().reset_index(drop=True)
-params_for_update['num_sims'] = 2000
+params_for_update['num_sims'] = 1000
 likelihood_fn.noise_model.update_values(param_mean=params_for_update)
 
 # Differential Evolution Optimization of likelihood fn

@@ -13,7 +13,7 @@ from opt2q.measurement import FractionalKilling
 from opt2q.calibrator import objective_function
 from opt2q.data import DataSet
 
-sample_size = 200
+sample_size = 500
 
 # ------- Data -------
 script_dir = os.path.dirname(__file__)

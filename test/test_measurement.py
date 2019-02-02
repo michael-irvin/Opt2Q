@@ -8,7 +8,7 @@ from opt2q.simulator import Simulator
 from opt2q.measurement.base import MeasurementModel, SampleAverage, Scale
 from opt2q.measurement import WesternBlot, FractionalKilling, Fluorescence
 from opt2q.data import DataSet
-from opt2q.examples.cell_viability_example.cell_viability_likelihood_fn import fk
+# from opt2q.examples.cell_viability_example.cell_viability_likelihood_fn import fk
 from opt2q.utils import parse_column_names
 import pandas as pd
 import unittest
@@ -803,9 +803,9 @@ class TestFractionalKillingModel(TestSolverModel, unittest.TestCase):
         pd.testing.assert_frame_equal(ff._dataset_experimental_conditions_df[['condition', 'experiment']],
                                       pd.DataFrame([['WT', 1]], columns=['condition', 'experiment']))
 
-    def test_likelihood_time_independent(self):
-        test = fk.likelihood()
-        self.assertAlmostEqual(test, 13192.340745562273, 4)
+    # def test_likelihood_time_independent(self):
+    #     test = fk.likelihood()
+    #     self.assertAlmostEqual(test, 13192.340745562273, 4)
 
     def test_update_sim_result_time_independent(self):
         np.random.seed(10)

@@ -21,7 +21,7 @@ Parameter('L_0',    3000)  # baseline level of TRAIL in most experiments (50 ng/
 Parameter('R_0',    200)   # TRAIL receptor (for experiments not involving siRNA)
 Parameter('C_0',    1e4)   # Caspases
 Parameter('DISC_0',   0)     # Death inducing signaling complex
-Parameter('PARP_0', 1e6)   # PARP (Capase-3 substrate)
+Parameter('PARP_0', 1e5)   # PARP (Capase-3 substrate)
 
 
 Monomer('L', ['b'])
@@ -55,7 +55,7 @@ catalyze_state(C(state='active'), 'b', C(), 'b', 'state', 'inactive', 'active', 
 
 Parameter('kf4', 1e-06)
 Parameter('kr4', 1e-03)
-Parameter('kc4', 1e+00)
+Parameter('kc4', 1e-02)
 catalyze_state(C(state='active'), 'b', PARP(), 'b', 'state', 'unmod', 'cleaved', [kf4, kr4, kc4])
 
 Observable('cPARP_obs', PARP(b=None, state='cleaved'))

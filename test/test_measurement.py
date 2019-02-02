@@ -1061,7 +1061,32 @@ class TestFluorescence(TestSolverModel, unittest.TestCase):
 
     def test_check_simulation_result_non_opt2q(self):
         # If no experimental conditions are supplied, the results dataframe has no simulation column.
-        result = Simulator(model=self.model, tspan=np.linspace(0, 10, 3)).run()
-        fl = Fluorescence(result, observables=['A_free'])
-        print(fl.run())
+        result = Simulator(model=self.model, tspan=np.linspace(0, 0.1, 10)).run()
+        data = pd.DataFrame([[0.00, 0.00, 0.00],
+                             [0.90, 0.00, 0.01],
+                             [0.98, 0.00, 0.02],
+                             [0.99, 0.25, 0.03],
+                             [0.99, 0.50, 0.04],
+                             [0.99, 0.75, 0.05],
+                             [0.99, 0.79, 0.06],
+                             [0.52, 0.95, 0.07],
+                             [0.14, 0.99, 0.09]],
+                            columns=['PARP', 'cPARP', 'time'])
+        ds = DataSet(data, {'PARP': 'quantitative', 'cPARP': 'semi-quantitative'}, )
+        fl = Fluorescence(result,
+                          dataset=ds,
+                          measured_values={'PARP': ['A_free'], 'cPARP':['AB_complex']},
+                          observables=['A_free', 'AB_complex'])
+        test = fl.run()
+        target = pd.DataFrame([[0.000000, 0.000000, 0.00, 0],
+                               [0.761784, 0.029777, 0.01, 0],
+                               [0.965753, 0.129281, 0.02, 0],
+                               [0.994938, 0.250633, 0.03, 0],
+                               [0.999439, 0.375070, 0.04, 0],
+                               [0.999878, 0.500015, 0.05, 0],
+                               [0.999996, 0.625001, 0.06, 0],
+                               [0.999996, 0.750001, 0.07, 0],
+                               [1.000000, 1.000000, 0.09, 0]],
+                              columns=['A_free',  'AB_complex',  'time',  'simulation'])
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
 

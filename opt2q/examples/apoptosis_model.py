@@ -45,12 +45,12 @@ Rule('DISC_formation', L(b=1) % R(b=1) >> DISC(b=None), kc1)
 
 Parameter('kf2', 1e-06)
 Parameter('kr2', 1e-03)
-Parameter('kc2', 1e+00)
+Parameter('kc2', 1e-02)
 catalyze_state(DISC(), 'b', C(), 'b', 'state', 'inactive', 'active', [kf2, kr2, kc2])
 
 Parameter('kf3', 1e-06)
 Parameter('kr3', 1e-03)
-Parameter('kc3', 1e+00)
+Parameter('kc3', 1e-02)
 catalyze_state(C(state='active'), 'b', C(), 'b', 'state', 'inactive', 'active', [kf3, kr3, kc3])
 
 Parameter('kf4', 1e-06)
@@ -60,7 +60,7 @@ catalyze_state(C(state='active'), 'b', PARP(), 'b', 'state', 'unmod', 'cleaved',
 
 Observable('cPARP_obs', PARP(b=None, state='cleaved'))
 Observable('PARP_obs',  PARP(b=None, state='unmod'))
-# Observable('Caspase_obs', C(state='active'))
+Observable('Caspase_obs', C(state='active'))
 
 
 

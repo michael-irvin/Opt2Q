@@ -60,7 +60,7 @@ catalyze_state(C(state='active'), 'b', PARP(), 'b', 'state', 'unmod', 'cleaved',
 
 Observable('cPARP_obs', PARP(b=None, state='cleaved'))
 Observable('PARP_obs',  PARP(b=None, state='unmod'))
-Observable('Caspase_obs', C(state='active'))
+# Observable('Caspase_obs', C(state='active'))
 
 
 

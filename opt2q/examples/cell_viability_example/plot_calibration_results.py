@@ -28,7 +28,7 @@ calibration_results = np.array([-0.70636527,   0.64134076,   1.00516322,   0.973
 # ------- Likelihood Function -------
 # Todo: make a better way of updating num_sims
 params_for_update = likelihood_fn.noise_model.param_mean[['TRAIL_conc']].drop_duplicates().reset_index(drop=True)
-params_for_update['num_sims'] = 1000
+params_for_update['num_sims'] = 50
 likelihood_fn.noise_model.update_values(param_mean=params_for_update)
 
 likelihood_fn(calibration_results)

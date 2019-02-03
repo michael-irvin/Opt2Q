@@ -134,24 +134,28 @@ ax3.set_title("""Probability of blot
 plt.show()
 
 # plot simulated western blot
-result['loc1'] = 0.3
-result['loc2'] = 0.7
+result['loc1'] = 0.1
+result['loc2'] = 0.2
 result_obs = {'cPARP': 'loc1', 'PARP':'loc2'}
-result_size = {'cPARP': [0, 200, 400, 600, 800], 'PARP': [200, 500, 800]}
+result_size = {'cPARP': [1, 3, 5, 8, 11], 'PARP': [3, 7, 10]}
 
 cm = plt.get_cmap('tab10')
-fig, ax = plt.subplots(figsize=(6, 3))
+fig, ax = plt.subplots(figsize=(6, 2))
 for label, df in result.groupby('time'):
     for col in [i for i in df.columns if '__' in i]:
         obs, level = tuple([k_rvs[::-1] for k_rvs in col[::-1].split('__')][::-1])
-        df.plot.scatter(x='time', y=result_obs[obs], ax=ax, s=result_size[obs][int(level)],
+        df.plot.scatter(x='time', y=result_obs[obs], ax=ax, marker='_',
+                        lw=result_size[obs][int(level)], s=500,
                         alpha=0.01*np.mean(df[col])**2, color=cm.colors[1])
 
 ax.set_title("Simulated Western Blot")
-ax.tick_params(axis='y',
-               which='both',
-               left=False,
-               labelleft=False)
+# ax.tick_params(axis='y',
+#                which='both',
+#                left=False,
+#                labelleft=False)
+ax.set_yticks([0.1, 0.2])
+ax.set_yticklabels(['cPARP', 'PARP'], fontdict={'fontsize': 12})
 ax.set_ylabel("")
-plt.ylim((0, 1))
+ax.set_xlabel("time [hrs]")
+plt.ylim((0.0, 0.3))
 plt.show()

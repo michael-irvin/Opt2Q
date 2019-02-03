@@ -43,17 +43,19 @@ measurement_results = fl.run()
 
 @objective_function(simulator=sim, measurement_model=fl, return_results=False, evals=0)
 def likelihood_fn(x):
-    C_0 = 10 ** x[0]        # float     [( 2, 6),
-    kc3 = 10 ** x[1]        # float      (-2, 4),
-    kc4 = 10 ** x[2]        # float      (-2, 4),
-    kf3 = 10 ** x[3]        # float      (-8,-4),
-    kf4 = 10 ** x[4]        # float      (-8,-4),
+    C_0 = 10 ** x[0]        # :  [( 2, 6),   # float  C_0
+    kc3 = 10 ** x[1]        # :   (-2, 4),   # float  kc3
+    kc4 = 10 ** x[2]        # :   (-2, 4),   # float  kc4
+    kf3 = 10 ** x[3]        # :   (-8,-4),   # float  kf3
+    kf4 = 10 ** x[4]        # :   (-8,-4)],  # float  kf4
 
     params = pd.DataFrame([[C_0, kc3, kc4, kf3, kf4]], columns=['C_0', 'kc3', 'kc4', 'kf3', 'kf4'])
     likelihood_fn.simulator.param_values = params
 
     # dynamics
     sim_results = likelihood_fn.simulator.run()
+    if sim_results.dataframe.isna().any(axis=None):
+        return 100000000  # if integration fails return high number to reject
 
     # measurement
     likelihood_fn.measurement_model.update_simulation_result(sim_results)

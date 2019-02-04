@@ -149,10 +149,6 @@ for label, df in result.groupby('time'):
                         alpha=0.01*np.mean(df[col])**2, color=cm.colors[1])
 
 ax.set_title("Simulated Western Blot")
-# ax.tick_params(axis='y',
-#                which='both',
-#                left=False,
-#                labelleft=False)
 ax.set_yticks([0.1, 0.2])
 ax.set_yticklabels(['cPARP', 'PARP'], fontdict={'fontsize': 12})
 ax.set_ylabel("")

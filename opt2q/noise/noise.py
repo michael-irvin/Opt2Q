@@ -9,7 +9,7 @@ import pandas as pd
 import numpy as np
 
 
-def multivariate_log_normal_fn(mean, covariance, n, atol=1e-4, names_column='param', *args, **kwargs):
+def multivariate_log_normal_fn(mean, covariance, n, names_column='param', *args, **kwargs):
     """
     Simulates extrinsic noise by applying random log-normal variation to a set of values.
 
@@ -48,6 +48,7 @@ def multivariate_log_normal_fn(mean, covariance, n, atol=1e-4, names_column='par
     """
 
     # clip zeros to prevent breaking log-norm function
+    atol = 0.1*covariance[covariance>0].min().min()
     _mean = mean.set_index(names_column).clip_lower(atol).astype(float, errors='ignore')
     _cov = covariance[_mean.index].reindex(_mean.index)
 
@@ -102,7 +103,7 @@ class NoiseModel(object):
                 additional columns are present, a single unnamed experimental condition is provided by default.
 
     param_covariance: :class:`pandas.DataFrame` (optional)
-        Object names and their covariance values in a DataFrame with the following columns:
+        Object names and their variance or covariance values in a DataFrame with the following columns:
 
         `param_i` (column): `str`
             Model object name

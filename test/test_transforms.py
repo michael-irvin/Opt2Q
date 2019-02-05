@@ -408,6 +408,26 @@ class TestPipeline(unittest.TestCase):
             print(str(w[-1].message) )
             assert str(w[-1].message) == "The process does not have the following step(s): 'nonexistent_step'"
 
+    def test_get_step(self):
+        i1 = Interpolate('iv', 'dv', [1, 2, 3])
+        i2 = Interpolate('iv', 'dv', [1, 2])
+        i3 = Interpolate('iv', 'dv', [1, 4])
+        process = Pipeline(steps=[('interpolate1', i1),
+                                  ('interpolate2', i2),
+                                  ('interpolate3', i3)])
+        test = process.get_step('interpolate2')
+        target = i2
+        assert test == target
+
+    def test_remove_step_missing_step(self):
+        i1 = Interpolate('iv', 'dv', [1, 2, 3])
+        i2 = Interpolate('iv', 'dv', [1, 2])
+        i3 = Interpolate('iv', 'dv', [1, 4])
+        process = Pipeline(steps=[('interpolate1', i1),
+                                  ('interpolate2', i2),
+                                  ('interpolate3', i3)])
+        process.remove_step('interpolate1')
+        process.remove_step('interpolate1')
 
 class TestScale(unittest.TestCase):
     @staticmethod

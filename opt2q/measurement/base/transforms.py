@@ -1887,8 +1887,10 @@ class Pipeline(Transform):
         if isinstance(index, int):
             del self.steps[index]
         if isinstance(index, str):
-            index = [x for x, y in enumerate(self.steps) if y[0] == index][0]
-            del self.steps[index]
+            names = [x[0] for x in self.steps]
+            if index in names:
+                index = [x for x, y in enumerate(self.steps) if y[0] == index][0]
+                del self.steps[index]
 
     def add_step(self, step, index=None):
         """
@@ -1927,6 +1929,21 @@ class Pipeline(Transform):
             idx = [x for x, y in enumerate(self.steps) if y[0] == index][0]+1
             self.steps.insert(idx, step_)
             return
+
+    def get_step(self, name):
+        """
+        Return named step
+
+        Parameters
+        ----------
+        name: str
+            name of the step
+        """
+        if isinstance(name, str):
+            idx = [x for x, y in enumerate(self.steps) if y[0] == name][0]
+            return self.steps[idx][1]
+        else:
+            raise ValueError("'name' must be a str")
 
     def get_params(self, transform_name=None):
         """

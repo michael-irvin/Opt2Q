@@ -90,11 +90,11 @@ log_scale = Scale(columns=['fluorescence', '1-fluorescence'],
 scaled_fl = log_scale.transform(sample_avr_fl)
 
 # ------- Ordinal Logistic Classifier -------
-classifier = LogisticClassifier(western_blot,                                # Supervised learning requires targets
-                                column_groups={'cPARP': ['fluorescence'],    # Assign each target a list of features
-                                               'PARP': ['1-fluorescence']},  # do
-                                classifier_type='ordinal_eoc'                # Ordinal classifier w/ empirical
-                                )                                            # ordering constraint
+classifier = LogisticClassifier(western_blot[western_blot.TRAIL_conc == 10],  # Supervised learning requires targets
+                                column_groups={'cPARP': ['fluorescence'],     # Assign each target a list of features
+                                               'PARP': ['1-fluorescence']},   # do
+                                classifier_type='ordinal_eoc'                 # empirical ordering constraint
+                                )
 result = classifier.transform(scaled_fl)
 
 # plot classifier
@@ -110,7 +110,7 @@ cPARP_results['fluorescence'] = features['fluorescence']
 for col in sorted(list(set(cPARP_results.columns)-{'fluorescence'})):
     cPARP_results.plot(y='fluorescence', x=col, ax=ax2, label=col)
 
-PARP_results = lc_results[['PARP__0', 'PARP__1', 'PARP__2']]
+PARP_results = lc_results.filter(regex='^PARP')
 PARP_results['1-fluorescence'] = features['1-fluorescence']
 for col in sorted(list(set(PARP_results.columns)-{'1-fluorescence'})):
     PARP_results.plot(y='1-fluorescence', x=col, ax=ax3, label=col)
@@ -133,20 +133,32 @@ ax3.set_title("""Probability of blot
 
 plt.show()
 
-# plot simulated western blot
-result['loc1'] = 0.1
-result['loc2'] = 0.2
-result_obs = {'cPARP': 'loc1', 'PARP':'loc2'}
-result_size = {'cPARP': [1, 3, 5, 8, 11], 'PARP': [3, 7, 10]}
 
-cm = plt.get_cmap('tab10')
+# plot simulated western blot
+def alpha(x):
+    # represent probabilities via transparency (i.e. alpha)
+    return 0.5 + 5 * (x - 0.5) / np.sqrt(100 * (x - 0.5)**2 + 1)
+
+
+avr_cat_prob = result.groupby('time').mean()
+time_axis = avr_cat_prob.index
+
+parp_locs = np.full_like(time_axis, 0.2, dtype=float)
+cparp_locs = np.full_like(time_axis, 0.1, dtype=float)
+
+avr_cat_prob_parp_cols = avr_cat_prob.filter(regex='^PARP').columns
+avr_cat_prob_cparp_cols = avr_cat_prob.filter(regex='cPARP').columns
+
+blot_sizes = [1, 3, 5, 8, 11]
+
+cm = plt.get_cmap('Accent')
 fig, ax = plt.subplots(figsize=(6, 2))
-for label, df in result.groupby('time'):
-    for col in [i for i in df.columns if '__' in i]:
-        obs, level = tuple([k_rvs[::-1] for k_rvs in col[::-1].split('__')][::-1])
-        df.plot.scatter(x='time', y=result_obs[obs], ax=ax, marker='_',
-                        lw=result_size[obs][int(level)], s=500,
-                        alpha=0.01*np.mean(df[col])**2, color=cm.colors[1])
+for j, level in enumerate(avr_cat_prob_parp_cols):
+    color_ = np.asarray([list(cm.colors[0]) + [alpha(a)] for a in avr_cat_prob[level]])
+    ax.scatter(x=time_axis, y=parp_locs, s=500, marker='_', lw=blot_sizes[j], color=color_)
+for j, level in enumerate(avr_cat_prob_cparp_cols):
+    color_ = np.asarray([list(cm.colors[0]) + [alpha(a)] for a in avr_cat_prob[level]])
+    ax.scatter(x=time_axis, y=cparp_locs, s=500, marker='_', lw=blot_sizes[j], color=color_)
 
 ax.set_title("Simulated Western Blot")
 ax.set_yticks([0.1, 0.2])

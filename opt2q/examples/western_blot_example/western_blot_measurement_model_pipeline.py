@@ -42,7 +42,8 @@ k_values = pd.DataFrame([['kc3', kc3, False],
 k_values['TRAIL_conc'] = np.tile([10, 50, 250], 5)      # Repeat for each of the 5 parameter
 param_means = pd.concat([ligand, k_values], sort=False)
 
-kf3_var, kf4_var, kf3_kf4_covariance = (4e-14, 4e-14, 1e-14)
+kf3_cv, kf4_cv, kf3_kf4_cor = (0.2, 0.2, 0.25)
+kf3_var, kf4_var, kf3_kf4_covariance = ((kf3 * kf3_cv) ** 2, (kf4 * kf4_cv) ** 2, kf3 * kf3_cv * kf4 * kf4_cv * kf3_kf4_cor)
 param_variances = pd.DataFrame([['kf3', 'kf3', kf3_var],
                                 ['kf4', 'kf4', kf4_var],
                                 ['kf3', 'kf4', kf3_kf4_covariance]],  # Covariance between 'kf3' and kf4'

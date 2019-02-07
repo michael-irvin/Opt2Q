@@ -12,6 +12,7 @@ from opt2q.data import DataSet
 from opt2q.measurement import WesternBlot
 from opt2q.calibrator import objective_function
 
+
 # ------- Data -------
 script_dir = os.path.dirname(__file__)
 file_path = os.path.join(script_dir, 'Albeck_Sorger_WB.csv')

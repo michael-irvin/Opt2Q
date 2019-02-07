@@ -54,6 +54,7 @@ parameters = noise.run()
 # ------- Dynamical Model -------
 sim = Simulator(model=model, param_values=parameters, solver='cupsoda')
 results = sim.run(np.linspace(0, 32400, 100))
+print(results)
 
 # ------- Measurement Model -------
 # A separate western blot was done each experimental condition
@@ -74,7 +75,6 @@ for ec in experimental_conditions:
     western_blot_models[ec].process.set_params(sample_average__sample_size=200, sample_average__noise_term=1000)
 
 sim_wb_results = {ec: western_blot_models[ec].run() for ec in experimental_conditions}
-
 
 # -------- likelihood function -----------
 @objective_function(noise_model=noise, simulator=sim, measurement_models=western_blot_models, return_results=False, evals=0)

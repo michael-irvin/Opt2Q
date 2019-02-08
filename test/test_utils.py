@@ -50,13 +50,13 @@ class TesOpt2QUtils(unittest.TestCase):
 
     def test_convert_vector_like_to_set(self):
         target = {1, 2, 3}
-        test = ut._convert_vector_like_to_list([1, 2, 3])
+        test = ut._convert_vector_like_to_set([1, 2, 3])
         self.assertSetEqual(test, target)
-        test = ut._convert_vector_like_to_list((1, 2, 3))
+        test = ut._convert_vector_like_to_set((1, 2, 3))
         self.assertSetEqual(test, target)
-        test = ut._convert_vector_like_to_list(np.array([[1, 2, 3]]))
+        test = ut._convert_vector_like_to_set(np.array([[1, 2, 3]]))
         self.assertSetEqual(test, target)
-        test = ut._convert_vector_like_to_list(pd.DataFrame([1, 2, 3]))
+        test = ut._convert_vector_like_to_set(pd.DataFrame([1, 2, 3]))
         self.assertSetEqual(test, target)
 
     def test_parse_column_names(self):

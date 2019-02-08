@@ -291,7 +291,7 @@ class Simulator(object):
             completed_df = pd.DataFrame(np.ones(_shape)*model_param_values, columns=model_params_names)
             completed_df[pre_param_cols] = pre_params[pre_param_cols]
             completed_df.fillna(self._model_params_dict, inplace=True)
-            return completed_df
+            return completed_df.values
 
     @staticmethod
     def _initials_for_run(pre_initials, _initials_cols):

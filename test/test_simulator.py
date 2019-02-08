@@ -148,7 +148,7 @@ class TestSolver(TestSolverModel, unittest.TestCase):
         target = pd.DataFrame(np.ones((3, 2)), columns=['c', 'd'])
         target['a'] = 2
         target['b'] = 3
-        pd_testing.assert_frame_equal(test[test.columns], target[test.columns], check_dtype=False)
+        np.testing.assert_allclose(test, target[['a', 'b', 'c', 'd']].values)
 
     def test_initials_for_run(self):
         sim = Simulator(self.model)
@@ -228,7 +228,7 @@ class TestSolver(TestSolverModel, unittest.TestCase):
 
         pd_testing.assert_frame_equal(sim.param_values, params_df, check_dtype=False)
         params_df[['kbindAB', 'A_init', 'B_init']] = pd.DataFrame([[100, 0, 0],[100, 0, 0]])
-        pd_testing.assert_frame_equal(sim._param_values_run, params_df, check_dtype=False)
+        np.testing.assert_allclose(sim._param_values_run, params_df[['ksynthA', 'ksynthB', 'kbindAB', 'A_init', 'B_init']].values)
         assert sim._params_are_compatible is False
         initials['simulation'] = [0, 1]
         pd_testing.assert_frame_equal(sim.initials, initials, check_dtype=False)
@@ -245,8 +245,7 @@ class TestSolver(TestSolverModel, unittest.TestCase):
         pd_testing.assert_frame_equal(sim.param_values, params_df, check_dtype=False)
         params_df[['kbindAB', 'A_init', 'B_init']] = pd.DataFrame([[100, 0, 0], [100, 0, 0]])
         params_df = params_df.drop(columns=['simulation', 'ec'])
-        pd_testing.assert_frame_equal(sim._param_values_run[params_df.columns], params_df[params_df.columns],
-                                      check_dtype=False)
+        np.testing.assert_allclose(sim._param_values_run, params_df[params_df.columns].values)
         assert sim._params_are_compatible is True
         initials['simulation'] = [0, 1]
         pd_testing.assert_frame_equal(sim.initials, initials, check_dtype=False)
@@ -285,8 +284,7 @@ class TestSolver(TestSolverModel, unittest.TestCase):
         pd_testing.assert_frame_equal(sim.param_values, params_df, check_dtype=False)
         params_df[['kbindAB', 'A_init', 'B_init']] = pd.DataFrame([[100, 0, 0], [100, 0, 0]])
         params_df = params_df.drop(columns=['simulation', 'ec'])
-        pd_testing.assert_frame_equal(sim._param_values_run[params_df.columns], params_df[params_df.columns],
-                                      check_dtype=False)
+        np.testing.assert_allclose(sim._param_values_run, params_df[params_df.columns].values)
         assert sim._params_are_compatible is True
         initials['simulation'] = [0, 1]
         pd_testing.assert_frame_equal(sim.initials, initials, check_dtype=False)
@@ -314,8 +312,7 @@ class TestSolver(TestSolverModel, unittest.TestCase):
         pd_testing.assert_frame_equal(sim.param_values, params_df, check_dtype=False)
         params_df[['kbindAB', 'A_init', 'B_init']] = pd.DataFrame([[100, 0, 0], [100, 0, 0]])
         params_df=params_df.drop(columns=['simulation', 'ec'])
-        pd_testing.assert_frame_equal(sim._param_values_run[params_df.columns], params_df[params_df.columns],
-                                      check_dtype=False)
+        np.testing.assert_allclose(sim._param_values_run, params_df[params_df.columns].values)
         assert sim._params_are_compatible is True
 
         initials['simulation'] = [0, 1]
@@ -336,8 +333,7 @@ class TestSolver(TestSolverModel, unittest.TestCase):
 
         params_df[['kbindAB', 'A_init', 'B_init']] = pd.DataFrame([[100, 0, 0], [100, 0, 0]])
         params_df = params_df.drop(columns=['ec'])
-        pd_testing.assert_frame_equal(sim._param_values_run[params_df.columns], params_df[params_df.columns],
-                                      check_dtype=False)
+        np.testing.assert_allclose(sim._param_values_run, params_df[params_df.columns].values)
 
         assert sim._params_are_compatible is False
 
@@ -388,8 +384,7 @@ class TestSolver(TestSolverModel, unittest.TestCase):
         pd_testing.assert_frame_equal(sim.param_values, params_df, check_dtype=False)
         params_df[['kbindAB', 'A_init', 'B_init']] = pd.DataFrame([[100, 0, 0], [100, 0, 0]])
         params_df = params_df.drop(columns=['simulation', 'ec'])
-        pd_testing.assert_frame_equal(sim._param_values_run[params_df.columns], params_df[params_df.columns],
-                                      check_dtype=False)
+        np.testing.assert_allclose(sim._param_values_run, params_df[params_df.columns].values)
         assert sim._params_are_compatible is True
 
         assert sim.initials == 42

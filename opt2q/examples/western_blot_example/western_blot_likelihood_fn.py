@@ -19,7 +19,7 @@ western_blot = pd.read_csv(file_path)
 western_blot['time'] = western_blot['time'].apply(lambda x: x*3600)  # Convert to [s] (as is in the PySB model).
 
 # ------- Noise Model --------
-noise_model_sample_size = 4
+noise_model_sample_size = 400
 
 # Params
 ligand = pd.DataFrame([['L_0',   600,  10, False],      # 'TRAIL_conc' column annotates experimental treatments

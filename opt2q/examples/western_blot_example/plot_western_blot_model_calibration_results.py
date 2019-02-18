@@ -5,10 +5,81 @@ from matplotlib import pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.gridspec import GridSpec
 
-from opt2q.examples.western_blot_example.western_blot_likelihood_fn import likelihood_fn
+from opt2q.examples.apoptosis_model import model
+from opt2q.noise import NoiseModel
+from opt2q.simulator import Simulator
+from opt2q.examples.western_blot_example.western_blot_likelihood_fn import likelihood_fn, param_means
 from decimal import Decimal
 
-calibrated_parameters = [2.35343618,  1.87440897, -0.61746058, -4.00650177, -4.22771324, 0.2, 0.2, 0.25]
+calibrated_parameters = [3.75961027, -0.07102133,  0.12315658, -6.71231504,
+                         -7.59544621, 0.36464246,  0.28572696,  0.46962568]
+
+# ======== Starting Parameters ========
+param_means['apply_noise'] = False
+param_means = param_means.reset_index(drop=True)
+
+noise_model = NoiseModel(param_mean=param_means)
+starting_params = noise_model.run()
+
+# ========= Calibrated Parameters w/o Noise added ==========
+C_0, kc3, kc4, kf3, kf4 = (10**x for x in calibrated_parameters[:5])
+ligand = pd.DataFrame([['L_0', 600, 10, False],  # 'TRAIL_conc' column annotates experimental treatments
+                       ['L_0', 3000, 50, False],  # 600 copies per cell corresponds to 10 ng/mL TRAIL
+                       ['L_0', 15000, 250, False]],
+                      columns=['param', 'value', 'TRAIL_conc', 'apply_noise'])
+
+k_values = pd.DataFrame([['kc3', kc3, False],
+                         ['kc4', kc4, False],
+                         ['kf3', kf3, False],
+                         ['kf4', kf4, False],
+                         ['C_0', C_0, False]],
+                        columns=['param', 'value', 'apply_noise']) \
+    .iloc[np.repeat(range(5), 3)]  # Repeat for each of the 3 experimental treatments
+k_values['TRAIL_conc'] = np.tile([10, 50, 250], 5)  # Repeat for each of the 5 parameter
+new_params = pd.concat([ligand, k_values], sort=False)
+noise_model.update_values(param_mean=new_params)
+calibrated_params = noise_model.run()
+
+# -------- Simulator --------
+sim_results_0 = Simulator(model,tspan=np.linspace(0, 32400, 100), param_values=starting_params).run().opt2q_dataframe
+sim_results_n = Simulator(model,tspan=np.linspace(0, 32400, 100), param_values=calibrated_params).run().opt2q_dataframe
+
+# -------- Plot Simulation Results wo Normalization -------
+cm = plt.get_cmap('Accent')
+sim_res_groups_n = sim_results_n.groupby('TRAIL_conc')
+
+fig = plt.figure()
+for i, group in enumerate(sim_results_0.groupby('TRAIL_conc')):
+    label, df = group
+    _df = df.reset_index()
+    _df_n = sim_res_groups_n.get_group(label)
+    time_hrs = _df['time'].apply(lambda x: x/3600.)
+
+    plt.plot(time_hrs, _df_n['Caspase_obs'], color=cm.colors[i], label=f'{label} ng/mL calibrated params')
+    plt.plot(time_hrs, _df['Caspase_obs'], '--', color=cm.colors[i], label=f'{label} ng/mL starting params')
+
+plt.xlabel('time [hrs]')
+plt.ylabel('protein [copies per cell]')
+plt.title('Simulation Results (Caspase Activity)')
+plt.legend()
+fig.show()
+
+fig = plt.figure()
+for i, group in enumerate(sim_results_0.groupby('TRAIL_conc')):
+    label, df = group
+    _df = df.reset_index()
+    _df_n = sim_res_groups_n.get_group(label)
+    time_hrs = _df['time'].apply(lambda x: x / 3600.)
+
+    print(_df_n['cPARP_obs'].shape)
+    plt.plot(time_hrs, _df_n['cPARP_obs'], color=cm.colors[i], label=f'{label} ng/mL calibrated params')
+    plt.plot(time_hrs, _df['cPARP_obs'], '--', color=cm.colors[i], label=f'{label} ng/mL starting params')
+
+plt.xlabel('time [hrs]')
+plt.ylabel('protein [copies per cell]')
+plt.title('Simulation Results (cPARP)')
+plt.legend()
+fig.show()
 
 # ======= Calibrated Parameters ========
 # Model results with the Starting Parameters are plotted in

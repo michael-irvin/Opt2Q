@@ -602,5 +602,4 @@ class TestSolver(TestSolverModel, unittest.TestCase):
         res = sim.run(tspan=np.linspace(0, 10, 5))
         pd_testing.assert_frame_equal(target, res.dataframe, check_dtype=False)
 
-
-
+    def test_keep_experiment_colum_apply_noise_false(self):

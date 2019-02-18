@@ -2,17 +2,33 @@
 
 """
 To use this:
-First, *manually* set `noise_model_sample_size` to some integer, in the western_blot_likelihood_fn python module.
+First, *manually* set `noise_model_sample_size` to 10000, in the western_blot_likelihood_fn python module.
 Next, run this file.
 """
 import numpy as np
-from opt2q.examples.western_blot_example.western_blot_likelihood_fn import likelihood_fn, noise_model_sample_size
+import pandas as pd
+from opt2q.examples.western_blot_example.western_blot_likelihood_fn import likelihood_fn
+
+sim_results = likelihood_fn.simulator.run(np.linspace(0, 32400, 10))
 
 
-calibrated_parameters = [3.75961027, -0.07102133,  0.12315658, -6.71231504,
-                         -7.59544621, 0.36464246,  0.28572696,  0.46962568]
+def get_likelihood(num_sims, sim_res):
+    sims = sim_res.opt2q_dataframe.groupby('simulation')
+    sim_results_n = pd.concat([sims.get_group(group) for group in
+                               np.random.choice(list(sims.groups.keys()), num_sims, replace=False)])
 
-l = [likelihood_fn(calibrated_parameters) for x in range(50)]
+    l_val = 0
+    for key, measurement in likelihood_fn.measurement_models.items():
+        measurement._update_sim_res_df(sim_results_n)
+        l_val += measurement.likelihood()
+    return l_val
 
-print("Noise Model Sample Size = ", noise_model_sample_size)
-print("Variability = ", str(np.std(l)))
+
+def likelihood_variability(num_sims, num_likelihood_calculations):
+    return np.std([get_likelihood(num_sims, sim_results) for x in range(num_likelihood_calculations)])
+
+
+list_num_eval = [4, 10, 50, 200, 500, 1000, 5000, 10000]
+variability = [likelihood_variability(x, 50)for x in list_num_eval]
+
+print(variability)

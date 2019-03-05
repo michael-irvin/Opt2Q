@@ -11,8 +11,8 @@ import numpy as np
 from matplotlib import pyplot as plt
 from opt2q.examples.quantitative_example.fluorescence_likelihood_fn import fluorescence_data, likelihood_fn
 
-calibrated_parameters = [2.35343618,  1.87440897, -0.61746058, -4.00650177, -4.22771324]
-
+# calibrated_parameters = [2.35343618,  1.87440897, -0.61746058, -4.00650177, -4.22771324]
+calibrated_parameters = [3.75961027, -0.07102133,  0.12315658, -6.71231504, -7.59544621]
 # ------- Data -------
 fluorescence_data_time_hrs = fluorescence_data['time'].apply(lambda x: x/3600)  # convert to hrs for plot.
 
@@ -58,6 +58,7 @@ plt.legend(loc="upper left")
 plt.xlabel('time [hrs]')
 plt.ylabel('fluorescence')
 plt.title("Initiator and Effector Caspase Activity Reporter Fluorescence")
+plt.savefig('fig3.png')
 fig.show()
 
 # ========= Plot Simulation Results wo Normalization =========
@@ -75,6 +76,7 @@ plt.xlabel('time [hrs]')
 plt.ylabel('protein [copies per cell]')
 plt.title('Simulation Results (Caspase Activity)')
 plt.legend()
+plt.savefig('fig1.png')
 fig.show()
 
 fig = plt.figure()
@@ -84,4 +86,5 @@ plt.xlabel('time [hrs]')
 plt.ylabel('protein [copies per cell]')
 plt.title('Simulation Results (cPARP)')
 plt.legend()
+plt.savefig('fig2.png')
 fig.show()

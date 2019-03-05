@@ -137,9 +137,9 @@ def profile(func):
         value = func(*args, **kwargs)
         end = time.time()
         runtime = end - start
-        msg = "The runtime for {func} took {time} seconds to complete"
-        print(msg.format(func=func.__name__,
-                         time=runtime))
+        msg = f"The runtime for {func.__name__} took {runtime} seconds to complete"
+        #print(msg.format(func=func.__name__, time=runtime))
+        print(msg)
         return value
 
     return function_timer

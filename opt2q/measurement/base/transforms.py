@@ -483,6 +483,7 @@ class Interpolate(Transform):
         self._new_values = new_val
         self._new_val_extra_cols = _extra_cols
         self._new_val_has_extra_cols = has_extra_cols
+
         if self._group_by is None and self._new_val_has_extra_cols:
             self._group_by = list(self._new_val_extra_cols)
         self._interpolate = [self._interpolation_in_groups,
@@ -536,12 +537,44 @@ class Interpolate(Transform):
         """
         x_trimmed_rows = self._intersect_x_and_new_values_experimental_condition(x, self.new_values)
         x_extra_cols = list(set(x.columns) - self._iv_and_dv_names_set-self._dependent_variable_names_in_x)
-        return self._interpolate(x_trimmed_rows, x_extra_cols)
+        new_values = self._repeat_new_values_rows_for_every_unique_row_in_x_extra_cols(self.new_values, x_trimmed_rows)
+        new_values_w_extra_cols_from_x = new_values.merge(x_trimmed_rows[x_extra_cols].drop_duplicates().reset_index(drop=True))
+
+        sort_by_columns = [self._independent_variable_name] + x_extra_cols
+        prepped_x = new_values_w_extra_cols_from_x.merge(x, how='outer').\
+            sort_values(sort_by_columns).set_index(self._independent_variable_name)
+        return self._interpolate(prepped_x, new_values) # x_trimmed_rows, x_extra_cols)
 
     def _transform_new_values_simple(self, x):
         # new_values is one group
         x_extra_cols = list(set(x.columns) - self._iv_and_dv_names_set-self._dependent_variable_names_in_x)
-        return self._interpolate(x, x_extra_cols)
+        new_values = self._repeat_new_values_rows_for_every_unique_row_in_x_extra_cols(self.new_values, x)
+        if len(x_extra_cols) != 0:
+            new_values_w_extra_cols_from_x = new_values.merge(x[x_extra_cols].drop_duplicates().reset_index(drop=True))
+        else:
+            new_values_w_extra_cols_from_x = new_values
+
+        sort_by_columns = [self._independent_variable_name] + x_extra_cols
+        prepped_x = new_values_w_extra_cols_from_x.merge(x, how='outer').\
+            sort_values(sort_by_columns).set_index(self._independent_variable_name)
+        return self._interpolate(prepped_x, new_values)  # x, x_extra_cols)
+
+    def _repeat_new_values_rows_for_every_unique_row_in_x_extra_cols(self, new_values, x_):
+        mentioned_cols = self._iv_and_dv_names_set | self._dependent_variable_names_in_x | set(self._new_val_extra_cols)
+        if self._group_by is not None:
+            mentioned_cols |= set(self._group_by)
+
+        unmentioned_cols_in_x = set(x_.columns) - mentioned_cols
+        if len(unmentioned_cols_in_x) != 0:
+            x_unmentioned_cols = x_[list(unmentioned_cols_in_x)].drop_duplicates().reset_index(drop=True)
+            len_x = len(x_unmentioned_cols)
+            len_nv = len(new_values)
+
+            nv_repeated = x_unmentioned_cols.iloc[np.tile(range(len_x), len_nv)].reset_index(drop=True)
+            nv_repeated[new_values.columns] = new_values.iloc[np.repeat(range(len_nv), len_x)].reset_index(drop=True)
+            return nv_repeated
+        else:
+            return new_values
 
     def _intersect_x_and_new_values_experimental_condition(self, x, new_val):
         """
@@ -553,23 +586,32 @@ class Interpolate(Transform):
         except KeyError as error:
             raise KeyError("'new_values' contains columns not present in x: " + _list_the_errors(error.args))
 
-    def _interpolation_not_in_groups(self, x, x_extra_cols):
+    def _interpolation_not_in_groups(self, prepped_x, new_values):  # x, x_extra_cols):
         """run the interpolation on the whole dataframe x"""
-        if len(x_extra_cols) == 0:
-            return self._interpolate_values_no_repeats(x, self.new_values)
-        else:
-            return self._interpolate_values_w_repeats(x, self.new_values, x_extra_cols)
+        x_interpolated = prepped_x.transform(pd.DataFrame.interpolate, **{'method': 'values'}).reset_index()
+        return x_interpolated.merge(new_values)
 
-    def _interpolation_in_groups(self, x, x_extra_cols):
+        # if len(x_extra_cols) == 0:
+        #     return self._interpolate_values_no_repeats(x, self.new_values)
+        # else:
+        #     return self._interpolate_values_w_repeats(x, self.new_values, x_extra_cols)
+
+    def _interpolation_in_groups(self, prepped_x, new_values):  # , x_extra_cols):
         """group x by the group column(s) and run the interpolation for every group"""
-        interpolation_result = pd.DataFrame()
-        for name, group in x.groupby(self._group_by):
-            # rows of new_x present in group's extra columns
-            new_x_for_this_group = self._get_new_values_per_group(group, x_extra_cols)
-            group_interpolation_result = self._interpolate_values_w_repeats(group, new_x_for_this_group, x_extra_cols)
-            interpolation_result = pd.concat([interpolation_result, group_interpolation_result],
-                                             ignore_index=True, sort=False)
-        return interpolation_result
+        x_interpolated = prepped_x.groupby(self._group_by).transform(pd.DataFrame.interpolate,
+                                                                     **{'method': 'values'})
+
+        x_interpolated[self._group_by] = prepped_x[self._group_by]
+        return new_values.merge(x_interpolated.reset_index())
+
+        # interpolation_result = pd.DataFrame()
+        # for name, group in x.groupby(self._group_by):
+        #     # rows of new_x present in group's extra columns
+        #     new_x_for_this_group = self._get_new_values_per_group(group, x_extra_cols)
+        #     group_interpolation_result = self._interpolate_values_w_repeats(group, new_x_for_this_group, x_extra_cols)
+        #     interpolation_result = pd.concat([interpolation_result, group_interpolation_result],
+        #                                      ignore_index=True, sort=False)
+        # return interpolation_result
 
     def _get_new_x_for_each_group(self, group, x_extra_cols):
         # rows of new_x present in group
@@ -1145,7 +1187,7 @@ class SampleAverage(Transform):
         values being averaged and :math:`\sigma^2` is an additional noise term specified by this argument.
         As a float it applies to every column being averaged. As a dict, the keys designate the columns.
     """
-    default_sample_size = 50
+    default_sample_size = 500
 
     def __init__(self, columns=None, drop_columns=None, groupby=None, apply_noise=False, variances=0.0, sample_size=default_sample_size):
         super(SampleAverage).__init__()

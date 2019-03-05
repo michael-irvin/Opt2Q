@@ -5,6 +5,7 @@ To use this:
 First, *manually* set `noise_model_sample_size` to 10000, in the western_blot_likelihood_fn python module.
 Next, run this file.
 """
+
 import numpy as np
 import pandas as pd
 from opt2q.examples.western_blot_example.western_blot_likelihood_fn import likelihood_fn
@@ -29,6 +30,12 @@ def likelihood_variability(num_sims, num_likelihood_calculations):
 
 
 list_num_eval = [4, 10, 50, 200, 500, 1000, 5000, 10000]
-variability = [likelihood_variability(x, 50)for x in list_num_eval]
+variability = []
+for x in list_num_eval:
+    v = likelihood_variability(x, 20)
+    print(v)
+    variability.append(v)
+
+# variability = [likelihood_variability(x, 20)for x in list_num_eval]
 
 print(variability)

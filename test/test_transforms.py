@@ -187,8 +187,8 @@ class TestInterpolate(unittest.TestCase):
                           [2, 1, 1, 3],
                           [2, 1, 2, 6]], columns=['ec1', 'ec', 'iv', 'dv'])
         target = pd.DataFrame([[1, 1, 0.5, 1.0],
-                               [1, 1, 1.5, 3.0],
                                [2, 1, 0.5, 1.5],
+                               [1, 1, 1.5, 3.0],
                                [2, 1, 1.5, 4.5]], columns=['ec1', 'ec', 'iv', 'dv'])
         test = interpolate.transform(x)
         pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
@@ -290,6 +290,26 @@ class TestInterpolate(unittest.TestCase):
                                [2, 1, 1.5, 3.0, 6.0]], columns=['ec1', 'ec', 'iv', 'dv', 'dv$*$2'])
         test = interpolate.transform(x)
         pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
+
+    def test_transform_non_monotonic_new_values(self):
+        # Automatically repeat the interpolate for each unique row of extra columns
+        # Builds a default pd.DataFrame for ``new_values`` from [0.5, 1.5].
+        interpolate = Interpolate('iv', 'dv', [0.5, 1.5])
+        x = pd.DataFrame([[1, 1, 0.0, 0, 0],
+                          [2, 1, 0.4, 2, 4],
+                          [1, 1, 0.8, 4, 8],
+                          [1, 1, 1.2, 6, 8],
+                          [2, 1, 1.6, 4, 4],
+                          [1, 1, 2.0, 2, 0]
+                          ], columns=['ec1', 'ec', 'iv', 'dv', 'dv$*$2'])
+        target = pd.DataFrame([[1, 1, 0.5, 2.5, 5.0],
+                               [2, 1, 0.5, 2.5, 5.0],
+                               [1, 1, 1.5, 4.5, 5.0],
+                               [2, 1, 1.5, 4.5, 5.0]], columns=['ec1', 'ec', 'iv', 'dv', 'dv$*$2'])
+        test = interpolate.transform(x)
+        print(test)
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
+
 
 
 class TestPipeline(unittest.TestCase):

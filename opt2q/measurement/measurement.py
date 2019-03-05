@@ -90,8 +90,11 @@ class WesternBlot(MeasurementModel):
 
         self.process = Pipeline(
             steps=[('sample_average', SampleAverage(columns=list(_process_observables), drop_columns='simulation',
-                                                    groupby=list(set(self.experimental_conditions_df.columns)-
-                                                                 {'simulation'}), apply_noise=True, variances=0.0)),
+                                                    groupby=list(set(
+                                                        self.experimental_conditions_df.columns) - {'simulation'}),
+                                                    apply_noise=True,
+                                                    variances=0.0,
+                                                    sample_size=10000)),
                    ('log_scale', Scale(columns=list(_process_observables), scale_fn='log10')),
                    ('standardize', Standardize(columns=list(_process_observables), groupby=None)),
                    ('classifier', LogisticClassifier(self._dataset, column_groups=_measured_values,

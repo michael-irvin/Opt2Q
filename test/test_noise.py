@@ -282,7 +282,8 @@ class TestNoise(unittest.TestCase):
         test = nm._add_params_from_param_covariance(mean, cov_)
         cols = ['param', 'value', 'apply_noise', 'ec']
         pd_testing.assert_frame_equal(target.sort_values(by=cols).reset_index(drop=True)[cols],
-                                      test.sort_values(by=cols).reset_index(drop=True)[cols])
+                                      test.sort_values(by=cols).reset_index(drop=True)[cols],
+                                      check_dtype=False)
 
     def test_add_params_from_param_covariance_add_apply_noise_col(self):
         mean = pd.DataFrame([['a', 1],
@@ -304,7 +305,8 @@ class TestNoise(unittest.TestCase):
         test = nm._add_apply_noise_col(mean)
         cols = ['param', 'value', 'apply_noise', 'ec']
         pd_testing.assert_frame_equal(target.sort_values(by=cols).reset_index(drop=True)[cols],
-                                      test.sort_values(by=cols).reset_index(drop=True)[cols])
+                                      test.sort_values(by=cols).reset_index(drop=True)[cols],
+                                      check_dtype=False)
 
     @raises(MissingParametersErrors)
     def test_missing_parameters_error_raised(self):

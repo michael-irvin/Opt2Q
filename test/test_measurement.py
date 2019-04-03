@@ -885,7 +885,8 @@ class TestFluorescence(TestSolverModel, unittest.TestCase):
                                [0.516127,   0.5,           0],
                                [1.029683,   1.0,           0]],
                               columns=['A_free', 'time', 'simulation'])
-        pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
+        pd.testing.assert_frame_equal(test[test.columns].sort_values(by='simulation').reset_index(drop=True),
+                                      target[test.columns].sort_values(by='simulation').reset_index(drop=True))
 
     def test_run_wo_dataset_groups(self):
         sim = Simulator(self.model)
@@ -906,16 +907,21 @@ class TestFluorescence(TestSolverModel, unittest.TestCase):
                                [0.510195,   0.5, 'WT', 1],
                                [0.984379,   1.0, 'WT', 1]],
                               columns=['A_free',  'time',  'exp', 'simulation'])
-        pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
+
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns], check_dtype=False)
+
         sim.param_values = pd.DataFrame([[0.1e-3, 'KO', 0]], columns=['kbindAB', 'exp','simulation'])
         sim_result = sim.run(tspan=np.linspace(0, 1, 3))
         fl.update_simulation_result(sim_result)
         test = fl.run(do_fit_transform=False)
-        target = pd.DataFrame([[0.000000,   0.0,'KO', 0],
-                               [0.504569630733837,   0.5,'KO', 0],
-                               [1.006626882968067,   1.0,'KO', 0]],
+        target = pd.DataFrame([[0.000000,            0.0,   'KO', 0],
+                               [0.504569630733837,   0.5,   'KO', 0],
+                               [1.006626882968067,   1.0,   'KO', 0]],
                               columns=['A_free', 'time', 'exp', 'simulation'])
-        pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns], check_dtype=False)
+
+        # pd.testing.assert_frame_equal(test[test.columns].sort_values(by='simulation').reset_index(drop=True),
+        #                               target[test.columns].sort_values(by='simulation').reset_index(drop=True))
 
     def test_check_dataset_wo_measured_values(self):
         data = pd.DataFrame([[2, 0, 0, "WT", 1],
@@ -1078,14 +1084,14 @@ class TestFluorescence(TestSolverModel, unittest.TestCase):
                           observables=['A_free', 'AB_complex'])
         test = fl.run()
         target = pd.DataFrame([[0.000000, 0.000000, 0.00, 0],
-                               [0.761784, 0.029777, 0.01, 0],
-                               [0.965753, 0.129281, 0.02, 0],
-                               [0.994938, 0.250633, 0.03, 0],
-                               [0.999439, 0.375070, 0.04, 0],
-                               [0.999878, 0.500015, 0.05, 0],
-                               [0.999996, 0.625001, 0.06, 0],
-                               [0.999996, 0.750001, 0.07, 0],
+                               [0.724010, 0.034499, 0.01, 0],
+                               [0.942321, 0.132210, 0.02, 0],
+                               [0.991255, 0.251093, 0.03, 0],
+                               [0.998815, 0.375148, 0.04, 0],
+                               [0.999845, 0.500019, 0.05, 0],
+                               [0.999980, 0.625003, 0.06, 0],
+                               [0.999997, 0.750000, 0.07, 0],
                                [1.000000, 1.000000, 0.09, 0]],
                               columns=['A_free',  'AB_complex',  'time',  'simulation'])
-        pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
+        pd.testing.assert_frame_equal(test[test.columns], target[test.columns], check_less_precise=4)
 

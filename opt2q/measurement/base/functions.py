@@ -4,6 +4,7 @@ Suite of Functions used in Measurement Models
 """
 import numpy as np
 import pandas as pd
+from numba import double, jit
 import inspect
 
 from sklearn.preprocessing import PolynomialFeatures
@@ -203,3 +204,42 @@ def where_min(x, var=None):
     """
     idx_min = x[var].idxmin()
     return pd.DataFrame([x.loc[idx_min].values], columns=x.columns)
+
+
+def fast_linear_interpolate_fillna(values, indices):
+    # result = np.zeros_like(values, dtype=np.float32)
+    result = values
+
+    for idx in range(indices.shape[0]):
+        x = indices[idx, 0]
+        y = indices[idx, 1]
+
+        value = values[x, y]
+        if x == 0:
+            new_val = value
+        elif x == len(values[:, 0]) - 1:
+            new_val = value
+        elif np.isnan(value):  # interpolate
+            lid = 0
+            while True:
+                lid += 1
+                left = values[x - lid, y]
+                if not np.isnan(left):
+                    break
+            rid = 0
+            while True:
+                rid += 1
+                right = values[x + rid, y]
+                if not np.isnan(right):
+                    break
+
+            new_val = left + (values[x, 0] - values[x - lid, 0]) * (right - left) / (values[x + rid, 0] - values[x - lid, 0])
+
+        else:
+            new_val = value
+
+        result[x, y] = new_val
+    return result
+
+
+fast_linear_interpolate_fillna = jit(double[:, :](double[:, :], double[:, :]))(fast_linear_interpolate_fillna)

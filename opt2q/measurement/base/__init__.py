@@ -12,7 +12,7 @@ __all__ = ['MeasurementModel',
            'SampleAverage',
            'Scale',
            'ScaleGroups',
-           'ScaleToMinMax'
+           'ScaleToMinMax',
            'Standardize',
 
            # parent classes
@@ -20,4 +20,7 @@ __all__ = ['MeasurementModel',
            'TransformFunction',
 
            # decorator
-           'transform_function']
+           'transform_function',
+
+           # functions
+           'fast_linear_interpolate_fillna']

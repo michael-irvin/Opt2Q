@@ -1,8 +1,8 @@
 # MW Irvin -- Lopez Lab -- 2018-08-24
 import inspect
 import warnings
-import re
 import pandas as pd
+from pandas.errors import MergeError
 import numpy as np
 from collections import OrderedDict
 from scipy.interpolate import interp1d
@@ -12,7 +12,7 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.linear_model import LogisticRegression
 from mord import LogisticSE, obj_margin, grad_margin
 from opt2q.utils import *
-from opt2q.measurement.base.functions import TransformFunction, log_scale, column_max, where_max, where_min
+from opt2q.measurement.base.functions import TransformFunction, log_scale, column_max, fast_linear_interpolate_fillna
 from opt2q.data import DataSet
 
 
@@ -351,16 +351,6 @@ class CumulativeComputation(Transform):
 
 class Interpolate(Transform):
     """
-    Interpolates values in numeric (dependent variable) columns of a :class:`~pandas.DataFrame` at new values of an
-    independent-variable.
-
-    Represents dependent variable columns of a :class:`~pandas.DataFrame` as a function of an independent-variable
-    column, and uses it to find new values of the dependent variables. The DataFrame is passed to this class's
-    :meth:`~opt2q.measurement.base.transform.Interpolate.transform` method. But, names of the independent and dependent
-    variables, and the new values are supplied at instantiation.
-
-    Parameter
-    ---------
     independent_variable_name: str
         The column name of the independent variable.
 
@@ -380,89 +370,51 @@ class Interpolate(Transform):
         differ between ``x`` (what is passed to the :meth:`~opt2q.measurement.base.transform.Interpolate.transform`
         method) and ``new_values``, the values in ``x`` are retained.
 
-    options: dict
-         Dictionary of keyword arguments:
-
-        ``interpolation_method_name`` (str): interpolation method that gets passed to the `SciPy`
-        :class:`~scipy.interpolate.interp1d` class. Defaults to 'cubic'.
-
-    .. note::
-        The columns mentioned in ``independent_variable_name``, ``dependent_variable_name`` and ``new_values`` and
-        ``groupby``
-
-    Attributes
-    ----------
-    set_params_fn: dict
-        Dictionary of methods that handle updates of certain parameters. Only parameter mentioned here can be
-        updated dynamically using the :meth:`~opt2q.measurement.base.transforms.Transform` method.
+    interpolation_fn:
+    interpolation_fn_kwargs
     """
 
-    def __init__(self, independent_variable_name, dependent_variable_name, new_values, groupby=None, **options):
+    def __init__(self, independent_variable_name, dependent_variable_name, new_values, groupby=None,
+                 interpolation_fn='fast_linear', **interpolation_fn_kwargs):
         super(Interpolate).__init__()
 
-        self._independent_variable_name, \
-            self._dependent_variable_name, \
-            self._iv_and_dv_names_set = self._check_independent_and_dependent_variables(independent_variable_name,
-                                                                                        dependent_variable_name)
-        self._dependent_variable_names_in_x = self._dependent_variable_name  # Updated by self.transform
+        self._independent_variable_name = independent_variable_name
+        self._dependent_variable_name = self._dependent_variables_to_list(dependent_variable_name)
+        self._dependent_var_names_in_x = self._dependent_variable_name  # Updated by self.transform
 
-        self._new_values, self._new_val_extra_cols = self._check_new_values(new_values, independent_variable_name)
-        self._new_val_has_extra_cols = len(self._new_val_extra_cols) > 0
+        self._new_values = self._check_new_values(new_values, self._independent_variable_name)
+        self._new_val_extra_cols = self._get_new_val_extra_cols(self._new_values, self._independent_variable_name)
+        self._prep_new_values = self._prep_new_values_extra_cols if len(self._new_val_extra_cols) != 0 \
+            else self._prep_new_values_simple
 
-        # How to carryout the interpolation
-        self._group_by = self._check_group_by(groupby, self._iv_and_dv_names_set)
-        if self._group_by is None and self._new_val_has_extra_cols:
-            self._group_by = list(self._new_val_extra_cols)
-
-        self._interpolate = [self._interpolation_in_groups,
-                             self._interpolation_not_in_groups][self._group_by is None]
-        self._get_new_values_per_group = [self._use_same_new_x_for_each_group,
-                                          self._get_new_x_for_each_group][self._new_val_has_extra_cols]
-        self._transform = [self._transform_new_values_simple,
-                           self._transform_new_values_extra_cols][self._new_val_has_extra_cols]
-
-        self._interpolation_method_name = options.get('interpolation_method_name', 'cubic')
-
-        self.set_params_fn = {'new_values': self._set_new_values,
-                              'interpolation_method_name': self._set_interpolation_method_name}
-
-    # set up
-    @staticmethod
-    def _check_independent_and_dependent_variables(iv, dv):
-        iv_set = {iv}
-        if _is_vector_like(dv):
-            dv_set = _convert_vector_like_to_set(dv)
-        else:
-            dv_set = {dv}
-            dv = [dv]
-        return iv, dv, iv_set | dv_set
-
-    def _check_new_values(self, new_val, iv_col_name):
-        """
-        Checks that the new values are a pd.DataFrame or are vector-like.
-
-        If ``new_val`` is a dataframe, it must have a a column of numeric values named after the independent variable
-        """
-        if isinstance(new_val, pd.DataFrame) and new_val.shape[1] > 1:
-            if iv_col_name not in new_val._get_numeric_data().columns:
-                raise ValueError("'new_values' must have an column named '{}'.".format(iv_col_name))
-            else:
-                return new_val, list(set(new_val.columns) - {iv_col_name})
-        elif _is_vector_like(new_val):
-            return pd.DataFrame(_convert_vector_like_to_list(new_val), columns=[self._independent_variable_name]), []
-        else:
-            raise ValueError("'new_values' must be vector-like list of numbers or a pd.DataFrame.")
-
-    @staticmethod
-    def _check_group_by(group_by, iv_dv_set):
-        """Raise ValueError if group_by includes iv or dv columns"""
-        if isinstance(group_by, str):
-            group_by = [group_by]
-        if _is_vector_like(group_by) and len(iv_dv_set.intersection(_convert_vector_like_to_set(group_by))) == 0:
-            return _convert_vector_like_to_list(group_by)
-        elif group_by is not None:
+        try:
+            self._group_by = self._check_group_by(
+                groupby, {self._independent_variable_name} | set(self._dependent_variable_name))
+        except ValueError:
             raise ValueError("group_by must be a column name or list of column names and cannot have the "
                              "independent or dependent variable columns' names.")
+        if self._group_by is None and len(self._new_val_extra_cols) != 0:
+            self._group_by = list(self._new_val_extra_cols)
+
+        self._sort_by = [self._independent_variable_name] if self._group_by is None\
+            else self._group_by + [self._independent_variable_name]
+
+        self._mentioned_columns = self._get_mentioned_columns()
+        self._iv_dv_columns = {self._independent_variable_name} | set(self._dependent_variable_name)
+
+        self._interp_fns = {'scipy': (self._scipy_interpolator, self._scipy_interpolator_groupby),
+                            'pandas': (self._pd_interpolate, self._pd_interpolate_groupby),
+                            'fast_linear': (self._fast_linear_interpolate, self._fast_linear_interpolate)}
+
+        if interpolation_fn in self._interp_fns.keys():
+            self._interp_name = interpolation_fn
+            self._interpolation_fn = self._interp_fns[interpolation_fn][0] if self._group_by is None \
+                else self._interp_fns[interpolation_fn][1]
+        else:
+            raise ValueError(f'{interpolation_fn} is not a supported interpolation function')
+
+        self._interp_kwargs = interpolation_fn_kwargs
+        self.set_params_fn = {'new_values': self._set_new_values}
 
     # properties
     @property
@@ -474,97 +426,104 @@ class Interpolate(Transform):
         self._set_new_values(v)
 
     def _set_new_values(self, val):
-        new_val, _extra_cols = self._check_new_values(val, self._independent_variable_name)
-        has_extra_cols = len(_extra_cols) > 0
-        self._transform = [self._transform_new_values_simple,
-                           self._transform_new_values_extra_cols][has_extra_cols]
-        self._get_new_values_per_group = [self._use_same_new_x_for_each_group,
-                                          self._get_new_x_for_each_group][has_extra_cols]
-        self._new_values = new_val
-        self._new_val_extra_cols = _extra_cols
-        self._new_val_has_extra_cols = has_extra_cols
-
-        if self._group_by is None and self._new_val_has_extra_cols:
+        self._new_values = self._check_new_values(val, self._independent_variable_name)
+        self._new_val_extra_cols = self._get_new_val_extra_cols(self._new_values, self._independent_variable_name)
+        if self._group_by is None and len(self._new_val_extra_cols) != 0:
             self._group_by = list(self._new_val_extra_cols)
-        self._interpolate = [self._interpolation_in_groups,
-                             self._interpolation_not_in_groups][self._group_by is None]
-
-    @property
-    def interpolation_method_name(self):
-        return self._interpolation_method_name
-
-    @interpolation_method_name.setter
-    def interpolation_method_name(self, v):
-        self._set_interpolation_method_name(v)
-
-    def _set_interpolation_method_name(self, v):
-        self._interpolation_method_name = v
+        self._prep_new_values = self._prep_new_values_extra_cols if len(self._new_val_extra_cols) != 0 \
+            else self._prep_new_values_simple
+        self._interpolation_fn = self._interp_fns[self._interp_name][0] if self._group_by is None \
+            else self._interp_fns[self._interp_name][1]
 
     @property
     def _signature_params(self):
+        sig_dict = {'groupby': self._group_by,
+                    'interpolation_fn': self._interp_name}
+        sig_dict.update(self._interp_kwargs)
         return (self._independent_variable_name,
                 self._dependent_variable_name,
                 'DataFrame(shape={})'.format(self.new_values.shape)), \
-               {'interpolation_method_name': 'cubic'}
+               sig_dict
 
     @property
     def _get_params_dict(self):
         return {
             'new_values':  self.new_values,
-            'interpolation_method_name': self.interpolation_method_name
         }
 
-    # transform
-    def transform(self, x, **kwargs):
-        """
-        Interpolates, in a DataFrame, x, the values in numeric column(s) relative to new values of an independent
-        variable.
-
-        Parameter
-        ---------
-        x: :class:`~pandas.DataFrame`
-            The independent and dependent variables utilized to generate the interpolant.
-
-            The independent and dependent variable column names (specified at instantiation of this class) must be in x.
-            The independent variable cannot have repeat values within the same group.
-        """
-        self._dependent_variable_names_in_x = self._parse_column_names(set(x.columns), set(self._dependent_variable_name))
-        return self._transform(x)
-
-    def _transform_new_values_extra_cols(self, x):
-        """
-        Do interpolation when the new_values has additional columns annotating experimental conditions.
-        """
-        x_trimmed_rows = self._intersect_x_and_new_values_experimental_condition(x, self.new_values)
-        x_extra_cols = list(set(x.columns) - self._iv_and_dv_names_set-self._dependent_variable_names_in_x)
-        new_values = self._repeat_new_values_rows_for_every_unique_row_in_x_extra_cols(self.new_values, x_trimmed_rows)
-        new_values_w_extra_cols_from_x = new_values.merge(x_trimmed_rows[x_extra_cols].drop_duplicates().reset_index(drop=True))
-
-        sort_by_columns = [self._independent_variable_name] + x_extra_cols
-        prepped_x = new_values_w_extra_cols_from_x.merge(x, how='outer').\
-            sort_values(sort_by_columns).set_index(self._independent_variable_name)
-        return self._interpolate(prepped_x, new_values) # x_trimmed_rows, x_extra_cols)
-
-    def _transform_new_values_simple(self, x):
-        # new_values is one group
-        x_extra_cols = list(set(x.columns) - self._iv_and_dv_names_set-self._dependent_variable_names_in_x)
-        new_values = self._repeat_new_values_rows_for_every_unique_row_in_x_extra_cols(self.new_values, x)
-        if len(x_extra_cols) != 0:
-            new_values_w_extra_cols_from_x = new_values.merge(x[x_extra_cols].drop_duplicates().reset_index(drop=True))
+    # set up
+    @staticmethod
+    def _dependent_variables_to_list(dv):
+        if _is_vector_like(dv):
+            dv = _convert_vector_like_to_list(dv)
         else:
-            new_values_w_extra_cols_from_x = new_values
+            dv = [dv]
+        return dv
 
-        sort_by_columns = [self._independent_variable_name] + x_extra_cols
-        prepped_x = new_values_w_extra_cols_from_x.merge(x, how='outer').\
-            sort_values(sort_by_columns).set_index(self._independent_variable_name)
-        return self._interpolate(prepped_x, new_values)  # x, x_extra_cols)
+    @staticmethod
+    def _check_new_values(new_val, iv_name):
+        if isinstance(new_val, pd.DataFrame):
+            if new_val.shape[1] > 1:
+                if iv_name not in new_val.select_dtypes(include='number').columns:
+                    raise ValueError(f"'new_values' must have an column named '{iv_name}'.")
+                else:
+                    return new_val
+        if _is_vector_like(new_val):
+            return pd.DataFrame(_convert_vector_like_to_list(new_val), columns=[iv_name])
+        else:
+            raise ValueError("'new_values' must be vector-like list of numbers or a pd.DataFrame.")
+
+    @staticmethod
+    def _get_new_val_extra_cols(new_val, iv_name):
+        return list(set(new_val.columns) - {iv_name})
+
+    def _get_mentioned_columns(self):
+        cols = {self._independent_variable_name} | set(self._dependent_variable_name)
+        if len(self._new_val_extra_cols) != 0:
+            cols |= set(self._new_val_extra_cols)
+        if self._group_by is not None:
+            cols |= set(self._group_by)
+        return cols
+
+    # pre-processing
+    def _prep_new_values_simple(self, new_values, x):
+        nv_ = self._repeat_new_values_rows_for_every_unique_row_in_x_extra_cols(new_values, x)
+        x_extra_cols = set(x.columns) - set(self._dependent_var_names_in_x) - self._iv_dv_columns
+
+        if len(x_extra_cols) != 0:
+            try:
+                nv = nv_.merge(x[x_extra_cols].drop_duplicates().reset_index(drop=True), how='right')\
+                    .sort_values(by=self._sort_by).reset_index(drop=True)
+            except MergeError:  # no common columns between x and nv_
+                x_ec_df = x[x_extra_cols].drop_duplicates()
+                len_x_ec_df = len(x_ec_df)
+                len_nv_ = len(nv_)
+                x_ec_df_repeats = x_ec_df.iloc[np.repeat(range(len_x_ec_df), len(nv_))].reset_index(drop=True)
+                nv = nv_.iloc[np.tile(range(len_nv_), len_x_ec_df)].reset_index(drop=True)
+                x_ec_df_cols = x_ec_df_repeats.columns
+                nv[x_ec_df_cols] = x_ec_df_repeats[x_ec_df_cols]
+        else:
+            nv = nv_
+        return nv
+
+    def _prep_new_values_extra_cols(self, new_values, x):
+        _x = self._intersect_x_and_new_values_experimental_condition(new_values, x)
+        return self._prep_new_values_simple(new_values, _x)
+
+    def _intersect_x_and_new_values_experimental_condition(self, new_val, x):
+        """
+        Get the rows of x that have experimental-conditions in common with those present in ``self.new_values``
+        """
+        try:
+            return pd.merge(x, new_val, on=self._new_val_extra_cols, suffixes=('', '_y'))[x.columns]\
+                .drop_duplicates().reset_index(drop=True)
+        except KeyError as error:
+            raise KeyError("'new_values' contains columns not present in x: " + _list_the_errors(error.args))
 
     def _repeat_new_values_rows_for_every_unique_row_in_x_extra_cols(self, new_values, x_):
-        mentioned_cols = self._iv_and_dv_names_set | self._dependent_variable_names_in_x | set(self._new_val_extra_cols)
-        if self._group_by is not None:
-            mentioned_cols |= set(self._group_by)
-
+        mentioned_cols = self._mentioned_columns | set(self._dependent_var_names_in_x)
         unmentioned_cols_in_x = set(x_.columns) - mentioned_cols
+
         if len(unmentioned_cols_in_x) != 0:
             x_unmentioned_cols = x_[list(unmentioned_cols_in_x)].drop_duplicates().reset_index(drop=True)
             len_x = len(x_unmentioned_cols)
@@ -576,82 +535,399 @@ class Interpolate(Transform):
         else:
             return new_values
 
-    def _intersect_x_and_new_values_experimental_condition(self, x, new_val):
+    # processing
+    def _scipy_interpolator(self, x_df, new_values, **kwargs):
         """
-        Get the rows of x that have experimental-conditions in common with those present in ``self.new_values``
+        Run scipy interpolation
         """
-        try:
-            return pd.merge(x, new_val, on=self._new_val_extra_cols, suffixes=('', '_y'))[x.columns]\
-                .drop_duplicates().reset_index(drop=True)
-        except KeyError as error:
-            raise KeyError("'new_values' contains columns not present in x: " + _list_the_errors(error.args))
+        x = x_df[self._independent_variable_name].values
+        y = x_df[self._dependent_var_names_in_x].values.T
 
-    def _interpolation_not_in_groups(self, prepped_x, new_values):  # x, x_extra_cols):
-        """run the interpolation on the whole dataframe x"""
-        x_interpolated = prepped_x.transform(pd.DataFrame.interpolate, **{'method': 'values'}).reset_index()
+        f = interp1d(x, y, **kwargs)
+
+        results = f(new_values[self._independent_variable_name].values)
+
+        new_y = self._convert_interpolation_results_to_dataframe(results)
+        new_y[new_values.columns] = new_values.reset_index(drop=True)
+        return new_y
+
+    def _scipy_interpolator_groupby(self, x_df, new_values, **kwargs):
+        """
+        Run scipy interpolation
+        """
+        results = pd.DataFrame()
+        x_groups = x_df.groupby(self._group_by)
+        for key, group in new_values.groupby(self._group_by):
+            x_ = x_groups.get_group(key)
+            results = pd.concat([results, self._scipy_interpolator(x_, group, **kwargs)])
+        return results
+
+    def _pd_interpolate(self, x_df, new_values, **kwargs):
+        prepped_x = self._prep_xdf(x_df, new_values)
+        kw = {'method': 'values'}
+        kw.update(kwargs)
+        x_interpolated = prepped_x.transform(pd.DataFrame.interpolate, **kw).reset_index()
         return x_interpolated.merge(new_values)
 
-        # if len(x_extra_cols) == 0:
-        #     return self._interpolate_values_no_repeats(x, self.new_values)
-        # else:
-        #     return self._interpolate_values_w_repeats(x, self.new_values, x_extra_cols)
-
-    def _interpolation_in_groups(self, prepped_x, new_values):  # , x_extra_cols):
-        """group x by the group column(s) and run the interpolation for every group"""
-        x_interpolated = prepped_x.groupby(self._group_by).transform(pd.DataFrame.interpolate,
-                                                                     **{'method': 'values'})
-
+    def _pd_interpolate_groupby(self, x_df, new_values, **kwargs):
+        prepped_x = self._prep_xdf(x_df, new_values)
+        kw = {'method': 'values'}
+        kw.update(kwargs)
+        x_interpolated = prepped_x.groupby(self._group_by).transform(pd.DataFrame.interpolate, **kw)
         x_interpolated[self._group_by] = prepped_x[self._group_by]
         return new_values.merge(x_interpolated.reset_index())
 
-        # interpolation_result = pd.DataFrame()
-        # for name, group in x.groupby(self._group_by):
-        #     # rows of new_x present in group's extra columns
-        #     new_x_for_this_group = self._get_new_values_per_group(group, x_extra_cols)
-        #     group_interpolation_result = self._interpolate_values_w_repeats(group, new_x_for_this_group, x_extra_cols)
-        #     interpolation_result = pd.concat([interpolation_result, group_interpolation_result],
-        #                                      ignore_index=True, sort=False)
-        # return interpolation_result
+    def _prep_xdf(self, x_df, new_values):
+        x_extra_cols = list(set(x_df.columns) - self._iv_dv_columns - set(self._dependent_var_names_in_x))
+        sort_by_columns = [self._independent_variable_name] + x_extra_cols
 
-    def _get_new_x_for_each_group(self, group, x_extra_cols):
-        # rows of new_x present in group
-        return self._intersect_x_and_new_values_experimental_condition(self.new_values, group[x_extra_cols])
+        prepped_x = new_values.merge(x_df, how='outer'). \
+            sort_values(sort_by_columns).set_index(self._independent_variable_name)
+        return prepped_x
 
-    def _use_same_new_x_for_each_group(self, *args):
-        return self.new_values
+    def _fast_linear_interpolate(self, x_df, new_values, **kwargs):
+        if self._group_by is None:
+            sort_by_columns = [self._independent_variable_name]
+        else:
+            sort_by_columns = self._group_by + [self._independent_variable_name]
 
-    def _interpolate_values_w_repeats(self, x, new_x, x_extra_cols):
-        """
-        If x's additional columns have multiple unique rows, repeat the interpolation for each unique row.
+        prepped_x = new_values.merge(x_df, how='outer').sort_values(sort_by_columns).reset_index(drop=True)
 
-        This prevents any loss of extraneous information. Do this for *all* DataFrames that have additional columns.
-        """
-        len_unique_ec_rows_x = x[x_extra_cols].drop_duplicates().shape[0]
-        range_unique_ec_rows_x = range(len_unique_ec_rows_x)
-        len_new_x = new_x.shape[0]
+        interpolation_columns = [self._independent_variable_name] + self._dependent_var_names_in_x
+        x_array = prepped_x[interpolation_columns].values
 
-        new_x_for_interpolation = x[x_extra_cols].iloc[
-            np.tile(range_unique_ec_rows_x, len_new_x)].reset_index(drop=True)
+        nan_indices = np.argwhere(np.isnan(x_array))
+        try:
+            results = fast_linear_interpolate_fillna(x_array, nan_indices)
+        except ZeroDivisionError:
+            raise ValueError("With fast_linear_interpolate_fillna, your groupby column(s) must identify "
+                             "a unique set of values, of the additional annotating columns, for each group. "
+                             "This is not the case for the additional annotating columns mentioned in 'x'.")
 
-        new_x_for_interpolation[self._independent_variable_name] = np.repeat(
-            new_x[self._independent_variable_name].values, len_unique_ec_rows_x)
+        extra_cols = list(set(x_df.columns) - {self._independent_variable_name} - set(self._dependent_var_names_in_x))
+        x_interpolated = pd.DataFrame(results, columns=interpolation_columns)
+        x_interpolated[extra_cols] = prepped_x[extra_cols]
+        return new_values.merge(x_interpolated)
 
-        return self._interpolate_values_no_repeats(x, new_x_for_interpolation)
+    def transform(self, x, **kwargs):
+        self._dependent_var_names_in_x = sorted(list(
+            self._parse_column_names(set(x.columns), set(self._dependent_variable_name))))
+        new_values = self._prep_new_values(self.new_values, x)
+        return self._interpolation_fn(x, new_values, **kwargs)
 
-    def _interpolate_values_no_repeats(self, x, new_x):
-        """If the only x only has 'iv' and 'dv', do not try to do repeats of the interpolation."""
-        for dv in self._dependent_variable_names_in_x:
-            try:
-                cubic_spline_fn = interp1d(x[self._independent_variable_name], x[dv],
-                                           kind=self._interpolation_method_name)
+    # post-processing
+    def _convert_interpolation_results_to_dataframe(self, results):
+        if len(self._dependent_var_names_in_x) == 1:
+            new_y = pd.DataFrame(_convert_vector_like_to_list(results), columns=self._dependent_var_names_in_x)
+        elif 1 in results.shape:
+            new_y = pd.DataFrame([_convert_vector_like_to_list(results)], columns=self._dependent_var_names_in_x)
+        else:
+            new_y = pd.DataFrame(results.T, columns=self._dependent_var_names_in_x)
+        return new_y
 
-            except ValueError:  # If too few time-points in the simulation result, the model
-                self._interpolation_method_name = 'linear'
-                cubic_spline_fn = interp1d(x[self._independent_variable_name], x[dv],
-                                           kind=self._interpolation_method_name)
-
-            new_x[dv] = new_x[self._independent_variable_name].apply(cubic_spline_fn)
-        return new_x
+# class Interpolate(Transform):
+#     """
+#     Interpolates values in numeric (dependent variable) columns of a :class:`~pandas.DataFrame` at new values of an
+#     independent-variable.
+#
+#     Represents dependent variable columns of a :class:`~pandas.DataFrame` as a function of an independent-variable
+#     column, and uses it to find new values of the dependent variables. The DataFrame is passed to this class's
+#     :meth:`~opt2q.measurement.base.transform.Interpolate.transform` method. But, names of the independent and dependent
+#     variables, and the new values are supplied at instantiation.
+#
+#     Parameter
+#     ---------
+#     independent_variable_name: str
+#         The column name of the independent variable.
+#
+#     dependent_variable_name: str or list of strings
+#         The column name(s) of the dependent variable(s)
+#
+#     new_values: vector-like or :class:`~pandas.DataFrame`
+#         The values of the independent variable in the interpolation. Additional columns annotate experimental
+#         conditions, or etc.
+#
+#     groupby: str, or list optional
+#         The name(s) of the column(s) by which to group the operation. Each unique value in this column denotes a
+#         separate group. Defaults to None or to the non-numeric columns in ``new_values``.
+#
+#         Your group-by column(s) should identify unique rows of the experimental conditions. If multiple experimental
+#         conditions' rows appear in the same group, the interpolation is repeated for each unique row. If the rows
+#         differ between ``x`` (what is passed to the :meth:`~opt2q.measurement.base.transform.Interpolate.transform`
+#         method) and ``new_values``, the values in ``x`` are retained.
+#
+#     options: dict
+#          Dictionary of keyword arguments:
+#
+#         ``interpolation_method_name`` (str): interpolation method that gets passed to the `SciPy`
+#         :class:`~scipy.interpolate.interp1d` class. Defaults to 'cubic'.
+#
+#     .. note::
+#         The columns mentioned in ``independent_variable_name``, ``dependent_variable_name`` and ``new_values`` and
+#         ``groupby``
+#
+#     Attributes
+#     ----------
+#     set_params_fn: dict
+#         Dictionary of methods that handle updates of certain parameters. Only parameter mentioned here can be
+#         updated dynamically using the :meth:`~opt2q.measurement.base.transforms.Transform` method.
+#     """
+#
+#     def __init__(self, independent_variable_name, dependent_variable_name, new_values, groupby=None, **options):
+#         super(Interpolate).__init__()
+#
+#         self._independent_variable_name, \
+#             self._dependent_variable_name, \
+#             self._iv_and_dv_names_set = self._check_independent_and_dependent_variables(independent_variable_name,
+#                                                                                         dependent_variable_name)
+#         self._dependent_variable_names_in_x = self._dependent_variable_name  # Updated by self.transform
+#
+#         self._new_values, self._new_val_extra_cols = self._check_new_values(new_values, independent_variable_name)
+#         self._new_val_has_extra_cols = len(self._new_val_extra_cols) > 0
+#
+#         # How to carryout the interpolation
+#         self._group_by = self._check_group_by(groupby, self._iv_and_dv_names_set)
+#         if self._group_by is None and self._new_val_has_extra_cols:
+#             self._group_by = list(self._new_val_extra_cols)
+#
+#         self._interpolate = [self._interpolation_in_groups,
+#                              self._interpolation_not_in_groups][self._group_by is None]
+#         self._get_new_values_per_group = [self._use_same_new_x_for_each_group,
+#                                           self._get_new_x_for_each_group][self._new_val_has_extra_cols]
+#         self._transform = [self._transform_new_values_simple,
+#                            self._transform_new_values_extra_cols][self._new_val_has_extra_cols]
+#
+#         self._interpolation_method_name = options.get('interpolation_method_name', 'cubic')
+#
+#         self.set_params_fn = {'new_values': self._set_new_values,
+#                               'interpolation_method_name': self._set_interpolation_method_name}
+#
+#     # set up
+#     @staticmethod
+#     def _check_independent_and_dependent_variables(iv, dv):
+#         iv_set = {iv}
+#         if _is_vector_like(dv):
+#             dv_set = _convert_vector_like_to_set(dv)
+#         else:
+#             dv_set = {dv}
+#             dv = [dv]
+#         return iv, dv, iv_set | dv_set
+#
+#     def _check_new_values(self, new_val, iv_col_name):
+#         """
+#         Checks that the new values are a pd.DataFrame or are vector-like.
+#
+#         If ``new_val`` is a dataframe, it must have a a column of numeric values named after the independent variable
+#         """
+#         if isinstance(new_val, pd.DataFrame) and new_val.shape[1] > 1:
+#             if iv_col_name not in new_val._get_numeric_data().columns:
+#                 raise ValueError("'new_values' must have an column named '{}'.".format(iv_col_name))
+#             else:
+#                 return new_val, list(set(new_val.columns) - {iv_col_name})
+#         elif _is_vector_like(new_val):
+#             return pd.DataFrame(_convert_vector_like_to_list(new_val), columns=[self._independent_variable_name]), []
+#         else:
+#             raise ValueError("'new_values' must be vector-like list of numbers or a pd.DataFrame.")
+#
+#     @staticmethod
+#     def _check_group_by(group_by, iv_dv_set):
+#         """Raise ValueError if group_by includes iv or dv columns"""
+#         if isinstance(group_by, str):
+#             group_by = [group_by]
+#         if _is_vector_like(group_by) and len(iv_dv_set.intersection(_convert_vector_like_to_set(group_by))) == 0:
+#             return _convert_vector_like_to_list(group_by)
+#         elif group_by is not None:
+#             raise ValueError("group_by must be a column name or list of column names and cannot have the "
+#                              "independent or dependent variable columns' names.")
+#
+#     # properties
+#     @property
+#     def new_values(self):
+#         return self._new_values
+#
+#     @new_values.setter
+#     def new_values(self, v):
+#         self._set_new_values(v)
+#
+#     def _set_new_values(self, val):
+#         new_val, _extra_cols = self._check_new_values(val, self._independent_variable_name)
+#         has_extra_cols = len(_extra_cols) > 0
+#         self._transform = [self._transform_new_values_simple,
+#                            self._transform_new_values_extra_cols][has_extra_cols]
+#         self._get_new_values_per_group = [self._use_same_new_x_for_each_group,
+#                                           self._get_new_x_for_each_group][has_extra_cols]
+#         self._new_values = new_val
+#         self._new_val_extra_cols = _extra_cols
+#         self._new_val_has_extra_cols = has_extra_cols
+#
+#         if self._group_by is None and self._new_val_has_extra_cols:
+#             self._group_by = list(self._new_val_extra_cols)
+#         self._interpolate = [self._interpolation_in_groups,
+#                              self._interpolation_not_in_groups][self._group_by is None]
+#
+#     @property
+#     def interpolation_method_name(self):
+#         return self._interpolation_method_name
+#
+#     @interpolation_method_name.setter
+#     def interpolation_method_name(self, v):
+#         self._set_interpolation_method_name(v)
+#
+#     def _set_interpolation_method_name(self, v):
+#         self._interpolation_method_name = v
+#
+#     @property
+#     def _signature_params(self):
+#         return (self._independent_variable_name,
+#                 self._dependent_variable_name,
+#                 'DataFrame(shape={})'.format(self.new_values.shape)), \
+#                {'interpolation_method_name': 'cubic'}
+#
+#     @property
+#     def _get_params_dict(self):
+#         return {
+#             'new_values':  self.new_values,
+#             'interpolation_method_name': self.interpolation_method_name
+#         }
+#
+#     # transform
+#     def transform(self, x, **kwargs):
+#         """
+#         Interpolates, in a DataFrame, x, the values in numeric column(s) relative to new values of an independent
+#         variable.
+#
+#         Parameter
+#         ---------
+#         x: :class:`~pandas.DataFrame`
+#             The independent and dependent variables utilized to generate the interpolant.
+#
+#             The independent and dependent variable column names (specified at instantiation of this class) must be in x.
+#             The independent variable cannot have repeat values within the same group.
+#         """
+#         self._dependent_variable_names_in_x = self._parse_column_names(set(x.columns), set(self._dependent_variable_name))
+#         return self._transform(x)
+#
+#     def _transform_new_values_extra_cols(self, x):
+#         """
+#         Do interpolation when the new_values has additional columns annotating experimental conditions.
+#         """
+#         x_trimmed_rows = self._intersect_x_and_new_values_experimental_condition(x, self.new_values)
+#         x_extra_cols = list(set(x.columns) - self._iv_and_dv_names_set-self._dependent_variable_names_in_x)
+#         new_values = self._repeat_new_values_rows_for_every_unique_row_in_x_extra_cols(self.new_values, x_trimmed_rows)
+#         new_values_w_extra_cols_from_x = new_values.merge(x_trimmed_rows[x_extra_cols].drop_duplicates().reset_index(drop=True))
+#
+#         sort_by_columns = [self._independent_variable_name] + x_extra_cols
+#         prepped_x = new_values_w_extra_cols_from_x.merge(x, how='outer').\
+#             sort_values(sort_by_columns).set_index(self._independent_variable_name)
+#         return self._interpolate(prepped_x, new_values) # x_trimmed_rows, x_extra_cols)
+#
+#     def _transform_new_values_simple(self, x):
+#         # new_values is one group
+#         x_extra_cols = list(set(x.columns) - self._iv_and_dv_names_set-self._dependent_variable_names_in_x)
+#         new_values = self._repeat_new_values_rows_for_every_unique_row_in_x_extra_cols(self.new_values, x)
+#         if len(x_extra_cols) != 0:
+#             new_values_w_extra_cols_from_x = new_values.merge(x[x_extra_cols].drop_duplicates().reset_index(drop=True))
+#         else:
+#             new_values_w_extra_cols_from_x = new_values
+#
+#         sort_by_columns = [self._independent_variable_name] + x_extra_cols
+#         prepped_x = new_values_w_extra_cols_from_x.merge(x, how='outer').\
+#             sort_values(sort_by_columns).set_index(self._independent_variable_name)
+#         return self._interpolate(prepped_x, new_values)  # x, x_extra_cols)
+#
+#     def _repeat_new_values_rows_for_every_unique_row_in_x_extra_cols(self, new_values, x_):
+#         mentioned_cols = self._iv_and_dv_names_set | self._dependent_variable_names_in_x | set(self._new_val_extra_cols)
+#         if self._group_by is not None:
+#             mentioned_cols |= set(self._group_by)
+#
+#         unmentioned_cols_in_x = set(x_.columns) - mentioned_cols
+#         if len(unmentioned_cols_in_x) != 0:
+#             x_unmentioned_cols = x_[list(unmentioned_cols_in_x)].drop_duplicates().reset_index(drop=True)
+#             len_x = len(x_unmentioned_cols)
+#             len_nv = len(new_values)
+#
+#             nv_repeated = x_unmentioned_cols.iloc[np.tile(range(len_x), len_nv)].reset_index(drop=True)
+#             nv_repeated[new_values.columns] = new_values.iloc[np.repeat(range(len_nv), len_x)].reset_index(drop=True)
+#             return nv_repeated
+#         else:
+#             return new_values
+#
+#     def _intersect_x_and_new_values_experimental_condition(self, x, new_val):
+#         """
+#         Get the rows of x that have experimental-conditions in common with those present in ``self.new_values``
+#         """
+#         try:
+#             return pd.merge(x, new_val, on=self._new_val_extra_cols, suffixes=('', '_y'))[x.columns]\
+#                 .drop_duplicates().reset_index(drop=True)
+#         except KeyError as error:
+#             raise KeyError("'new_values' contains columns not present in x: " + _list_the_errors(error.args))
+#
+#     def _interpolation_not_in_groups(self, prepped_x, new_values):  # x, x_extra_cols):
+#         """run the interpolation on the whole dataframe x"""
+#         x_interpolated = prepped_x.transform(pd.DataFrame.interpolate, **{'method': 'values'}).reset_index()
+#         return x_interpolated.merge(new_values)
+#
+#         # if len(x_extra_cols) == 0:
+#         #     return self._interpolate_values_no_repeats(x, self.new_values)
+#         # else:
+#         #     return self._interpolate_values_w_repeats(x, self.new_values, x_extra_cols)
+#
+#     def _interpolation_in_groups(self, prepped_x, new_values):  # , x_extra_cols):
+#         """group x by the group column(s) and run the interpolation for every group"""
+#         x_interpolated = prepped_x.groupby(self._group_by).transform(pd.DataFrame.interpolate,
+#                                                                      **{'method': 'values'})
+#
+#         x_interpolated[self._group_by] = prepped_x[self._group_by]
+#         return new_values.merge(x_interpolated.reset_index())
+#
+#         # interpolation_result = pd.DataFrame()
+#         # for name, group in x.groupby(self._group_by):
+#         #     # rows of new_x present in group's extra columns
+#         #     new_x_for_this_group = self._get_new_values_per_group(group, x_extra_cols)
+#         #     group_interpolation_result = self._interpolate_values_w_repeats(group, new_x_for_this_group, x_extra_cols)
+#         #     interpolation_result = pd.concat([interpolation_result, group_interpolation_result],
+#         #                                      ignore_index=True, sort=False)
+#         # return interpolation_result
+#
+#     def _get_new_x_for_each_group(self, group, x_extra_cols):
+#         # rows of new_x present in group
+#         return self._intersect_x_and_new_values_experimental_condition(self.new_values, group[x_extra_cols])
+#
+#     def _use_same_new_x_for_each_group(self, *args):
+#         return self.new_values
+#
+#     def _interpolate_values_w_repeats(self, x, new_x, x_extra_cols):
+#         """
+#         If x's additional columns have multiple unique rows, repeat the interpolation for each unique row.
+#
+#         This prevents any loss of extraneous information. Do this for *all* DataFrames that have additional columns.
+#         """
+#         len_unique_ec_rows_x = x[x_extra_cols].drop_duplicates().shape[0]
+#         range_unique_ec_rows_x = range(len_unique_ec_rows_x)
+#         len_new_x = new_x.shape[0]
+#
+#         new_x_for_interpolation = x[x_extra_cols].iloc[
+#             np.tile(range_unique_ec_rows_x, len_new_x)].reset_index(drop=True)
+#
+#         new_x_for_interpolation[self._independent_variable_name] = np.repeat(
+#             new_x[self._independent_variable_name].values, len_unique_ec_rows_x)
+#
+#         return self._interpolate_values_no_repeats(x, new_x_for_interpolation)
+#
+#     def _interpolate_values_no_repeats(self, x, new_x):
+#         """If the only x only has 'iv' and 'dv', do not try to do repeats of the interpolation."""
+#         for dv in self._dependent_variable_names_in_x:
+#             try:
+#                 cubic_spline_fn = interp1d(x[self._independent_variable_name], x[dv],
+#                                            kind=self._interpolation_method_name)
+#
+#             except ValueError:  # If too few time-points in the simulation result, the model
+#                 self._interpolation_method_name = 'linear'
+#                 cubic_spline_fn = interp1d(x[self._independent_variable_name], x[dv],
+#                                            kind=self._interpolation_method_name)
+#
+#             new_x[dv] = new_x[self._independent_variable_name].apply(cubic_spline_fn)
+#         return new_x
 
 
 def _threshold_fit(X, y, alpha, n_class, mode='SE',
@@ -1398,6 +1674,15 @@ class Scale(Transform):
             raise ValueError(
                 "'scale_fn' must be callable or a str in 'scale_functions'. '{}' is neither.".format(scale_fn)
             )
+
+    @property
+    def _signature_params(self):
+        sig_dict = {'columns': self._columns,
+                    'groupby': self._group_by,
+                    'keep_old_columns': self.keep_old_columns,
+                    'scale_fn': self.scale_fn}
+        sig_dict.update(self.scale_fn_kwargs)
+        return (), sig_dict
 
     @property
     def _get_params_dict(self):

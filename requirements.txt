@@ -1,7 +1,7 @@
 nose == 1.3.7
 numpy >= 1.15.0
 pysb >= 1.7.0
-pandas == 0.24.0
+pandas >= 0.24.0
 cython >= 0.28.5
 matplotlib >= 3.0.2
 scipy == 1.1.0

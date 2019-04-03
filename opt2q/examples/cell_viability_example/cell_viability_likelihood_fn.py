@@ -49,7 +49,7 @@ noise = NoiseModel(param_mean=param_m, param_covariance=param_cov)
 parameters = noise.run()
 
 # ------- Simulate dynamics -------
-sim = Simulator(model=model, param_values=parameters, solver='cupsoda', solver_options={'gpu': 2})   #, integrator_options={'memory_usage': 'global'})
+sim = Simulator(model=model, param_values=parameters, solver='cupsoda', solver_options={'gpu': 2})
 results = sim.run(np.linspace(0, 5000, 100))
 
 # ------- Measurement model -------

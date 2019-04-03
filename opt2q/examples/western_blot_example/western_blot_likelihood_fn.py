@@ -19,7 +19,8 @@ western_blot = pd.read_csv(file_path)
 western_blot['time'] = western_blot['time'].apply(lambda x: x*3600)  # Convert to [s] (as is in the PySB model).
 
 # ------- Noise Model --------
-noise_model_sample_size = 500
+n =500
+noise_model_sample_size = n
 
 # Params
 ligand = pd.DataFrame([['L_0',   600,  10, False],      # 'TRAIL_conc' column annotates experimental treatments
@@ -72,7 +73,7 @@ western_blot_models = {ec: WesternBlot(simulation_result=results,
                        for ec in experimental_conditions}
 
 for ec in experimental_conditions:
-    western_blot_models[ec].process.set_params(sample_average__sample_size=200, sample_average__noise_term=1000)
+    western_blot_models[ec].process.set_params(sample_average__sample_size=n, sample_average__noise_term=1000)
     western_blot_models[ec].process.get_step('classifier').do_fit_transform = True
 
 sim_wb_results = {ec: western_blot_models[ec].run() for ec in experimental_conditions}

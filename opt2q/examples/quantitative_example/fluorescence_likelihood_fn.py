@@ -3,7 +3,7 @@ import os
 import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
-from opt2q.examples.apoptosis_model import model
+from opt2q.examples.apoptosis_model_ import model
 from opt2q.simulator import Simulator
 from opt2q.measurement import Fluorescence
 from opt2q.data import DataSet
@@ -26,7 +26,8 @@ dataset.measurement_error_df = fluorescence_data[['nrm_var_IC-RP', 'nrm_var_EC-R
 
 # ------- Parameters --------
 # The model is sensitive to these parameters
-parameters = pd.DataFrame([[1e4, 1e-2, 1e-2, 1e-6, 1e-6]], columns=['C_0', 'kc3', 'kc4', 'kf3', 'kf4'])
+parameters = pd.DataFrame([[1.0e-05, 1.0e-02, 3.0e-08, 1.0e-02, 1.0e-06, 1.0e-06]],
+                          columns=['kc0', 'kc2', 'kf3', 'kc3', 'kf4', 'kr7'])
 
 # ------- Dynamics -------
 sim = Simulator(model=model, param_values=parameters, solver='scipyode')
@@ -35,21 +36,23 @@ results = sim.run(np.linspace(0, 21600, 100))
 # ------- Measurement -------
 fl = Fluorescence(results,
                   dataset=dataset,
-                  measured_values={'norm_IC-RP': ['Caspase_obs'],
+                  measured_values={'norm_IC-RP': ['BID_obs'],
                                    'norm_EC-RP': ['cPARP_obs']},
-                  observables=['Caspase_obs', 'cPARP_obs'])
+                  observables=['BID_obs', 'cPARP_obs'])
 measurement_results = fl.run()
 
 
 @objective_function(simulator=sim, measurement_model=fl, return_results=False, evals=0)
 def likelihood_fn(x):
-    C_0 = 10 ** x[0]        # :  [( 2, 6),   # float  C_0
-    kc3 = 10 ** x[1]        # :   (-2, 4),   # float  kc3
-    kc4 = 10 ** x[2]        # :   (-2, 4),   # float  kc4
-    kf3 = 10 ** x[3]        # :   (-8,-4),   # float  kf3
-    kf4 = 10 ** x[4]        # :   (-8,-4)],  # float  kf4
+    kc0 = 10 ** x[0]        # :  [(-8,  -2),   # float  kc0
+    kc2 = 10 ** x[1]        # :   (-5,   1),   # float  kc2
+    kf3 = 10 ** x[2]        # :   (-11, -5),   # float  kf3
+    kc3 = 10 ** x[3]        # :   (-5,   1),   # float  kc3
+    kf4 = 10 ** x[4]        # :   (-10, -2),   # float  kf4
+    kr7 = 10 ** x[5]        # :   (-8,   4)],  # float  kr7
 
-    params = pd.DataFrame([[C_0, kc3, kc4, kf3, kf4]], columns=['C_0', 'kc3', 'kc4', 'kf3', 'kf4'])
+    params = pd.DataFrame([[kc0, kc2, kf3, kc3, kf4, kr7]],
+                          columns=['kc0', 'kc2', 'kf3', 'kc3', 'kf4', 'kr7'])
     likelihood_fn.simulator.param_values = params
 
     # dynamics

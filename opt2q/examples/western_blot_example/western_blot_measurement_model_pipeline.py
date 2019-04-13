@@ -11,7 +11,7 @@ from opt2q.data import DataSet
 from opt2q.noise import NoiseModel
 from opt2q.simulator import Simulator
 from opt2q.measurement import WesternBlot
-from opt2q.examples.apoptosis_model import model
+from opt2q.examples.apoptosis_model_ import model
 
 
 # ======= Measurement Model Pipeline ========
@@ -31,25 +31,26 @@ ligand = pd.DataFrame([['L_0',   600,  10, False],      # 'TRAIL_conc' column an
                        ['L_0', 15000, 250, False]],
                       columns=['param', 'value', 'TRAIL_conc', 'apply_noise'])
 
-C_0, kc3, kc4, kf3, kf4 = (1e4, 1e-2, 1e-2, 1e-6, 1e-6)
-k_values = pd.DataFrame([['kc3', kc3, False],
-                         ['kc4', kc4, False],
-                         ['kf3', kf3, True],
-                         ['kf4', kf4, True],
-                         ['C_0', C_0, True]],
+kc0, kc2, kf3, kc3, kf4, kr7 = (1.0e-05, 1.0e-02, 3.0e-08, 1.0e-02, 1.0e-06, 1.0e-02)
+k_values = pd.DataFrame([['kc0', kc0, True],
+                         ['kc2', kc2, True],   # co-vary with kc3
+                         ['kf3', kf3, False],
+                         ['kc3', kc3, True],
+                         ['kf4', kf4, False],
+                         ['kr7', kr7, False]],
                         columns=['param', 'value', 'apply_noise'])\
     .iloc[np.repeat(range(5), 3)]                       # Repeat for each of the 3 experimental treatments
 k_values['TRAIL_conc'] = np.tile([10, 50, 250], 5)      # Repeat for each of the 5 parameter
 param_means = pd.concat([ligand, k_values], sort=False)
 
-kf3_cv, kf4_cv, kf3_kf4_cor = (0.2, 0.2, 0.25)
-kf3_var, kf4_var, kf3_kf4_covariance = ((kf3 * kf3_cv) ** 2, (kf4 * kf4_cv) ** 2, kf3 * kf3_cv * kf4 * kf4_cv * kf3_kf4_cor)
-param_variances = pd.DataFrame([['kf3', 'kf3', kf3_var],
-                                ['kf4', 'kf4', kf4_var],
-                                ['kf3', 'kf4', kf3_kf4_covariance]],  # Covariance between 'kf3' and kf4'
+kc2_cv, kc3_cv, kc2_kc3_cor = (0.2, 0.2, 0.25)
+kc2_var, kc3_var, kc2_kc3_cov = ((kc2 * kc2_cv) ** 2, (kc3 * kc3_cv) ** 2, kc2 * kc2_cv * kc3 * kc3_cv * kc2_kc3_cor)
+param_variances = pd.DataFrame([['kc2', 'kc2', kc2_var],
+                                ['kc3', 'kc3', kc3_var],
+                                ['kc2', 'kc3', kc2_kc3_cov]],  # Covariance between 'kf3' and kf4'
                                columns=['param_i', 'param_j', 'value'])
 
-NoiseModel.default_coefficient_of_variation = 0.25      # 'C_0' takes default variability of 25%
+NoiseModel.default_coefficient_of_variation = 0.25      # 'kc_0' takes default variability of 25%
 NoiseModel.default_sample_size = noise_model_sample_size
 
 # Noise Model
@@ -132,27 +133,30 @@ plt.show()
 
 # ------- plot parameters --------
 cm = plt.get_cmap('tab20b')
-fig, ax = plt.subplots(figsize=(4, 4))
-ax.hist(parameters['C_0'], bins=20, alpha=0.4, density=True, color=cm.colors[12])
+fig, ax = plt.subplots(figsize=(5, 5))
+ax.hist(parameters['kc0'], bins=20, alpha=0.4, density=True, color=cm.colors[12])
 ax.tick_params(axis='y',
                which='both',
                left=False,
                labelleft=False)
-plt.xlabel('Caspase copies per cell')
-plt.title('Simulated variability in Caspase parameter')
+ax.set_xticklabels([0.5, 1.0, 1.5, 2.0])
+plt.xlim(4e-6, 2.25e-5)
+plt.xticks([5.0e-6, 1.0e-5, 1.5e-5, 2.0e-5])
+plt.xlabel('kc0 •1e-6 [1/s]')
+plt.title('Simulated variability in DISC formation parameter, kc0')
 plt.show()
 
 fig2, ax = plt.subplots(figsize=(5, 5))
-parameters[['kf3', 'kf4']].plot.scatter(x='kf3', y='kf4', color=cm.colors[12], alpha=0.1, ax=ax)
+parameters[['kc2', 'kc3']].plot.scatter(x='kc2', y='kc3', color=cm.colors[12], alpha=0.1, ax=ax)
 ax.set_xticklabels([0.5, 1.0, 1.5, 2.0])
 ax.set_yticklabels([0.5, 1.0, 1.5, 2.0])
-plt.title("Simulated co-varying kf3 and kf4 parameters")
-plt.xlim(4e-7, 2.25e-6)
-plt.ylim(4e-7, 2.25e-6)
-plt.xlabel('kf3 [•1e-6]')
-plt.ylabel('kf4 [•1e-6]')
-plt.xticks([5.0e-7, 1.0e-6, 1.5e-6, 2.0e-6])
-plt.yticks([5.0e-7, 1.0e-6, 1.5e-6, 2.0e-6])
+plt.title("Simulated co-varying kc2 and kc3 parameters")
+plt.xlim(4e-3, 2.25e-2)
+plt.ylim(4e-3, 2.25e-2)
+plt.xlabel('kc2 •1e-2 [1/s]')
+plt.ylabel('kc3 •1e-2 [1/s]')
+plt.xticks([5.0e-3, 1.0e-2, 1.5e-2, 2.0e-2])
+plt.yticks([5.0e-3, 1.0e-2, 1.5e-2, 2.0e-2])
 plt.show()
 
 # ------- plot dynamics -------
@@ -275,8 +279,8 @@ for i, ec in enumerate(experimental_conditions):
     western_blot_models[ec].process.set_params(
         classifier__do_fit_transform=False)  # Important for out-of-sample calculations
     western_blot_models[ec].process.remove_step('sample_average')
-    measurement_model_x = pd.DataFrame({'PARP_obs': np.linspace(0, 100000, 100),
-                                        'cPARP_obs': np.linspace(0, 100000, 100)})
+    measurement_model_x = pd.DataFrame({'PARP_obs': np.linspace(0, 1000000, 100),
+                                        'cPARP_obs': np.linspace(0, 1000000, 100)})
     measurement_model_x['TRAIL_conc'] = 10  # needs a column in common with the data
     measurement_model_y = western_blot_models[ec].process.transform(measurement_model_x)
 
@@ -291,8 +295,8 @@ for i, ec in enumerate(experimental_conditions):
     western_blot_models[ec].process.set_params(
         classifier__do_fit_transform=False)  # Important for out-of-sample calculations
     western_blot_models[ec].process.remove_step('sample_average')
-    measurement_model_x = pd.DataFrame({'PARP_obs': np.linspace(0, 100000, 100),
-                                        'cPARP_obs': np.linspace(0, 100000, 100)})
+    measurement_model_x = pd.DataFrame({'PARP_obs': np.linspace(0, 1000000, 100),
+                                        'cPARP_obs': np.linspace(0, 1000000, 100)})
     measurement_model_x['TRAIL_conc'] = ec  # needs a column in common with the data
     measurement_model_y = western_blot_models[ec].process.transform(measurement_model_x)
 

@@ -6,11 +6,12 @@ from scipy.optimize import differential_evolution
 # Differential Evolution Optimization of likelihood fn
 x = differential_evolution(
         likelihood_fn,
-        bounds=[( 2, 6),   # float  C_0
-                (-2, 4),   # float  kc3
-                (-2, 4),   # float  kc4
-                (-8,-4),   # float  kf3
-                (-8,-4)],  # float  kf4
+        bounds=[(-8,  -2),   # float  kc0
+                (-5,   1),   # float  kc2
+                (-11, -5),   # float  kf3
+                (-5,   1),   # float  kc3
+                (-10, -2),   # float  kf4
+                (-8,   4)],  # float  kr7
         )
 
 print(x)

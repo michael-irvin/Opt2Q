@@ -11,8 +11,8 @@ import numpy as np
 from matplotlib import pyplot as plt
 from opt2q.examples.quantitative_example.fluorescence_likelihood_fn import fluorescence_data, likelihood_fn
 
-# calibrated_parameters = [2.35343618,  1.87440897, -0.61746058, -4.00650177, -4.22771324]
-calibrated_parameters = [3.75961027, -0.07102133,  0.12315658, -6.71231504, -7.59544621]
+calibrated_parameters = np.array([-3.61356002, -4.30641673, -6.18174898,  0.06471329, -8.59553348, -5.44259363])
+
 # ------- Data -------
 fluorescence_data_time_hrs = fluorescence_data['time'].apply(lambda x: x/3600)  # convert to hrs for plot.
 
@@ -35,8 +35,8 @@ sim_results_0 = likelihood_fn.simulator.run()
 measurement_results_0 = likelihood_fn.measurement_model.run()
 measurement_results_time_hrs = measurement_results_0['time'].apply(lambda x:x/3600)
 
-plt.plot(measurement_results_time_hrs, measurement_results_0['Caspase_obs'], '--',
-         color=cm.colors[0], alpha=0.5, label='Active Caspase (starting params)')
+plt.plot(measurement_results_time_hrs, measurement_results_0['BID_obs'], '--',
+         color=cm.colors[0], alpha=0.5, label='tBID (starting params)')
 plt.plot(measurement_results_time_hrs, measurement_results_0['cPARP_obs'], '--',
          color=cm.colors[1], alpha=0.5, label='cPARP (starting params)')
 
@@ -49,8 +49,8 @@ sim_results = likelihood_fn.simulator.run()
 likelihood_fn.measurement_model.update_simulation_result(sim_results)
 measurement_results_0 = likelihood_fn.measurement_model.run()
 
-plt.plot(measurement_results_time_hrs, measurement_results_0['Caspase_obs'],
-         color=cm.colors[0], alpha=0.5, label='Active Caspase')
+plt.plot(measurement_results_time_hrs, measurement_results_0['BID_obs'],
+         color=cm.colors[0], alpha=0.5, label='tBID')
 plt.plot(measurement_results_time_hrs, measurement_results_0['cPARP_obs'],
          color=cm.colors[1], alpha=0.5, label='cPARP')
 
@@ -70,11 +70,11 @@ results_df = results_df.reset_index()
 results_df_time_hrs = results_df['time'].apply(lambda x: x/3600)  # convert to hrs for plot
 
 fig = plt.figure()
-plt.plot(results_df_time_hrs, results_df['Caspase_obs'], color=cm.colors[0], alpha=0.5, label='calibrated params')
-plt.plot(results_df_time_hrs, results_df_0['Caspase_obs'], '--', color=cm.colors[0], alpha=0.5, label='starting params')
+plt.plot(results_df_time_hrs, results_df['BID_obs'], color=cm.colors[0], alpha=0.5, label='calibrated params')
+plt.plot(results_df_time_hrs, results_df_0['BID_obs'], '--', color=cm.colors[0], alpha=0.5, label='starting params')
 plt.xlabel('time [hrs]')
 plt.ylabel('protein [copies per cell]')
-plt.title('Simulation Results (Caspase Activity)')
+plt.title('Simulation Results (tBID)')
 plt.legend()
 plt.savefig('fig1.png')
 fig.show()

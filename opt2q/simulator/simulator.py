@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 from pysb.simulator import ScipyOdeSimulator, CupSodaSimulator
 from opt2q.utils import UnsupportedSimulatorError, incompatible_format_warning, CupSodaNotInstalledWarning
+import time
 
 try:
     from pysb.pathfinder import get_path
@@ -413,11 +414,18 @@ class Simulator(object):
         if param_values is not None:
             self.param_values = param_values
 
+        start_time = time.time()
         results = self.sim.run(tspan=self.tspan,
                                initials=self._initials_run,
                                param_values=self._param_values_run)
+        end_time = time.time()
+        print("--- cupsoda run: %s seconds ---" % (end_time - start_time))
 
+        start_time = time.time()
         results.opt2q_dataframe = self.opt2q_dataframe(results.dataframe)
+        end_time = time.time()
+        print("--- opt2q df: %s seconds ---" % (end_time - start_time))
+
         return results
 
     def opt2q_dataframe(self, df):

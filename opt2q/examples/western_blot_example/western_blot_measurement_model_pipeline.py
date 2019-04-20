@@ -58,7 +58,9 @@ noise = NoiseModel(param_mean=param_means, param_covariance=param_variances)
 parameters = noise.run()
 
 # ------- Dynamical Model -------
-sim = Simulator(model=model, param_values=parameters, solver='cupsoda')
+sim = Simulator(model=model, param_values=parameters, solver='cupsoda',
+                integrator_options={'n_blocks': 64, 'memory_usage': 'global', 'vol': 4e-15})
+
 results = sim.run(np.linspace(0, 32400, 100))
 
 # ------- Measurement Model -------
@@ -334,6 +336,7 @@ for i, ec in enumerate(experimental_conditions):
 
     fig.suptitle(f"Western Blot Measurement Model {ec} ng/mL TRAIL", x=0.5, y=1.0, va='top', size=20)
     gs.tight_layout(fig, rect=[0, 0.03, 1, 0.98])
+    plt.savefig(f"{i}plt.png")
     plt.show()
 
 # Plot simulated Western Blot

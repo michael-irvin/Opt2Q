@@ -56,7 +56,9 @@ noise = NoiseModel(param_mean=param_means, param_covariance=param_variances)
 parameters = noise.run()
 
 # ------- Dynamical Model -------
-sim = Simulator(model=model, param_values=parameters, solver='cupsoda')
+sim = Simulator(model=model, param_values=parameters, solver='cupsoda',
+                integrator_options={'n_blocks': 64, 'memory_usage': 'global', 'vol': 4e-15})
+
 results = sim.run(np.linspace(0, 32400, 100))
 
 # ------- Measurement Model -------
@@ -85,9 +87,6 @@ sim_wb_results = {ec: western_blot_models[ec].run() for ec in experimental_condi
 @objective_function(noise_model=noise, simulator=sim, measurement_models=western_blot_models, return_results=False, evals=0)
 def likelihood_fn(x):
 
-    print(likelihood_fn.evals)
-    print(x)
-
     kc0 = 10 ** x[0]    # :  [(-8,  -2),   # float  kc0
     kc2 = 10 ** x[1]    # :   (-5,   1),   # float  kc2
     kf3 = 10 ** x[2]    # :   (-11, -5),   # float  kf3
@@ -104,7 +103,7 @@ def likelihood_fn(x):
     kc2_kc3_covariance = kc2 * kc2_cv * kc3 * kc3_cv * kc2_kc3_cor
 
     # noise model
-    start_time = time.time()
+    # start_time = time.time()
     ligand = pd.DataFrame([['L_0', 600, 10, False],  # 'TRAIL_conc' column annotates experimental treatments
                            ['L_0', 3000, 50, False],  # 600 copies per cell corresponds to 10 ng/mL TRAIL
                            ['L_0', 15000, 250, False]],
@@ -131,8 +130,8 @@ def likelihood_fn(x):
                                             param_covariance=new_params_cov)
 
     simulator_parameters = likelihood_fn.noise_model.run()
-    end_time = time.time()
-    print("--- noise model %s seconds ---" % (end_time - start_time))
+    # end_time = time.time()
+    # print("--- noise model %s seconds ---" % (end_time - start_time))
 
     # dynamical model
     start_time = time.time()
@@ -142,16 +141,18 @@ def likelihood_fn(x):
     print("--- dynamical model %s seconds ---" % (end_time - start_time))
 
     # measurement model
-    start_time = time.time()
+    # start_time = time.time()
     l = 0
     for key, measurement in likelihood_fn.measurement_models.items():
         measurement.update_simulation_result(sim_results)
         l += measurement.likelihood()
 
     likelihood_fn.evals += 1
-    end_time = time.time()
-    print("--- measurement model %s seconds ---" % (end_time - start_time))
-    print(l)
+    # end_time = time.time()
+    # print("--- measurement model %s seconds ---" % (end_time - start_time))
+    print(likelihood_fn.evals)
+    print(f"likelihood: {l}")
+    print(x)
 
     return l
 

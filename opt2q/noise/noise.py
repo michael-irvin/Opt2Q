@@ -404,7 +404,7 @@ class NoiseModel(object):
         Define the ``num_sims`` of the ``param_mean`` :class:`~pandas.DataFrame` or group as the default based on if
         ``apply_noise`` is True or not.
         """
-        group['num_sims'] = [1, self.default_sample_size][group.apply_noise.any()]
+        group['num_sims'] = self.default_sample_size if group.apply_noise.any() else 1
         return group
 
     @staticmethod

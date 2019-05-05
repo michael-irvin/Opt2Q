@@ -37,8 +37,8 @@ k_values = pd.DataFrame([['kc0', kc0, True],
                          ['kf4', kf4, False],
                          ['kr7', kr7, False]],
                         columns=['param', 'value', 'apply_noise'])\
-    .iloc[np.repeat(range(5), 3)]                       # Repeat for each of the 3 experimental treatments
-k_values['TRAIL_conc'] = np.tile([10, 50, 250], 5)      # Repeat for each of the 5 parameter
+    .iloc[np.repeat(range(6), 3)]                       # Repeat for each of the 3 experimental treatments
+k_values['TRAIL_conc'] = np.tile([10, 50, 250], 6)      # Repeat for each of the 5 parameter
 param_means = pd.concat([ligand, k_values], sort=False)
 
 kc2_cv, kc3_cv, kc2_kc3_cor = (0.2, 0.2, 0.25)
@@ -87,11 +87,11 @@ sim_wb_results = {ec: western_blot_models[ec].run() for ec in experimental_condi
 @objective_function(noise_model=noise, simulator=sim, measurement_models=western_blot_models, return_results=False, evals=0)
 def likelihood_fn(x):
 
-    kc0 = 10 ** x[0]    # :  [(-8,  -2),   # float  kc0
+    kc0 = 10 ** x[0]    # :  [(-7,  -3),   # float  kc0
     kc2 = 10 ** x[1]    # :   (-5,   1),   # float  kc2
-    kf3 = 10 ** x[2]    # :   (-11, -5),   # float  kf3
+    kf3 = 10 ** x[2]    # :   (-11, -6),   # float  kf3
     kc3 = 10 ** x[3]    # :   (-5,   1),   # float  kc3
-    kf4 = 10 ** x[4]    # :   (-10, -2),   # float  kf4
+    kf4 = 10 ** x[4]    # :   (-10, -4),   # float  kf4
     kr7 = 10 ** x[5]    # :   (-8,   4),   # float  kr7
 
     kc2_cv = x[6]       # :   (0, 1),      # float  kc2_cv
@@ -116,8 +116,8 @@ def likelihood_fn(x):
                              ['kf4', kf4, False],
                              ['kr7', kr7, False]],
                             columns=['param', 'value', 'apply_noise']) \
-        .iloc[np.repeat(range(5), 3)]  # Repeat for each of the 3 experimental treatments
-    k_values['TRAIL_conc'] = np.tile([10, 50, 250], 5)  # Repeat for each of the 5 parameter
+        .iloc[np.repeat(range(6), 3)]  # Repeat for each of the 3 experimental treatments
+    k_values['TRAIL_conc'] = np.tile([10, 50, 250], 6)  # Repeat for each of the 5 parameter
 
     new_params = pd.concat([ligand, k_values], sort=False)
 

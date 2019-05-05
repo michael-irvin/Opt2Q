@@ -5,14 +5,15 @@ from matplotlib import pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.gridspec import GridSpec
 
-from opt2q.examples.apoptosis_model import model
+from opt2q.examples.apoptosis_model_ import model
 from opt2q.noise import NoiseModel
 from opt2q.simulator import Simulator
 from opt2q.examples.western_blot_example.western_blot_likelihood_fn import likelihood_fn, param_means
 from decimal import Decimal
 
-calibrated_parameters = [3.75961027, -0.07102133,  0.12315658, -6.71231504,
-                         -7.59544621, 0.36464246,  0.28572696,  0.46962568]
+
+calibrated_parameters = [-3.60467941, -0.38469258, -5.88974386, -2.20091485, -2.49022636,
+                         -7.09583405, 0.29699746, 0.85080678, -0.33342348]
 
 # ======== Starting Parameters ========
 param_means['apply_noise'] = False
@@ -22,20 +23,39 @@ noise_model = NoiseModel(param_mean=param_means)
 starting_params = noise_model.run()
 
 # ========= Calibrated Parameters w/o Noise added ==========
-C_0, kc3, kc4, kf3, kf4 = (10**x for x in calibrated_parameters[:5])
+x = calibrated_parameters
+kc0 = 10 ** x[0]    # :  [(-7,  -3),   # float  kc0
+kc2 = 10 ** x[1]    # :   (-5,   1),   # float  kc2
+kf3 = 10 ** x[2]    # :   (-11, -6),   # float  kf3
+kc3 = 10 ** x[3]    # :   (-5,   1),   # float  kc3
+kf4 = 10 ** x[4]    # :   (-10, -4),   # float  kf4 (The simulator is sensitive to high values).
+kr7 = 10 ** x[5]    # :   (-8,   4),   # float  kr7
+
+kc2_cv = x[6]       # :   (0, 1),      # float  kc2_cv
+kc3_cv = x[7]       # :   (0, 1),      # float  kc3_cv
+kc2_kc3_cor = x[8]  # :   (-1, 1)])    # float  kc2_kc3_cor
+
+kc2_var = (kc2 * kc2_cv) ** 2
+kc3_var = (kc3 * kc3_cv) ** 2
+kc2_kc3_covariance = kc2 * kc2_cv * kc3 * kc3_cv * kc2_kc3_cor
+
+# noise model
+# start_time = time.time()
 ligand = pd.DataFrame([['L_0', 600, 10, False],  # 'TRAIL_conc' column annotates experimental treatments
                        ['L_0', 3000, 50, False],  # 600 copies per cell corresponds to 10 ng/mL TRAIL
                        ['L_0', 15000, 250, False]],
                       columns=['param', 'value', 'TRAIL_conc', 'apply_noise'])
 
-k_values = pd.DataFrame([['kc3', kc3, False],
-                         ['kc4', kc4, False],
+k_values = pd.DataFrame([['kc0', kc0, True],
+                         ['kc2', kc2, True],  # co-vary with kc3
                          ['kf3', kf3, False],
+                         ['kc3', kc3, True],
                          ['kf4', kf4, False],
-                         ['C_0', C_0, False]],
+                         ['kr7', kr7, False]],
                         columns=['param', 'value', 'apply_noise']) \
     .iloc[np.repeat(range(5), 3)]  # Repeat for each of the 3 experimental treatments
 k_values['TRAIL_conc'] = np.tile([10, 50, 250], 5)  # Repeat for each of the 5 parameter
+
 new_params = pd.concat([ligand, k_values], sort=False)
 noise_model.update_values(param_mean=new_params)
 calibrated_params = noise_model.run()
@@ -55,12 +75,12 @@ for i, group in enumerate(sim_results_0.groupby('TRAIL_conc')):
     _df_n = sim_res_groups_n.get_group(label)
     time_hrs = _df['time'].apply(lambda x: x/3600.)
 
-    plt.plot(time_hrs, _df_n['Caspase_obs'], color=cm.colors[i], label=f'{label} ng/mL calibrated params')
-    plt.plot(time_hrs, _df['Caspase_obs'], '--', color=cm.colors[i], label=f'{label} ng/mL starting params')
+    plt.plot(time_hrs, _df_n['BID_obs'], color=cm.colors[i], label=f'{label} ng/mL calibrated params')
+    plt.plot(time_hrs, _df['BID_obs'], '--', color=cm.colors[i], label=f'{label} ng/mL starting params')
 
 plt.xlabel('time [hrs]')
 plt.ylabel('protein [copies per cell]')
-plt.title('Simulation Results (Caspase Activity)')
+plt.title('Simulation Results (Bid Truncation)')
 plt.legend()
 fig.show()
 
@@ -71,7 +91,6 @@ for i, group in enumerate(sim_results_0.groupby('TRAIL_conc')):
     _df_n = sim_res_groups_n.get_group(label)
     time_hrs = _df['time'].apply(lambda x: x / 3600.)
 
-    print(_df_n['cPARP_obs'].shape)
     plt.plot(time_hrs, _df_n['cPARP_obs'], color=cm.colors[i], label=f'{label} ng/mL calibrated params')
     plt.plot(time_hrs, _df['cPARP_obs'], '--', color=cm.colors[i], label=f'{label} ng/mL starting params')
 
@@ -80,6 +99,8 @@ plt.ylabel('protein [copies per cell]')
 plt.title('Simulation Results (cPARP)')
 plt.legend()
 fig.show()
+
+quit()
 
 # ======= Calibrated Parameters ========
 # Model results with the Starting Parameters are plotted in

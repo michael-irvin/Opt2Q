@@ -1308,11 +1308,13 @@ class LogisticClassifier(Transform):
         Runs the logistic regression
         """
 
+        print("LR _transform_get_columns")
         columns_set, columns_dict = self._transform_get_columns(x)  # Todo: xcol needs consistent order!
         x_extra_columns = set(x.columns) - columns_set
         y_cols = list(self._columns_dict.keys())
 
         if self.do_fit_transform or self._logistic_models_dict == dict():
+            print("LR do fit transform")
             y_extra_columns = set(y.columns) - set(y_cols)
             combined_x_y = self._prep_data(x, y, y_cols, x_extra_columns, y_extra_columns)
 
@@ -1322,14 +1324,17 @@ class LogisticClassifier(Transform):
                 self._results_columns_dict.update(
                     {y_col: ['{}__{}'.format(str(y_col), cat) for cat in np.unique(combined_x_y[y_col])]})
         else:
+            print("LR don't do fit transform")
             combined_x_y = x
             combined_x_y[y_cols] = pd.DataFrame(columns=y_cols)
 
         # do transform
         result_df = pd.DataFrame()
         for y_col, x_col in columns_dict.items():
+            print("LR get transform model ", y_col)
             # get model
             model = self._transform_get_logistic_model(combined_x_y[x_col], combined_x_y[y_col], y_col)
+            print("LR predict probabilities ", y_col)
             # predict results
             results = model.predict_proba(combined_x_y[x_col])
             result_df[self._results_columns_dict[y_col]] = pd.DataFrame(results,
@@ -2353,9 +2358,7 @@ class Pipeline(Transform):
         """
         xt = x
         for name, transformation in self.steps:
-            print("running ", name)
             xt = transformation.transform(xt, name=name)
-            print(name, " completing")
             # Note: All transformations must have a run method. If they are sub-class of process, they will.
         return xt
 

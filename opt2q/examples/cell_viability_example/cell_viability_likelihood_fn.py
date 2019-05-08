@@ -12,6 +12,8 @@ from opt2q.measurement.base.functions import derivative, where_max, polynomial_f
 from opt2q.measurement import FractionalKilling
 from opt2q.calibrator import objective_function
 from opt2q.data import DataSet
+from multiprocessing import current_process
+
 
 sample_size = 300
 
@@ -57,7 +59,7 @@ noise = NoiseModel(param_mean=param_m, param_covariance=param_cov)
 parameters = noise.run()
 
 # ------- Simulate dynamics -------
-sim = Simulator(model=model, param_values=parameters, solver='cupsoda', solver_options={'gpu': 2})
+sim = Simulator(model=model, param_values=parameters, solver='cupsoda')  #, solver_options={'gpu': [0, 1, 2, 3]})
 results = sim.run(np.linspace(0, 5000, 100))
 
 # ------- Measurement model -------
@@ -80,7 +82,6 @@ fk.run()
 # -------- likelihood function -----------
 @objective_function(noise_model=noise, simulator=sim, measurement_model=fk, return_results=False, evals=0)
 def likelihood_fn(x):
-
     kc0_ = 10 ** x[0]                           # :  [(-7,  -3),    float  kc0
     kc2_ = 10 ** x[1]                           # :   (-5,   1),    float  kc2
     kf3_ = 10 ** x[2]                           # :   (-11, -6),    float  kf3
@@ -98,6 +99,9 @@ def likelihood_fn(x):
                                 x[12],         # :  (-100, 100),   float
                                 x[13]]])       # :  (-100, 100),   float
     viability_intercept = np.array([x[14]])    # :  (-10, 10)]     float
+
+    # Each process selects one of the 4 gpu
+    process_id = current_process().ident % 4
 
     k_val = pd.DataFrame([['kc0', kc0_, True],
                           ['kc2', kc2_, True],  # co-vary with kc3
@@ -130,6 +134,7 @@ def likelihood_fn(x):
     simulator_parameters = likelihood_fn.noise_model.run()
     likelihood_fn.simulator.param_values = simulator_parameters
 
+    likelihood_fn.simulator.sim.gpu = [process_id]
     sim_results = likelihood_fn.simulator.run(np.linspace(0, 5000, 100))
     likelihood_fn.measurement_model.update_simulation_result(sim_results)
     likelihood_fn.measurement_model.process.set_params(**measurement_model_params)

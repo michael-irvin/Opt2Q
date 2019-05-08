@@ -52,7 +52,7 @@ def likelihood(x):
     return -likelihood_fn(x)
 
 
-n_chains = 5
+n_chains = 4
 n_iterations = 10000
 model_name = 'PyDream_CellViability_20190507'
 

@@ -9,6 +9,7 @@ from opt2q.measurement import Fluorescence
 from opt2q.data import DataSet
 from opt2q.calibrator import objective_function
 
+
 # ------- Data -------
 script_dir = os.path.dirname(__file__)
 file_path = os.path.join(script_dir, 'fluorescence_data.csv')

@@ -134,11 +134,9 @@ def likelihood_fn(x):
     simulator_parameters = likelihood_fn.noise_model.run()
     likelihood_fn.simulator.param_values = simulator_parameters
 
-    print("simulating dynamics")
     likelihood_fn.simulator.sim.gpu = [process_id]
     sim_results = likelihood_fn.simulator.run(np.linspace(0, 5000, 100))
 
-    print("simulating measurement")
     likelihood_fn.measurement_model.update_simulation_result(sim_results)
     likelihood_fn.measurement_model.process.set_params(**measurement_model_params)
 

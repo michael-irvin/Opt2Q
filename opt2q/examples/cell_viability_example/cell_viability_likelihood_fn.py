@@ -15,7 +15,7 @@ from opt2q.data import DataSet
 from multiprocessing import current_process
 
 
-sample_size = 300
+sample_size = 30
 
 # ------- Data -------
 script_dir = os.path.dirname(__file__)

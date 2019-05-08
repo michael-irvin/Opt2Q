@@ -139,6 +139,13 @@ class Simulator(object):
             if 'max_steps' in self.solver_kwargs['integrator_options'].keys():
                 self.solver_kwargs['integrator_options'].\
                     update({'mxstep': self.solver_kwargs['integrator_options'].pop('max_steps')})
+
+            for cupsoda_setting in {'n_blocks', 'memory_usage', 'vol', 'gpu'}:  # drop all cupsoda only terms
+                if cupsoda_setting in self.solver_kwargs['integrator_options'].keys():
+                    self.solver_kwargs['integrator_options'].pop(cupsoda_setting)
+                if cupsoda_setting in self.solver_kwargs.keys():
+                    self.solver_kwargs.pop(cupsoda_setting)
+
             return self.supported_solvers['scipyode']
 
         try:
@@ -419,13 +426,7 @@ class Simulator(object):
         results = self.sim.run(tspan=self.tspan,
                                initials=self._initials_run,
                                param_values=self._param_values_run)
-        # end_time = time.time()
-        # print("--- cupsoda run: %s seconds ---" % (end_time - start_time))
-
-        # start_time = time.time()
         results.opt2q_dataframe = self.opt2q_dataframe(results.dataframe)
-        # end_time = time.time()
-        # print("--- opt2q df: %s seconds ---" % (end_time - start_time))
 
         return results
 

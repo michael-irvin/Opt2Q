@@ -728,7 +728,7 @@ class Fluorescence(MeasurementModel):
 
     def _get_likelihood(self):
         """
-        Return scalar value of the likelihood.
+        Return scalar value of the negative log-likelihood.
 
         Parameters
         ----------

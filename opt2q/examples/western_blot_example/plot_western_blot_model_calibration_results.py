@@ -8,18 +8,18 @@ from matplotlib.gridspec import GridSpec
 from opt2q.examples.apoptosis_model_ import model
 from opt2q.noise import NoiseModel
 from opt2q.simulator import Simulator
-from opt2q.examples.western_blot_example.western_blot_likelihood_fn import likelihood_fn, param_means
+from opt2q.examples.western_blot_example.western_blot_likelihood_fn import likelihood_fn, param_means, param_variances
 from decimal import Decimal
 
 
 calibrated_parameters = [-3.60467941, -0.38469258, -5.88974386, -2.20091485, -2.49022636,
-                         -7.09583405, 0.29699746, 0.85080678, -0.33342348]
+                         -7.09583405, 0.25, 0.25, 0.0]  # 0.29699746, 0.85080678, -0.33342348]
 
 # ======== Starting Parameters ========
 param_means['apply_noise'] = False
 param_means = param_means.reset_index(drop=True)
 
-noise_model = NoiseModel(param_mean=param_means)
+noise_model = NoiseModel(param_mean=param_means, param_covariance=param_variances)
 starting_params = noise_model.run()
 
 # ========= Calibrated Parameters w/o Noise added ==========
@@ -57,12 +57,17 @@ k_values = pd.DataFrame([['kc0', kc0, True],
 k_values['TRAIL_conc'] = np.tile([10, 50, 250], 5)  # Repeat for each of the 5 parameter
 
 new_params = pd.concat([ligand, k_values], sort=False)
-noise_model.update_values(param_mean=new_params)
+new_params_cov = pd.DataFrame([['kc2', 'kc2', kc2_var],
+                               ['kc3', 'kc3', kc3_var],
+                               ['kc2', 'kc3', kc2_kc3_covariance]],  # Covariance between 'kc2' and kc3'
+                              columns=['param_i', 'param_j', 'value'])
+
+noise_model.update_values(param_mean=new_params, param_covariance=new_params_cov)
 calibrated_params = noise_model.run()
 
 # -------- Simulator --------
-sim_results_0 = Simulator(model,tspan=np.linspace(0, 32400, 100), param_values=starting_params).run().opt2q_dataframe
-sim_results_n = Simulator(model,tspan=np.linspace(0, 32400, 100), param_values=calibrated_params).run().opt2q_dataframe
+sim_results_0 = Simulator(model, tspan=np.linspace(0, 32400, 100), param_values=starting_params).run().opt2q_dataframe
+sim_results_n = Simulator(model, tspan=np.linspace(0, 32400, 100), param_values=calibrated_params).run().opt2q_dataframe
 
 # -------- Plot Simulation Results wo Normalization -------
 cm = plt.get_cmap('Accent')
@@ -100,8 +105,6 @@ plt.title('Simulation Results (cPARP)')
 plt.legend()
 fig.show()
 
-quit()
-
 # ======= Calibrated Parameters ========
 # Model results with the Starting Parameters are plotted in
 # western_blot_measurement_model_pipeline.py
@@ -111,45 +114,45 @@ parameters = likelihood_fn.noise_model.run()
 
 # ------- plot parameters --------
 cm = plt.get_cmap('tab20b')
-fig, ax = plt.subplots(figsize=(4, 4))
-ax.hist(parameters['C_0'], bins=20, alpha=0.4, density=True, color=cm.colors[12])
-ax.tick_params(axis='y',
-               which='both',
-               left=False,
-               labelleft=False)
-plt.xlabel('Caspase copies per cell')
-plt.title('Simulated variability in Caspase parameter')
-plt.show()
+# fig, ax = plt.subplots(figsize=(4, 4))
+# ax.hist(parameters['C_0'], bins=20, alpha=0.4, density=True, color=cm.colors[12])
+# ax.tick_params(axis='y',
+#                which='both',
+#                left=False,
+#                labelleft=False)
+# plt.xlabel('Caspase copies per cell')
+# plt.title('Simulated variability in Caspase parameter')
+# plt.show()
 
-kf3_min, kf3_max = parameters['kf3'].min(), parameters['kf3'].max()
-kf4_min, kf4_max = parameters['kf4'].min(), parameters['kf4'].max()
-kf3_range = kf3_max -kf3_min
-kf4_range = kf4_max -kf4_min
+kc2_min, kc2_max = parameters['kc2'].min(), parameters['kc2'].max()
+kc3_min, kc3_max = parameters['kc3'].min(), parameters['kc3'].max()
+kc2_range = kc2_max - kc2_min
+kc3_range = kc3_max - kc3_min
 
-kf3_ticks = [kf3_min + 0.2 * kf3_range,
-             kf3_min + 0.4 * kf3_range,
-             kf3_min + 0.6 * kf3_range,
-             kf3_min + 0.8 * kf3_range]
-kf4_ticks = [kf4_min + 0.2 * kf4_range,
-             kf4_min + 0.4 * kf4_range,
-             kf4_min + 0.6 * kf4_range,
-             kf4_min + 0.8 * kf4_range]
+kc2_ticks = [kc2_min + 0.2 * kc2_range,
+             kc2_min + 0.4 * kc2_range,
+             kc2_min + 0.6 * kc2_range,
+             kc2_min + 0.8 * kc2_range]
+kc3_ticks = [kc3_min + 0.2 * kc3_range,
+             kc3_min + 0.4 * kc3_range,
+             kc3_min + 0.6 * kc3_range,
+             kc3_min + 0.8 * kc3_range]
 
-kf3_exp = len(Decimal(kf3_max).as_tuple()[1]) + Decimal(kf3_max).as_tuple()[2] - 1
-kf4_exp = len(Decimal(kf4_max).as_tuple()[1]) + Decimal(kf4_max).as_tuple()[2] - 1
+kc2_exp = len(Decimal(kc2_max).as_tuple()[1]) + Decimal(kc2_max).as_tuple()[2] - 1
+kc3_exp = len(Decimal(kc3_max).as_tuple()[1]) + Decimal(kc3_max).as_tuple()[2] - 1
 
 fig2, ax = plt.subplots(figsize=(5, 5))
-parameters[['kf3', 'kf4']].plot.scatter(x='kf3', y='kf4', color=cm.colors[12], alpha=0.1, ax=ax)
-ax.set_xticklabels(['%.2f'%Decimal(x/(10**kf3_exp)) for x in kf3_ticks])
-ax.set_yticklabels(['%.2f'%Decimal(x/(10**kf4_exp)) for x in kf4_ticks])
-plt.title("Simulated co-varying kf3 and kf4 parameters")
-plt.xlim(kf3_min, kf3_max)
-plt.ylim(kf4_min, kf4_max)
-plt.xlabel(f'kf3 [•1e{kf3_exp}]')
-plt.ylabel(f'kf4 [•1e{kf4_exp}]')
+parameters[['kc2', 'kc3']].plot.scatter(x='kc2', y='kc3', color=cm.colors[12], alpha=0.1, ax=ax)
+ax.set_xticklabels(['%.2f'%Decimal(x/(10**kc2_exp)) for x in kc2_ticks])
+ax.set_yticklabels(['%.2f'%Decimal(x/(10**kc3_exp)) for x in kc3_ticks])
+plt.title("Simulated co-varying kc2 and kc3 parameters")
+plt.xlim(kc2_min, kc2_max)
+plt.ylim(kc3_min, kc3_max)
+plt.xlabel(f'kc2 [•1e{kc2_exp}]')
+plt.ylabel(f'kc3 [•1e{kc2_exp}]')
 
-plt.xticks(kf3_ticks)
-plt.yticks(kf4_ticks)
+plt.xticks(kc2_ticks)
+plt.yticks(kc3_ticks)
 plt.show()
 
 # ------- plot dynamics -------
@@ -281,8 +284,8 @@ for i, ec in enumerate(experimental_conditions):
     western_blot_models[ec].process.set_params(
         classifier__do_fit_transform=False)  # Important for out-of-sample calculations
     western_blot_models[ec].process.remove_step('sample_average')
-    measurement_model_x = pd.DataFrame({'PARP_obs': np.linspace(0, 100000, 100),
-                                        'cPARP_obs': np.linspace(0, 100000, 100)})
+    measurement_model_x = pd.DataFrame({'PARP_obs': np.linspace(0, 1000000, 100),
+                                        'cPARP_obs': np.linspace(0, 1000000, 100)})
     measurement_model_x['TRAIL_conc'] = 10  # needs a column in common with the data
     measurement_model_y = western_blot_models[ec].process.transform(measurement_model_x)
 
@@ -297,8 +300,8 @@ for i, ec in enumerate(experimental_conditions):
     western_blot_models[ec].process.set_params(
         classifier__do_fit_transform=False)  # Important for out-of-sample calculations
     western_blot_models[ec].process.remove_step('sample_average')
-    measurement_model_x = pd.DataFrame({'PARP_obs': np.linspace(0, 100000, 100),
-                                        'cPARP_obs': np.linspace(0, 100000, 100)})
+    measurement_model_x = pd.DataFrame({'PARP_obs': np.linspace(0, 1000000, 100),
+                                        'cPARP_obs': np.linspace(0, 1000000, 100)})
     measurement_model_x['TRAIL_conc'] = ec  # needs a column in common with the data
     measurement_model_y = western_blot_models[ec].process.transform(measurement_model_x)
 

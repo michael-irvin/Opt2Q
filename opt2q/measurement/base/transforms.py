@@ -2353,6 +2353,7 @@ class Pipeline(Transform):
         """
         xt = x
         for name, transformation in self.steps:
+            print("running ", name)
             xt = transformation.transform(xt, name=name)
             # Note: All transformations must have a run method. If they are sub-class of process, they will.
         return xt

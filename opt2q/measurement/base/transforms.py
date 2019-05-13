@@ -1331,9 +1331,13 @@ class LogisticClassifier(Transform):
             # get model
             model = self._transform_get_logistic_model(combined_x_y[x_col], combined_x_y[y_col], y_col)
             # predict results
+            print("Predict Probability started")
             results = model.predict_proba(combined_x_y[x_col])
+            print("Predict Probability Ended. Result df started")
             result_df[self._results_columns_dict[y_col]] = pd.DataFrame(results,
                                                                         columns=self._results_columns_dict[y_col])
+
+            print("Result df ended")
 
         # add exp conditions
         result_df[list(x_extra_columns)] = combined_x_y[list(x_extra_columns)]

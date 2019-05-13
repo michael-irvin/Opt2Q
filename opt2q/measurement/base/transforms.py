@@ -1440,7 +1440,7 @@ class LogisticClassifier(Transform):
             return self._get_transform(logistic_model, x=x, y=y)
 
         except KeyError:  # will catch on first iteration.
-            logistic_model = self._get_transform_w_fit(self._classifier(), x=x, y=y, **self.classifier_kwargs)
+            logistic_model = self._get_transform_w_fit(self._classifier(**self.classifier_kwargs), x=x, y=y)
             self._logistic_models_dict.update({col: logistic_model})
             return logistic_model
 
@@ -1456,9 +1456,8 @@ class LogisticClassifier(Transform):
         """
         Return model after running model.fit(x, y)
         """
-        x = kwargs.pop('x')
-        y = kwargs.pop('y')
-        print(kwargs)
+        x = kwargs.get('x')
+        y = kwargs.get('y')
 
         logistic_model.fit(x, y, **kwargs)
         return logistic_model

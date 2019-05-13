@@ -13,10 +13,9 @@ from opt2q.measurement import FractionalKilling
 from opt2q.calibrator import objective_function
 from opt2q.data import DataSet
 from multiprocessing import current_process
-from sklearn.externals.joblib import Parallel
 
 
-sample_size = 200
+sample_size = 300
 
 # ------- Data -------
 script_dir = os.path.dirname(__file__)
@@ -126,7 +125,7 @@ def likelihood_fn(x):
                                      ['kc2', 'kc3', kc2_kc3_cov_]],  # Covariance between 'kf3' and kf4'
                                     columns=['param_i', 'param_j', 'value'])
 
-    measurement_model_params = {'classifier__coefficients__viability__coef_':viability_coef,
+    measurement_model_params = {'classifier__coefficients__viability__coef_': viability_coef,
                                 'classifier__coefficients__viability__intercept_': viability_intercept}
 
     likelihood_fn.noise_model.update_values(param_mean=param_mean,

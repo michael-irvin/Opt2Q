@@ -16,7 +16,7 @@ from multiprocessing import current_process
 from sklearn.externals.joblib import Parallel
 
 
-sample_size = 100
+sample_size = 200
 
 # ------- Data -------
 script_dir = os.path.dirname(__file__)

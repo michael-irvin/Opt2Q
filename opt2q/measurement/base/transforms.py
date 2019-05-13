@@ -1459,7 +1459,7 @@ class LogisticClassifier(Transform):
         x = kwargs.get('x')
         y = kwargs.get('y')
 
-        logistic_model.fit(x, y, **kwargs)
+        logistic_model.fit(x, y)
         return logistic_model
 
 

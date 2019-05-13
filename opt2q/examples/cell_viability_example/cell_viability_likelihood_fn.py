@@ -76,7 +76,7 @@ fk.process.add_step(('at_max_t', ScaleGroups(groupby='simulation', scale_fn=wher
 fk.process.add_step(('log10', Scale(columns='cPARP_obs', scale_fn='log10')), 2)
 fk.process.add_step(('polynomial', Scale(columns=['cPARP_obs', 'time'], scale_fn=polynomial_features, **{'degree': 2})),
                     'standardize')  # add after the 'standardize' step
-fk.process.get_step('classifier').n_jobs = 8  # set number of multiprocessing jobs
+fk.process.get_step('classifier').n_jobs = 4  # set number of multiprocessing jobs
 fk.run()
 
 

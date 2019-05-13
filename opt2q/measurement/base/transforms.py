@@ -10,6 +10,9 @@ from scipy import optimize
 from sklearn.utils.validation import check_X_y
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.linear_model import LogisticRegression
+from sklearn.externals.joblib import Parallel, delayed
+from sklearn.utils import gen_batches
+
 from mord import LogisticSE, obj_margin, grad_margin
 from opt2q.utils import *
 from opt2q.measurement.base.functions import TransformFunction, log_scale, column_max, fast_linear_interpolate_fillna
@@ -1088,6 +1091,9 @@ class LogisticClassifier(Transform):
         One of the supported classifiers: 'nominal' (logistic regression), 'ordinal' (ordinal logistic regression),
         'ordinal_eoc' (ordinal logistic regression with empirical ordering constraint).
 
+    n_jobs: int, optional
+        If n_job is not 1, multiprocessing is applied to the ``predict_proba`` method of the classifier.
+
     Attributes
     ----------
     classifiers: dict
@@ -1103,7 +1109,7 @@ class LogisticClassifier(Transform):
                              'nominal': ['coef_', 'intercept_']}
 
     def __init__(self, dataset, columns=None, column_groups=None, group_features=False,
-                 group_name=None, do_fit_transform=True, classifier_type='nominal'):
+                 group_name=None, do_fit_transform=True, classifier_type='nominal', n_jobs=1):
         super(LogisticClassifier).__init__()
 
         # set columns
@@ -1133,6 +1139,8 @@ class LogisticClassifier(Transform):
 
         # sphinx cannot find class attributes
         self.classifiers = self.classifiers
+
+        self._n_jobs = n_jobs
 
     def _check_columns(self, cols, col_groups):
         """
@@ -1332,16 +1340,26 @@ class LogisticClassifier(Transform):
             model = self._transform_get_logistic_model(combined_x_y[x_col], combined_x_y[y_col], y_col)
             # predict results
             print("Predict Probability started")
-            results = model.predict_proba(combined_x_y[x_col])
-            print("Predict Probability Ended. Result df started")
+            if self._n_jobs != 1:
+                n_samples, n_features = combined_x_y[x_col].shape
+                batch_size = n_samples // self._n_jobs
+
+                res_list = Parallel(self._n_jobs)(delayed(self._parallel_predict)(model.predict_proba, x, sl)
+                                                  for sl in gen_batches(n_samples, batch_size))
+                results = np.vstack(res_list)
+            else:
+                results = model.predict_proba(combined_x_y[x_col])
+            print("Predict Probability Ended")
             result_df[self._results_columns_dict[y_col]] = pd.DataFrame(results,
                                                                         columns=self._results_columns_dict[y_col])
-
-            print("Result df ended")
 
         # add exp conditions
         result_df[list(x_extra_columns)] = combined_x_y[list(x_extra_columns)]
         return result_df
+
+    @staticmethod
+    def _parallel_predict(method, x_, slice_):
+        return method(x_[slice_])
 
     @staticmethod
     def _prep_data(x, y, y_cols, x_extra_cols, y_extra_cols):

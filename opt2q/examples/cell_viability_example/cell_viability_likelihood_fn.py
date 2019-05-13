@@ -13,9 +13,10 @@ from opt2q.measurement import FractionalKilling
 from opt2q.calibrator import objective_function
 from opt2q.data import DataSet
 from multiprocessing import current_process
+from sklearn.externals.joblib import Parallel
 
 
-sample_size = 30
+sample_size = 100
 
 # ------- Data -------
 script_dir = os.path.dirname(__file__)

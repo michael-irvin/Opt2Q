@@ -1109,7 +1109,7 @@ class LogisticClassifier(Transform):
                              'nominal': ['coef_', 'intercept_']}
 
     def __init__(self, dataset, columns=None, column_groups=None, group_features=False,
-                 group_name=None, do_fit_transform=True, classifier_type='nominal', n_jobs=1):
+                 group_name=None, do_fit_transform=True, classifier_type='nominal', n_jobs=1, classifier_kwargs=None):
         super(LogisticClassifier).__init__()
 
         # set columns
@@ -1132,6 +1132,7 @@ class LogisticClassifier(Transform):
         self._results_columns_dict = dict()
         self._classifier, self._classifier_params = self._check_classifier_type(classifier_type)
         self._classifier_type = classifier_type
+        self._classifier_kwargs = {} if classifier_kwargs is None else classifier_kwargs
 
         # set_params method params
         self.set_params_fn = {'do_fit_transform': self._set_do_fit_transform,
@@ -1300,6 +1301,22 @@ class LogisticClassifier(Transform):
             raise ValueError("Negative terms in '{}' violate the empirical order constraint. "
                              "Get rid of them or use 'ordinal' instead of 'ordinal_eoc' for classifier_type.".format(k))
 
+    @property
+    def n_jobs(self):
+        return self._n_jobs
+
+    @n_jobs.setter
+    def n_jobs(self, nj):
+        self._n_jobs = nj
+
+    @property
+    def classifier_kwargs(self):
+        return self._classifier_kwargs
+
+    @classifier_kwargs.setter
+    def classifier_kwargs(self, v):
+        self._classifier_kwargs = v
+
     # transform
     def transform(self, x, **kwargs):
         """
@@ -1340,12 +1357,13 @@ class LogisticClassifier(Transform):
             model = self._transform_get_logistic_model(combined_x_y[x_col], combined_x_y[y_col], y_col)
             # predict results
             print("Predict Probability started")
-            if self._n_jobs != 1:
+            if self.n_jobs != 1:
+                print(f'{self.n_jobs} jobs')
                 n_samples, n_features = combined_x_y[x_col].shape
-                batch_size = n_samples // self._n_jobs
+                batch_size = n_samples // self.n_jobs
 
-                res_list = Parallel(self._n_jobs)(delayed(self._parallel_predict)(model.predict_proba, x, sl)
-                                                  for sl in gen_batches(n_samples, batch_size))
+                res_list = Parallel(self.n_jobs)(delayed(self._parallel_predict)(model.predict_proba, x, sl)
+                                                 for sl in gen_batches(n_samples, batch_size))
                 results = np.vstack(res_list)
             else:
                 results = model.predict_proba(combined_x_y[x_col])
@@ -1364,7 +1382,7 @@ class LogisticClassifier(Transform):
     @staticmethod
     def _prep_data(x, y, y_cols, x_extra_cols, y_extra_cols):
         shared_columns = list(x_extra_cols.intersection(y_extra_cols))
-        data_blocks = pd.merge(x[shared_columns], y[shared_columns]) #.drop_duplicates().reset_index(drop=True)
+        data_blocks = pd.merge(x[shared_columns], y[shared_columns])  # .drop_duplicates().reset_index(drop=True)
         x_blocks = x.groupby(shared_columns)  # repeat the blocks so that they are consistent
         y_blocks = y.groupby(shared_columns)
 
@@ -1422,7 +1440,7 @@ class LogisticClassifier(Transform):
             return self._get_transform(logistic_model, x=x, y=y)
 
         except KeyError:  # will catch on first iteration.
-            logistic_model = self._get_transform_w_fit(self._classifier(), x=x, y=y)
+            logistic_model = self._get_transform_w_fit(self._classifier(), x=x, y=y, **self.classifier_kwargs)
             self._logistic_models_dict.update({col: logistic_model})
             return logistic_model
 
@@ -1438,10 +1456,11 @@ class LogisticClassifier(Transform):
         """
         Return model after running model.fit(x, y)
         """
-        x = kwargs.get('x')
-        y = kwargs.get('y')
+        x = kwargs.pop('x')
+        y = kwargs.pop('y')
+        print(kwargs)
 
-        logistic_model.fit(x, y)
+        logistic_model.fit(x, y, **kwargs)
         return logistic_model
 
 

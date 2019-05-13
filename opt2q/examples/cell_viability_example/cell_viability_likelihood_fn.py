@@ -59,7 +59,7 @@ noise = NoiseModel(param_mean=param_m, param_covariance=param_cov)
 parameters = noise.run()
 
 # ------- Simulate dynamics -------
-sim = Simulator(model=model, param_values=parameters, solver='cupsoda')  #, solver_options={'gpu': [0, 1, 2, 3]})
+sim = Simulator(model=model, param_values=parameters, solver='cupsoda')
 results = sim.run(np.linspace(0, 5000, 100))
 
 # ------- Measurement model -------
@@ -76,7 +76,8 @@ fk.process.add_step(('at_max_t', ScaleGroups(groupby='simulation', scale_fn=wher
 fk.process.add_step(('log10', Scale(columns='cPARP_obs', scale_fn='log10')), 2)
 fk.process.add_step(('polynomial', Scale(columns=['cPARP_obs', 'time'], scale_fn=polynomial_features, **{'degree': 2})),
                     'standardize')  # add after the 'standardize' step
-fk.process.get_step('classifier').n_jobs = 4  # set number of multiprocessing jobs
+fk.process.get_step('classifier').n_jobs = 1  # set number of multiprocessing jobs
+fk.process.get_step('classifier').classifier_kwargs = {'verbose': 5}
 fk.run()
 
 

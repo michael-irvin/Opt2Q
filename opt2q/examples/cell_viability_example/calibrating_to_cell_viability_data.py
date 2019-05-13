@@ -25,12 +25,12 @@ from pydream.convergence import Gelman_Rubin
 from scipy.stats import norm, laplace, uniform
 from opt2q.examples.cell_viability_example.cell_viability_likelihood_fn import likelihood_fn
 
-import multiprocessing
+# import multiprocessing
 # from scipy.optimize import differential_evolution
 
 
-if __name__ == '__main__':
-    multiprocessing.set_start_method('forkserver')  # https://scikit-learn.org/stable/faq.html  on why skl crashes
+# if __name__ == '__main__':
+#     multiprocessing.set_start_method('forkserver')  # https://scikit-learn.org/stable/faq.html  on why skl crashes
 
 
 # Model Inference via PyDREAM

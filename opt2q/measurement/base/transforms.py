@@ -1356,20 +1356,49 @@ class LogisticClassifier(Transform):
             # get model
             model = self._transform_get_logistic_model(combined_x_y[x_col], combined_x_y[y_col], y_col)
             # predict results
-            print("Predict Probability started")
-            if self.n_jobs != 1:
-                print(f'{self.n_jobs} jobs')
-                n_samples, n_features = combined_x_y[x_col].shape
-                batch_size = n_samples // self.n_jobs
+            results = model.predict_proba(combined_x_y[x_col])
 
-                res_list = Parallel(self.n_jobs)(delayed(self._parallel_predict)(model.predict_proba, x, sl)
-                                                 for sl in gen_batches(n_samples, batch_size))
-                results = np.vstack(res_list)
-            else:
-                results = model.predict_proba(combined_x_y[x_col])
-            print("Predict Probability Ended")
             result_df[self._results_columns_dict[y_col]] = pd.DataFrame(results,
                                                                         columns=self._results_columns_dict[y_col])
+        # add exp conditions
+        result_df[list(x_extra_columns)] = combined_x_y[list(x_extra_columns)]
+        return result_df
+
+    def set_up(self, x, **kwargs):
+        return self._set_up(x, self._data_df)
+
+    def _set_up(self, x, y, **kwargs):
+        """
+        IBM Power9 OS stalls when LogisticRegression().predict_proba is called before the calibrator is instantiate.
+        This problem arises because for how python handles multiprocessing and forking. More explanation in the link.
+        https://codewithoutrules.com/2018/09/04/python-multiprocessing/
+        """
+        columns_set, columns_dict = self._transform_get_columns(x)  # Todo: xcol needs consistent order!
+        x_extra_columns = set(x.columns) - columns_set
+        y_cols = list(self._columns_dict.keys())
+
+        if self.do_fit_transform or self._logistic_models_dict == dict():
+            y_extra_columns = set(y.columns) - set(y_cols)
+            combined_x_y = self._prep_data(x, y, y_cols, x_extra_columns, y_extra_columns)
+
+            data_cols = combined_x_y[y_cols]._get_numeric_data().columns
+            combined_x_y[data_cols] = combined_x_y[data_cols]  # .astype(int)
+            for y_col, x_col in columns_dict.items():
+                self._results_columns_dict.update(
+                    {y_col: ['{}__{}'.format(str(y_col), cat) for cat in np.unique(combined_x_y[y_col])]})
+        else:
+            combined_x_y = x
+            combined_x_y[y_cols] = pd.DataFrame(columns=y_cols)
+
+        # set-up transform
+        result_df = pd.DataFrame()
+        for y_col, x_col in columns_dict.items():
+            # make model
+            self._transform_get_logistic_model(combined_x_y[x_col], combined_x_y[y_col], y_col)
+            # make mock results for next step
+            result_df[self._results_columns_dict[y_col]] = pd.DataFrame(
+                np.ones((len(combined_x_y), len(self._results_columns_dict[y_col]))),
+                columns=self._results_columns_dict[y_col])
 
         # add exp conditions
         result_df[list(x_extra_columns)] = combined_x_y[list(x_extra_columns)]
@@ -1382,6 +1411,7 @@ class LogisticClassifier(Transform):
     @staticmethod
     def _prep_data(x, y, y_cols, x_extra_cols, y_extra_cols):
         shared_columns = list(x_extra_cols.intersection(y_extra_cols))
+        # Todo Merge fails when there are no shared columns
         data_blocks = pd.merge(x[shared_columns], y[shared_columns])  # .drop_duplicates().reset_index(drop=True)
         x_blocks = x.groupby(shared_columns)  # repeat the blocks so that they are consistent
         y_blocks = y.groupby(shared_columns)
@@ -2395,6 +2425,30 @@ class Pipeline(Transform):
         for name, transformation in self.steps:
             xt = transformation.transform(xt, name=name)
             # Note: All transformations must have a run method. If they are sub-class of process, they will.
+        return xt
+
+    def set_up(self, x, **kwargs):
+        """
+        Set up the transform methods. Some methods which use multiprocessing cannot be run entirely until the calibrator,
+        which also uses multiprocessing has been instantiated. This is a consequence of how python does forking, etc.
+
+        More info in the following link: https://codewithoutrules.com/2018/09/04/python-multiprocessing/
+
+
+        Parameters
+        ----------
+        x: :class:`~pandas.DataFrame`
+            Ideally an ``opt2q_dataframe`` from a :class:`~pysb.simulator.SimulationResult` , but any DataFrame will '
+            suffice. The specific requirements of ``x`` depend on the individual
+            :class:`~opt2q.measurement.base.transforms.Pipeline` steps.
+        """
+        xt = x
+        for name, transformation in self.steps:
+            if hasattr(transformation, 'set_up'):
+                xt = transformation.set_up(xt, name=name)
+                print("It's a SET UP!")
+            else:
+                xt = transformation.transform(xt, name=name)
         return xt
 
 

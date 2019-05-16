@@ -445,6 +445,35 @@ class FractionalKilling(MeasurementModel):
 
         return self.results
 
+    def setup(self, use_dataset=True):
+        """
+        Set-up the measurement model.
+
+        Parameters
+        ----------
+        use_dataset, bool
+            True, this method transforms only experimental conditions mentioned in the data. When False,
+            it will do "out of sample" predictions; i.e. doing the transform on experimental conditions in
+            simulation result but not in the dataset.
+        """
+        if use_dataset and 'interpolate' in [x[0] for x in self.process.steps]:
+            self._replace_interpolate_step(self.interpolation_ds)
+            result_ds = self.process.set_up(self.simulation_result_df[self._results_cols])
+            self._replace_interpolate_step(self.interpolation)
+            self.results = result_ds
+
+        else:  # set 'do_fit_transform' to false to enable out-of-sample predictions.
+            original_do_fit_transform_settings = {k: v for k, v in self.process.get_params().items()
+                                                  if 'do_fit_transform' in k}
+            do_not_do_fit_transform = {k: False for k in self.process.get_params().keys()
+                                       if 'do_fit_transform' in k}
+
+            self.process.set_params(**do_not_do_fit_transform)
+            self.results = self.process.set_up(self.simulation_result_df[self._results_cols])
+            self.process.set_params(**original_do_fit_transform_settings)
+
+        return self.results
+
     def run_classification(self, use_dataset=True):
         """
         Run the measurement model and return predictions of cell death vs. survival.

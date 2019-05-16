@@ -25,13 +25,6 @@ from pydream.convergence import Gelman_Rubin
 from scipy.stats import norm, laplace, uniform
 from opt2q.examples.cell_viability_example.cell_viability_likelihood_fn import likelihood_fn
 
-# import multiprocessing
-# from scipy.optimize import differential_evolution
-
-
-# if __name__ == '__main__':
-#     multiprocessing.set_start_method('forkserver')  # https://scikit-learn.org/stable/faq.html  on why skl crashes
-
 
 # Model Inference via PyDREAM
 sampled_params_0 = [SampledParam(norm, loc=-5, scale=1.0),           # float  kc0 -- 95% bounded in (-7,  -3)
@@ -57,7 +50,7 @@ def likelihood(x):
     return -likelihood_fn(x)
 
 
-n_chains = 4
+n_chains = 3
 n_iterations = 10000
 model_name = 'PyDream_CellViability_20190507'
 

@@ -2444,7 +2444,6 @@ class Pipeline(Transform):
         for name, transformation in self.steps:
             if hasattr(transformation, 'set_up'):
                 xt = transformation.set_up(xt, name=name)
-                print("It's a SET UP!")
             else:
                 xt = transformation.transform(xt, name=name)
         return xt

@@ -59,7 +59,7 @@ cell_viability_experimental_conditions = cell_viability[['TRAIL_conc']]
 len_cv_ec = cell_viability_experimental_conditions.shape[0]
 cell_viability_data = DataSet(data=cell_viability[['TRAIL_conc', 'viability', 'experiment']],
                               measured_variables={'viability': 'nominal'})
-cell_viability_data.measurement_error_df = cell_viability[['TRAIL_conc', 'stdev']]
+cell_viability_data.measurement_error_df = cell_viability[['TRAIL_conc', 'experiment', 'stdev']]
 
 # ======= Parameters =========
 # ------- fluorescence -------
@@ -73,7 +73,7 @@ fluorescence_params = pd.DataFrame([['L_0',  3000,   'fluorescence_exp',   50,  
                                    columns=['param', 'value', 'experiment', 'TRAIL_conc', 'apply_noise', 'num_sims'])
 
 # ------- western blot -------
-wb_sample_size = 300
+wb_sample_size = 30
 wb_ligands = pd.DataFrame([['L_0',   600,  'western_blot_exp',  10,   False,   wb_sample_size],
                            ['L_0',  3000,  'western_blot_exp',  50,   False,   wb_sample_size],
                            ['L_0', 15000,  'western_blot_exp', 250,   False,   wb_sample_size]],
@@ -91,7 +91,7 @@ wb_k_values['TRAIL_conc'] = np.tile([10, 50, 250], 6)      # Repeat for each of 
 wb_param_means = pd.concat([wb_ligands, wb_k_values], sort=False, ignore_index=True)
 
 # -------- cell viability -----
-cv_sample_size = 250
+cv_sample_size = 20
 cv_k_values = pd.DataFrame([['kc0', kc0,   'cell_viability_exp',  True,    cv_sample_size],
                             ['kc2', kc2,   'cell_viability_exp',  True,    cv_sample_size],  # co-vary with kc3
                             ['kf3', kf3,   'cell_viability_exp',  False,   cv_sample_size],

@@ -32,7 +32,7 @@ def likelihood(x):
     return -likelihood_fn(x)
 
 
-n_chains = 3
+n_chains = 4
 n_iterations = 10000
 model_name = 'PyDream_IntegratedData_20190611'
 

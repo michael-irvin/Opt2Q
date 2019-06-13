@@ -207,7 +207,7 @@ def likelihood_fn(x):
     likelihood_fn.parameter_means.loc[parameter_means['param'] == 'kr7', 'value'] = kr7_
 
     kc2_var_, kc3_var_, kc2_kc3_cov_ = (
-    (kc2_ * kc2_cv_) ** 2, (kc3_ * kc3_cv_) ** 2, kc2_ * kc2_cv_ * kc3_ * kc3_cv_ * kc2_kc3_cor_)
+        (kc2_ * kc2_cv_) ** 2, (kc3_ * kc3_cv_) ** 2, kc2_ * kc2_cv_ * kc3_ * kc3_cv_ * kc2_kc3_cor_)
     param_cov = pd.DataFrame([['kc2', 'kc2', kc2_var_],
                               ['kc3', 'kc3', kc3_var_],
                               ['kc2', 'kc3', kc2_kc3_cov_]],  # Covariance between 'kc2' and kc3'
@@ -245,7 +245,7 @@ def likelihood_fn(x):
     likelihood_fn.evals += 1
 
     print(likelihood_fn.evals)
-    print(f"likelihood: {l}")
+    print(f"likelihood: {ll}")
     print(x)
 
     return ll

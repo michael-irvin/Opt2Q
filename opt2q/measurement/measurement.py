@@ -785,7 +785,7 @@ class Fluorescence(MeasurementModel):
         y_ = self._dataset.data
         y_[error_cols_list] = self._dataset.measurement_error_df[error_cols_list]
         exp_conditions_cols = list(self._dataset.experimental_conditions.columns)
-        y = y_.merge(self.results,how='outer',on=exp_conditions_cols).drop_duplicates().reset_index(drop=True)
+        y = y_.merge(self.results, how='outer', on=exp_conditions_cols).drop_duplicates().reset_index(drop=True)
 
         log_likelihood = 0
         for obs in self._measured_values.keys():

@@ -37,7 +37,7 @@ class MeasurementModel(object):
         Lists the names (str) of the PySB model observables and/or species involved in the measurement.
 
         These observables apply to all the experimental conditions involved in the measurement. Observables not
-        mentioned in the ``simulation_result`` and/or ``dataset`` (if supplied) are ignored.
+        mentioned in the ``simulation_result`` and/or ``dataset_fluorescence`` (if supplied) are ignored.
 
     time_points: vector-like, optional
         Lists the time-points involved in the measurement. Defaults to the time points in the
@@ -46,7 +46,7 @@ class MeasurementModel(object):
 
     experimental_conditions: :class:`~pandas.DataFrame`, optional
         The experimental conditions involved in the measurement model. Defaults to experimental conditions in
-        the ``dataset`` (if present) or the ``simulation_result``.
+        the ``dataset_fluorescence`` (if present) or the ``simulation_result``.
 
         You can add a 'time' column to specify time-points that are specific to the individual experimental conditions.
         NaNs in this column will be replace by the ``time_points`` values or the time-points mentioned in the
@@ -93,7 +93,7 @@ class MeasurementModel(object):
             self._experimental_conditions_df = self._ec_df_pre
 
         self._opt2q_df = opt2q_df
-        # Todo: Add @property and @...setter for simulation_result, dataset!!
+        # Todo: Add @property and @...setter for simulation_result, dataset_fluorescence!!
         # Todo: Add @property and @...setter for observables, time_points, experimental_conditions!!
 
     @staticmethod
@@ -148,14 +148,14 @@ class MeasurementModel(object):
         if ds is None or isinstance(ds, Opt2qDataSet):
             return ds
         else:
-            raise ValueError("'dataset' must be an Opt2Q DataSet.")
+            raise ValueError("'dataset_fluorescence' must be an Opt2Q DataSet.")
 
     def _get_observables(self, pysb_df, dataset=None, observables=None):
         """
         Returns list of observables' names
 
-        Takes observables from ``observables`` or ``dataset`` arguments, if not None.
-        If both are supplied, observables are the intersection of ``observables`` and ``dataset``.
+        Takes observables from ``observables`` or ``dataset_fluorescence`` arguments, if not None.
+        If both are supplied, observables are the intersection of ``observables`` and ``dataset_fluorescence``.
 
         Defaults to all observables mentioned in the ``simulation_result``.
         """
@@ -170,7 +170,7 @@ class MeasurementModel(object):
             user_obs = self._check_observables(observables, default_observables)
             if dataset_obs is not None and len(user_obs-dataset_obs) > 0 and len(dataset_obs) > 0:
                 # The likelihood uses dataset_obs or the intersection of dataset_obs and user_obs.
-                warnings.warn("The 'observables' contain values not mentioned in the dataset. "
+                warnings.warn("The 'observables' contain values not mentioned in the dataset_fluorescence. "
                               "They will be ignored in the likelihood calculation.")
         else:
             user_obs = None
@@ -188,10 +188,10 @@ class MeasurementModel(object):
 
     @staticmethod
     def _get_obs_from_dataset(dataset, default_observables):
-        """Returns observables in dataset that are also in the simulation result"""
+        """Returns observables in dataset_fluorescence that are also in the simulation result"""
         dataset_obs = set(dataset.observables)
         if len(dataset_obs - default_observables) > 0:
-            warnings.warn('The supplied dataset has observables not present in the simulation result. '
+            warnings.warn('The supplied dataset_fluorescence has observables not present in the simulation result. '
                           'They will be ignored.')
         dataset_obs = dataset_obs.intersection(default_observables)
         return dataset_obs
@@ -235,7 +235,7 @@ class MeasurementModel(object):
          remembered).
         """
         if dataset is None:
-            return None  # Likelihood requires dataset.
+            return None  # Likelihood requires dataset_fluorescence.
         else:
             dataset_ec_df = dataset.experimental_conditions
             dataset_ec_cols = dataset_ec_df.columns
@@ -376,7 +376,7 @@ class MeasurementModel(object):
 
         .. note::
             These updates cannot change the experimental conditions, and must retain all observables mentioned in
-            ``observables`` and those in the ``dataset``.
+            ``observables`` and those in the ``dataset_fluorescence``.
 
         Parameter
         ---------
@@ -399,7 +399,7 @@ class MeasurementModel(object):
             raise ValueError("This simulation result is missing the following required observables: " +
                              _list_the_errors(list(self._required_observables - set(sim_res_df.columns))))
 
-        # todo: check that the experimental conditions in dataset and ec are the ones in the updated sim_res.
+        # todo: check that the experimental conditions in dataset_fluorescence and ec are the ones in the updated sim_res.
 
         if not hasattr(self, '_time_points') and self._time_dependent:
             # update default_time_points because this will overwrite NaN dataset_ec_df and ec_df
@@ -418,7 +418,7 @@ class MeasurementModel(object):
         ----------
         use_all_dataset_obs: bool (optional)
             If observables are supplied via the ``observables`` argument and a :class:`~opt2q.data.DataSet`, the
-            likelihood, by default, uses *all* the observables mentioned in the dataset (even if they are absent from
+            likelihood, by default, uses *all* the observables mentioned in the dataset_fluorescence (even if they are absent from
             the ``observables`` argument).
 
             If False, the likelihood uses only  the subset of observables mentioned in both the DataSet and the
@@ -427,7 +427,7 @@ class MeasurementModel(object):
         use_all_dataset_exp_cond: bool (optional)
             If experimental conditions are supplied via the ``experimental_conditions`` argument and a
             :class:`~opt2q.data.DataSet`, the likelihood uses, by default, *all* the experimental conditions mentioned
-            in the dataset (even if they are absent from the ``experimental_conditions`` argument).
+            in the dataset_fluorescence (even if they are absent from the ``experimental_conditions`` argument).
 
             If False, the likelihood uses only the subset of observables mentioned in both the DataSet and the
             ``experimental_conditions`` arguments.

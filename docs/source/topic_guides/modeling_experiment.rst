@@ -187,7 +187,7 @@ In addition, the measurement model needs to know which observables, experimental
 the process. This information exists in Opt2Q :class:`DataSets <opt2q.data.DataSet>`. I recommend supplying a
 :class:`~opt2.data.DataSet` to your measurement model.
 
->>> # Example: measurement model with dataset supplied.
+>>> dataset_fluorescence
 
 They can also be specified manually using the ``observables``, ``experimental_conditions`` and ``time_points`` arguments.
 

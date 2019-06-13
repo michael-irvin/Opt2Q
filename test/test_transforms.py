@@ -754,9 +754,9 @@ class TestLogisticClassifier(unittest.TestCase):
         with self.assertRaises(ValueError) as error:
             lc._check_that_dataset_has_required_columns(['a', 'b', 'c'], {'cols': [1], 'a': [1, 2], 'col': [1, 2]})
         assert error.exception.args[0] == \
-            "The 'dataset' must have the following nominal or ordinal measured-variables columns: 'col', and 'cols'" \
+            "The 'dataset_fluorescence' must have the following nominal or ordinal measured-variables columns: 'col', and 'cols'" \
             or error.exception.args[0] == \
-            "The 'dataset' must have the following nominal or ordinal measured-variables columns: 'cols', and 'col'"
+            "The 'dataset_fluorescence' must have the following nominal or ordinal measured-variables columns: 'cols', and 'col'"
 
     def test_check_dataset(self):
         lc = LogisticClassifier(pd.DataFrame())
@@ -773,7 +773,7 @@ class TestLogisticClassifier(unittest.TestCase):
         with self.assertRaises(ValueError) as error:
             lc._check_dataset(self.dataset, {'c': [1, 2, 3]})
         assert error.exception.args[0] == \
-            "The 'dataset' must have the following nominal or ordinal measured-variables columns: 'c'"
+            "The 'dataset_fluorescence' must have the following nominal or ordinal measured-variables columns: 'c'"
 
     def test_group_features_error_no_group_name(self):
         with self.assertRaises(ValueError) as error:

@@ -8,7 +8,7 @@ from opt2q.simulator import Simulator
 from opt2q.measurement.base import MeasurementModel, SampleAverage, Scale
 from opt2q.measurement import WesternBlot, FractionalKilling, Fluorescence
 from opt2q.data import DataSet
-# from opt2q.examples.cell_viability_example.cell_viability_likelihood_fn import fk
+# from opt2q.examples.cell_viability_example.cell_viability_likelihood_fn import cell_viability_model
 from opt2q.utils import parse_column_names
 import pandas as pd
 import unittest
@@ -97,7 +97,7 @@ class TestMeasurementModel(TestSolverModel, unittest.TestCase):
         with self.assertRaises(ValueError) as error:
             mm = MeasurementModel(self.sim_result)
             mm._check_dataset('ds')
-        self.assertTrue(error.exception.args[0] == "'dataset' must be an Opt2Q DataSet.")
+        self.assertTrue(error.exception.args[0] == "'dataset_fluorescence' must be an Opt2Q DataSet.")
 
     def test_get_obs_from_dataset(self):
         ds = DataSet(pd.DataFrame(), [])
@@ -107,7 +107,7 @@ class TestMeasurementModel(TestSolverModel, unittest.TestCase):
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             test = mm._get_obs_from_dataset(ds, mm._default_observables)
-            assert str(w[-1].message) == 'The supplied dataset has observables not present in the simulation result. ' \
+            assert str(w[-1].message) == 'The supplied dataset_fluorescence has observables not present in the simulation result. ' \
                                          'They will be ignored.'
         target = {'AB_complex'}
         self.assertSetEqual(mm._get_required_observables({'A', 'B'}, None), {'A', 'B'})
@@ -138,7 +138,7 @@ class TestMeasurementModel(TestSolverModel, unittest.TestCase):
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             mm = MeasurementModel(self.sim_result, dataset=ds, observables=['A_free', 'AB_complex'])
-        assert str(w[-1].message) == "The 'observables' contain values not mentioned in the dataset. " \
+        assert str(w[-1].message) == "The 'observables' contain values not mentioned in the dataset_fluorescence. " \
                                      "They will be ignored in the likelihood calculation."
         target = ({'AB_complex'}, {'A_free', 'AB_complex'})
         test = (mm._dataset_observables, mm._observables)
@@ -195,7 +195,7 @@ class TestMeasurementModel(TestSolverModel, unittest.TestCase):
                         )
 
     def test_get_experimental_conditions_from_dataset_ds_None(self):
-        # If dataset is None return None and ec_cols is None.
+        # If dataset_fluorescence is None return None and ec_cols is None.
         mm = MeasurementModel(self.sim_result)
         test = mm._get_experimental_conditions_from_dataset(pd.DataFrame(), set([]), None)
         assert test is None
@@ -275,7 +275,7 @@ class TestMeasurementModel(TestSolverModel, unittest.TestCase):
         pd.testing.assert_frame_equal(test, target, check_dtype=False)
 
     def test_get_experimental_conditions_from_user_ec_None_use_DataSet(self):
-        # ec is None but dataset is not. Use dataset
+        # ec is None but dataset_fluorescence is not. Use dataset_fluorescence
         sim_res_df = pd.DataFrame(columns=['ec1', 'ec2', 'time'])
         sim_res_cols = {'ec1', 'ec2', 'time'}
         dataset_df = pd.DataFrame([[1, 2, np.NaN], [2, 2, np.NaN], [4, 2, np.NaN]], columns=['ec1', 'ec2', 'time'])
@@ -526,7 +526,7 @@ class TestWesternBlotModel(TestSolverModel, unittest.TestCase):
             wb._check_measured_values_dict({'PARP': ['A_free'], 'EXTRA': ['AB_complex']}, ds)
         self.assertTrue(
             error.exception.args[0] ==
-            "'measured_values' contains a variable, 'EXTRA', not mentioned as an ordinal variable in the 'dataset'.")
+            "'measured_values' contains a variable, 'EXTRA', not mentioned as an ordinal variable in the 'dataset_fluorescence'.")
 
     def test_check_measured_values_observables_updated(self):
         data = pd.DataFrame([[2, 0, 0, "WT", 1],
@@ -722,7 +722,7 @@ class TestFractionalKillingModel(TestSolverModel, unittest.TestCase):
             fk = FractionalKilling(self.sim_result, ds, {'PARP': ['A_free']})
             fk._check_measured_values_dict({'PARP': ['A_free']}, ds)
         self.assertTrue(
-            error.exception.args[0] == "The variable, 'PARP', in the 'dataset', can only have values between "
+            error.exception.args[0] == "The variable, 'PARP', in the 'dataset_fluorescence', can only have values between "
                                        "0.0 and 1.0")
 
     def test_interpolate_first(self):
@@ -785,9 +785,9 @@ class TestFractionalKillingModel(TestSolverModel, unittest.TestCase):
                                interpolate_first=False)
         self.assertEqual(ff.likelihood(), 673.2677074114888)
 
-        # print(fk.experimental_conditions_df)
-        # # print({k: v for k, v in fk.process.get_params().items() if 'do_fit_transform' in k})
-        # fk.likelihood()
+        # print(cell_viability_model.experimental_conditions_df)
+        # # print({k: v for k, v in cell_viability_model.process.get_params().items() if 'do_fit_transform' in k})
+        # cell_viability_model.likelihood()
         #
 
     def test_time_independent(self):
@@ -804,7 +804,7 @@ class TestFractionalKillingModel(TestSolverModel, unittest.TestCase):
                                       pd.DataFrame([['WT', 1]], columns=['condition', 'experiment']))
 
     # def test_likelihood_time_independent(self):
-    #     test = fk.likelihood()
+    #     test = cell_viability_model.likelihood()
     #     self.assertAlmostEqual(test, 13192.340745562273, 4)
 
     def test_update_sim_result_time_independent(self):
@@ -955,7 +955,7 @@ class TestFluorescence(TestSolverModel, unittest.TestCase):
             Fluorescence(self.sim_result, ds, {'PARP': ['A_free']})
         self.assertTrue(error.exception.args[0] ==
                         "'measured_values' contains a variable, 'PARP', not mentioned "
-                        "as a 'quantitative' or 'semi-quantitative' variable in the 'dataset'.")
+                        "as a 'quantitative' or 'semi-quantitative' variable in the 'dataset_fluorescence'.")
 
     def test_check_process_observables(self):
         data = pd.DataFrame([[2, 0, 0, "WT", 1],

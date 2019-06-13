@@ -145,7 +145,7 @@ a :class:`~opt2q.data.DataSet` or a :class:`~pandas.DataFrame` of empirical data
 
 The ``columns`` argument defines which columns in the dataset to regard as targets. These columns names must also be in ``x``.
 
->>> # dataset example illustrating the data columns
+>>> dataset_fluorescence
 
 Often the multiple columns in ``x`` serve as features for a target in the dataset, or the feature column in ``x`` has a different name than the
 target column in the dataset. Use the ``column_groups`` argument to assign feature and corresponding target columns.
@@ -163,7 +163,7 @@ The western blot assigns an ordinal metric to the amount of protein in a sample.
 relationship between the western blot to fluorescent (semi-quantitative) measurements protein abundance.
 The :class:`~opt2q.measurement.base.LogisticClassifier` can similarly model this relationship.
 
->>> #  dataset = Figure 2 WesternBlot data cPARP,
+>>> dataset_fluorescence
 >>> #  x = C3 activity (proxy for cPARP)
 >>> #  transform
 >>> #  plot simulated western

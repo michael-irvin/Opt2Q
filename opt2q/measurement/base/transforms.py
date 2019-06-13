@@ -10,8 +10,6 @@ from scipy import optimize
 from sklearn.utils.validation import check_X_y
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.linear_model import LogisticRegression
-from sklearn.externals.joblib import Parallel, delayed
-from sklearn.utils import gen_batches
 
 from mord import LogisticSE, obj_margin, grad_margin
 from opt2q.utils import *
@@ -1041,7 +1039,7 @@ class LogisticClassifier(Transform):
     """
     Uses a Logistic model to classify values in a :class:`~pandas.DataFrame` into ordinal or nominal categories.
 
-    Logistic regression is a supervised classification model, and requires a dataset with class labels for each
+    Logistic regression is a supervised classification model, and requires a dataset_fluorescence with class labels for each
     observable (or group of observables).
 
     Parameters
@@ -1050,28 +1048,28 @@ class LogisticClassifier(Transform):
         Values of the measured variables and additional columns annotating experimental conditions. The measured
         variables are name the same as those mentioned in columns or column_groups.
 
-        The column or column-group names must appear in the dataset.
+        The column or column-group names must appear in the dataset_fluorescence.
 
     columns: str or list of strings, optional
         The name(s) of the column(s) of the :class:`~pandas.DataFrame`, ``x``, (passed to the
         :meth:`~opt2q.measurement.base.transforms.LogisticClassifier.transform` method) that will be classified into
         categories.
 
-        All column names must also appear in the ``dataset``.
+        All column names must also appear in the ``dataset_fluorescence``.
 
         All non-numeric columns in ``x`` are ignored (even if they appear in this argument).
 
-        Defaults to the numeric columns present in ``x`` that also exist in the ``dataset``.
+        Defaults to the numeric columns present in ``x`` that also exist in the ``dataset_fluorescence``.
 
     column_groups: dict, optional
         Groups of columns of the :class:`~pandas.DataFrame`, ``x``, (passed to the
         :meth:`~opt2q.measurement.base.transforms.LogisticClassifier.transform` method) that will be classified into
         categories. Each group is constitutes the features that the classification is based on. Each group name (str)
-        (or dict key). This name is a column name in the ``dataset``. Defaults to ``columns`` argument.
+        (or dict key). This name is a column name in the ``dataset_fluorescence``. Defaults to ``columns`` argument.
 
         All non-numeric columns are ignored (even if they appear in this argument).
 
-        All column-group names must also appear in the ``dataset``.
+        All column-group names must also appear in the ``dataset_fluorescence``.
 
     group_features: bool, optional
         If True, all columns serve as a single feature space for by the classification is depends. If False, each column
@@ -1080,7 +1078,7 @@ class LogisticClassifier(Transform):
         False.
 
     group_name: str, optional
-        If ``group_features`` is True, you must specify a name for the group. This group must appear in the ``dataset``.
+        If ``group_features`` is True, you must specify a name for the group. This group must appear in the ``dataset_fluorescence``.
 
     do_fit_transform: bool, optional
         When True, Simply fit the classifier to values of ``x`` and data ``y``. When False, use a previous fit to
@@ -1204,7 +1202,7 @@ class LogisticClassifier(Transform):
 
     def _check_dataset(self, dataset, columns_dict):
         """
-        Check dataset for required attributes. Raise Error if not DataSet or pd.DataFrame
+        Check dataset_fluorescence for required attributes. Raise Error if not DataSet or pd.DataFrame
         """
         if isinstance(dataset, pd.DataFrame):
             # any mentioned columns can be measured variables.
@@ -1215,7 +1213,7 @@ class LogisticClassifier(Transform):
             # only consider categorical data
             dataset_cols = [k for k, v in dataset.measured_variables.items() if v in ('default', 'nominal', 'ordinal')]
             self._check_that_dataset_has_required_columns(dataset_cols, columns_dict)
-            return dataset.data  # use the intersection of columns in dataset and x
+            return dataset.data  # use the intersection of columns in dataset_fluorescence and x
 
     @staticmethod
     def _check_that_dataset_has_required_columns(dataset_columns, columns_dict):
@@ -1224,7 +1222,7 @@ class LogisticClassifier(Transform):
         (i.e. the columns_dict.keys())
         """
         if set(columns_dict.keys()) - set(dataset_columns) != set():
-            raise ValueError("The 'dataset' must have the following nominal or ordinal measured-variables columns: " +
+            raise ValueError("The 'dataset_fluorescence' must have the following nominal or ordinal measured-variables columns: " +
                              _list_the_errors(list(set(columns_dict.keys()) - set(dataset_columns))))
 
     def _check_classifier_type(self, classifier_type):

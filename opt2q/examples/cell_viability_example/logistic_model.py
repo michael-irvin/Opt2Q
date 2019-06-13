@@ -70,7 +70,7 @@ lc_poly = LogisticClassifier(dataset=cell_death_data,
                              classifier_type='nominal')
 
 # Manually track added column names:
-# lc_poly = LogisticClassifier(dataset=cell_death_data,
+# lc_poly = LogisticClassifier(dataset_fluorescence=cell_death_data,
 #                              column_groups={'Surviving': set(scaled_x.columns)-{'Cell #'}},
 #                              classifier_type='nominal')
 

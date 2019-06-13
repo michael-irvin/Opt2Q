@@ -38,7 +38,7 @@ class WesternBlot(MeasurementModel):
         measurement.
 
         These observables apply to all the experimental conditions involved in the measurement. Observables not
-        mentioned in the ``simulation_result`` and/or ``dataset`` (if supplied) are ignored.
+        mentioned in the ``simulation_result`` and/or ``dataset_fluorescence`` (if supplied) are ignored.
 
     time_points: vector-like, optional
         Lists the time-points involved in the measurement. Defaults to the time points in the
@@ -47,7 +47,7 @@ class WesternBlot(MeasurementModel):
 
     experimental_conditions: :class:`~pandas.DataFrame`, optional
         The experimental conditions involved in the measurement model. Defaults to experimental conditions in
-        the ``dataset`` (if present) or the ``simulation_result``.
+        the ``dataset_fluorescence`` (if present) or the ``simulation_result``.
 
         You can add a 'time' column to specify time-points that are specific to the individual experimental conditions.
         NaNs in this column will be replace by the ``time_points`` values or the time-points mentioned in the
@@ -118,7 +118,7 @@ class WesternBlot(MeasurementModel):
 
     def _check_measured_values_dict(self, measured_values_dict, dataset) -> (dict, set):
         """
-        Check that measured_values keys are in the dataset.measured_variables.
+        Check that measured_values keys are in the dataset_fluorescence.measured_variables.
 
         Look for observables mentioned in measured_values_dict that are not in self.observables, and add them.
         """
@@ -128,7 +128,7 @@ class WesternBlot(MeasurementModel):
 
         for k, v in measured_values_dict.items():
             if k not in data_cols: raise ValueError(
-                "'measured_values' contains a variable, '{}', not mentioned as an ordinal variable in the 'dataset'."
+                "'measured_values' contains a variable, '{}', not mentioned as an ordinal variable in the 'dataset_fluorescence'."
                 .format(k))
 
             if _is_vector_like(v):  # look for the v in the default_observables
@@ -149,7 +149,7 @@ class WesternBlot(MeasurementModel):
         Parameters
         ----------
         use_dataset: bool
-            When true, it will run the simulation and return values for all the experiments mentioned in the dataset.
+            When true, it will run the simulation and return values for all the experiments mentioned in the dataset_fluorescence.
             Otherwise, it will return values for all the experiments specified in the ``experimental_conditions``
             argument or in the simulation result whether it is mentioned in the data or not (This is useful for out
             of sample calculations).
@@ -182,7 +182,7 @@ class WesternBlot(MeasurementModel):
         ----------
         use_all_dataset_obs: bool (optional)
             If observables are supplied via the ``observables`` argument and a :class:`~opt2q.data.DataSet`, the
-            likelihood, by default, uses *all* the observables mentioned in the dataset (even if they are absent from
+            likelihood, by default, uses *all* the observables mentioned in the dataset_fluorescence (even if they are absent from
             the ``observables`` argument).
 
             If False, the likelihood uses only  the subset of observables mentioned in both the DataSet and the
@@ -191,7 +191,7 @@ class WesternBlot(MeasurementModel):
         use_all_dataset_exp_cond: bool (optional)
             If experimental conditions are supplied via the ``experimental_conditions`` argument and a
             :class:`~opt2q.data.DataSet`, the likelihood uses, by default, *all* the experimental conditions mentioned
-            in the dataset (even if they are absent from the ``experimental_conditions`` argument).
+            in the dataset_fluorescence (even if they are absent from the ``experimental_conditions`` argument).
 
             If False, the likelihood uses only the subset of observables mentioned in both the DataSet and the
             ``experimental_conditions`` arguments.
@@ -261,7 +261,7 @@ class FractionalKilling(MeasurementModel):
     dataset: :class:`~opt2q.data.DataSet`
         Measured values and associated attributes (e.g. experimental conditions names) which dictate the rows of the
         :class:`~pysb.simulator.SimulationResult` ``opt2q_dataframe`` pertain to the data. The pertinent measured values
-        in the dataset can only have values between 0, 1.
+        in the dataset_fluorescence can only have values between 0, 1.
 
     measured_values: dict
         Relate measured variable, key, (as named in the DataSet) to a list of corresponding columns in the ``dataframe``
@@ -273,7 +273,7 @@ class FractionalKilling(MeasurementModel):
         measurement.
 
         These observables apply to all the experimental conditions involved in the measurement. Observables not
-        mentioned in the ``simulation_result`` and/or ``dataset`` (if supplied here) are ignored.
+        mentioned in the ``simulation_result`` and/or ``dataset_fluorescence`` (if supplied here) are ignored.
 
     time_points: vector-like, optional
         Lists the time-points involved in the measurement. Defaults to the time points in the
@@ -282,7 +282,7 @@ class FractionalKilling(MeasurementModel):
 
     experimental_conditions: :class:`~pandas.DataFrame`, optional
         The experimental conditions involved in the measurement model. Defaults to experimental conditions in
-        the ``dataset`` (if present) or the ``simulation_result``.
+        the ``dataset_fluorescence`` (if present) or the ``simulation_result``.
 
         You can add a 'time' column to specify time-points that are specific to the individual experimental conditions.
         NaNs in this column will be replace by the ``time_points`` values or the time-points mentioned in the
@@ -381,7 +381,7 @@ class FractionalKilling(MeasurementModel):
 
     def _check_measured_values_dict(self, measured_values_dict, dataset) -> (dict, set):
         """
-        Check that measured_values has only one key, and it is in the dataset.measured_variables.
+        Check that measured_values has only one key, and it is in the dataset_fluorescence.measured_variables.
 
         Check that the measured_values have values between 0 and 1.
 
@@ -398,10 +398,10 @@ class FractionalKilling(MeasurementModel):
         # Measured_values name exists in DataSet and has values between 0 and 1.
         for k, v in measured_values_dict.items():
             if k not in data_cols: raise ValueError(
-                "'measured_values' contains a variable, '{}', not mentioned as in the 'dataset'."
+                "'measured_values' contains a variable, '{}', not mentioned as in the 'dataset_fluorescence'."
                 .format(k))
             if max(dataset.data[k]) > 1 or min(dataset.data[k]) < 0:
-                raise ValueError("The variable, '{}', in the 'dataset', can only have values between 0.0 and 1.0".format(k))
+                raise ValueError("The variable, '{}', in the 'dataset_fluorescence', can only have values between 0.0 and 1.0".format(k))
 
             # Corresponding columns in the simulation result
             if _is_vector_like(v):  # look for the v in the default_observables
@@ -425,7 +425,7 @@ class FractionalKilling(MeasurementModel):
         use_dataset, bool
             True, this method transforms only experimental conditions mentioned in the data. When False,
             it will do "out of sample" predictions; i.e. doing the transform on experimental conditions in
-            simulation result but not in the dataset.
+            simulation result but not in the dataset_fluorescence.
         """
         if use_dataset and 'interpolate' in [x[0] for x in self.process.steps]:
             self._replace_interpolate_step(self.interpolation_ds)
@@ -454,7 +454,7 @@ class FractionalKilling(MeasurementModel):
         use_dataset, bool
             True, this method transforms only experimental conditions mentioned in the data. When False,
             it will do "out of sample" predictions; i.e. doing the transform on experimental conditions in
-            simulation result but not in the dataset.
+            simulation result but not in the dataset_fluorescence.
         """
         if use_dataset and 'interpolate' in [x[0] for x in self.process.steps]:
             self._replace_interpolate_step(self.interpolation_ds)
@@ -483,7 +483,7 @@ class FractionalKilling(MeasurementModel):
         use_dataset, bool
             True, this method transforms only experimental conditions mentioned in the data. When False,
             the predictions will include experimental conditions in the simulation result that are not
-            present in the dataset.
+            present in the dataset_fluorescence.
         """
         pass
 
@@ -541,14 +541,14 @@ class Fluorescence(MeasurementModel):
 
     measured_values: dict, optional
         A dictionary of (keys) measured variables (as named in the DataSet) and a list of corresponding PySB model
-        observables. If a ``dataset`` is provided, ``measured_value`` is required.
+        observables. If a ``dataset_fluorescence`` is provided, ``measured_value`` is required.
 
     observables: vector-like, optional
         Lists the names (str) of the PySB PySB :class:`pysb.core.Model` observables and/or species involved in the
         measurement.
 
         These observables apply to all the experimental conditions involved in the measurement. Observables not
-        mentioned in the ``simulation_result`` and/or ``dataset`` (if supplied) are ignored.
+        mentioned in the ``simulation_result`` and/or ``dataset_fluorescence`` (if supplied) are ignored.
 
     time_points: vector-like, optional
         Lists the time-points involved in the measurement. Defaults to the time points in the
@@ -557,7 +557,7 @@ class Fluorescence(MeasurementModel):
 
     experimental_conditions: :class:`~pandas.DataFrame`, optional
         The experimental conditions involved in the measurement model. Defaults to experimental conditions in
-        the ``dataset`` (if present) or the ``simulation_result``.
+        the ``dataset_fluorescence`` (if present) or the ``simulation_result``.
 
         You can add a 'time' column to specify time-points that are specific to the individual experimental conditions.
         NaNs in this column will be replace by the ``time_points`` values or the time-points mentioned in the
@@ -618,7 +618,7 @@ class Fluorescence(MeasurementModel):
         self._results_cols = list(set(_process_observables) | (set(self.experimental_conditions_df.columns)) |
                                   {'time', 'simulation'})  # columns involved in generating the result
 
-        # Likelihood: if dataset is none Likelihood is raise error else Likelihood is normal pdf of data and simulation.
+        # Likelihood: if dataset_fluorescence is none Likelihood is raise error else Likelihood is normal pdf of data and simulation.
 
     def _get_groupby_columns(self):
         """
@@ -635,7 +635,7 @@ class Fluorescence(MeasurementModel):
         """
         Observables passed to the process
 
-        If a dataset is provided,
+        If a dataset_fluorescence is provided,
         """
         obs = self.observables
         if dataset is None:
@@ -645,7 +645,7 @@ class Fluorescence(MeasurementModel):
 
     def _check_measured_values_dict(self, measured_values_dict, dataset) -> (dict, set):
         """
-        Check that measured_values keys are in the dataset.measured_variables.
+        Check that measured_values keys are in the dataset_fluorescence.measured_variables.
 
         Look for observables mentioned in measured_values_dict that are not in self.observables, and add them.
         """
@@ -659,7 +659,7 @@ class Fluorescence(MeasurementModel):
         for k, v in measured_values_dict.items():
             if k not in data_cols: raise ValueError(
                 "'measured_values' contains a variable, '{}', not mentioned"
-                " as a 'quantitative' or 'semi-quantitative' variable in the 'dataset'."
+                " as a 'quantitative' or 'semi-quantitative' variable in the 'dataset_fluorescence'."
                 .format(k))
 
             if _is_vector_like(v):  # look for the v in the default_observables
@@ -704,7 +704,7 @@ class Fluorescence(MeasurementModel):
             ``use_dataset``, bool
                 True, this method transforms only experimental conditions mentioned in the data. When False,
                 the predictions will include experimental conditions in the simulation result that are not
-                present in the dataset. Defaults to True
+                present in the dataset_fluorescence. Defaults to True
             ``do_fit_transform``, bool optional
                 When True all process steps with a 'do_fit_transform' have 'do_fit_transform' temporarily set
                 to True. When False all process steps have their 'do_fit_transform' temporarily set to False
@@ -715,7 +715,7 @@ class Fluorescence(MeasurementModel):
 
     def _run_process(self, **kwargs):
         """
-        Run the measurement process without considering the dataset. This is used in the absence of a dataset
+        Run the measurement process without considering the dataset_fluorescence. This is used in the absence of a dataset_fluorescence
         """
         if 'do_fit_transform' in kwargs:
             do_fit_transform = kwargs.pop('do_fit_transform')
@@ -763,7 +763,7 @@ class Fluorescence(MeasurementModel):
         ----------
         use_all_dataset_obs: bool (optional)
             If observables are supplied via the ``observables`` argument and a :class:`~opt2q.data.DataSet`, the
-            likelihood, by default, uses *all* the observables mentioned in the dataset (even if they are absent from
+            likelihood, by default, uses *all* the observables mentioned in the dataset_fluorescence (even if they are absent from
             the ``observables`` argument).
 
             If False, the likelihood uses only  the subset of observables mentioned in both the DataSet and the
@@ -772,7 +772,7 @@ class Fluorescence(MeasurementModel):
         use_all_dataset_exp_cond: bool (optional)
             If experimental conditions are supplied via the ``experimental_conditions`` argument and a
             :class:`~opt2q.data.DataSet`, the likelihood uses, by default, *all* the experimental conditions mentioned
-            in the dataset (even if they are absent from the ``experimental_conditions`` argument).
+            in the dataset_fluorescence (even if they are absent from the ``experimental_conditions`` argument).
 
             If False, the likelihood uses only the subset of observables mentioned in both the DataSet and the
             ``experimental_conditions`` arguments.
@@ -812,4 +812,4 @@ class Fluorescence(MeasurementModel):
         return {k: parse_column_names(x_col_set, set(v)).intersection(x_col_set) for k, v in self._measured_values.items()}
 
     def _likelihood_raise_error(self):
-        raise ValueError("likelihood requires a dataset")
+        raise ValueError("likelihood requires a dataset_fluorescence")

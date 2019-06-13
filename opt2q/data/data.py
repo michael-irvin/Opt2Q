@@ -36,7 +36,7 @@ class DataSet(object):
         Additional options:
 
         ``observable``: list
-            Names observables in a PySB :class:`models <pysb.core.Model>` that this dataset should require.
+            Names observables in a PySB :class:`models <pysb.core.Model>` that this dataset_fluorescence should require.
 
     """
 

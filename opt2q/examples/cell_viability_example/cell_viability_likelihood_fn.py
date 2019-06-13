@@ -130,16 +130,16 @@ def likelihood_fn(x):
     measurement_model_params = {'classifier__coefficients__viability__coef_': viability_coef,
                                 'classifier__coefficients__viability__intercept_': viability_intercept}
 
-    # likelihood_fn.noise_model.update_values(param_mean=param_mean,
-    #                                         param_covariance=param_covariance)
-    #
-    # simulator_parameters = likelihood_fn.noise_model.run()
-    # likelihood_fn.simulator.param_values = simulator_parameters
-    #
-    # likelihood_fn.simulator.sim.gpu = [process_id]
-    # sim_results = likelihood_fn.simulator.run(np.linspace(0, 5000, 100))
+    likelihood_fn.noise_model.update_values(param_mean=param_mean,
+                                            param_covariance=param_covariance)
 
-    # likelihood_fn.measurement_model.update_simulation_result(sim_results)
+    simulator_parameters = likelihood_fn.noise_model.run()
+    likelihood_fn.simulator.param_values = simulator_parameters
+
+    likelihood_fn.simulator.sim.gpu = [process_id]
+    sim_results = likelihood_fn.simulator.run(np.linspace(0, 5000, 100))
+
+    likelihood_fn.measurement_model.update_simulation_result(sim_results)
     likelihood_fn.measurement_model.process.set_params(**measurement_model_params)
 
     likelihood_fn.evals += 1

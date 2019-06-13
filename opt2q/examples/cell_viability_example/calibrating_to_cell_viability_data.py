@@ -52,7 +52,7 @@ def likelihood(x):
 
 n_chains = 3
 n_iterations = 10000
-model_name = 'PyDream_CellViability_20190507'
+model_name = 'PyDream_CellViability_20190613'
 
 if __name__ == '__main__':
 

@@ -34,7 +34,7 @@ def likelihood(x):
 
 n_chains = 4
 n_iterations = 10000
-model_name = 'PyDream_IntegratedData_20190611'
+model_name = 'PyDream_IntegratedData_20190614'
 
 if __name__ == '__main__':
 

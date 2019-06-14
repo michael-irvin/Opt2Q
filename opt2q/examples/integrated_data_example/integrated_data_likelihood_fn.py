@@ -126,6 +126,9 @@ parameters = noise.run()
 # ======== Simulate Dynamics ========
 sim = Simulator(model=model, param_values=parameters, solver='cupsoda')
 results = sim.run(np.linspace(0, 5000, 100))
+results_obs = [x.name for x in sim.model.observables]
+print(results.dataframe[results_obs].isna().any(axis=None))
+quit()
 
 # ========= Measurement Models ======
 # --------- fluorescence ---------
@@ -175,6 +178,7 @@ cell_viability_model.setup()  # Our IBM HPC stalls when cell_viability_model is 
 
 # ============= likelihood function ======================
 @objective_function(noise_model=noise, parameter_means=parameter_means, simulator=sim,
+                    simulator_observables=results_obs,
                     fluorescence_model=fl_model,
                     western_blot_models=western_blot_models,
                     cell_viability_model=cell_viability_model,
@@ -222,6 +226,9 @@ def likelihood_fn(x):
 
     likelihood_fn.simulator.sim.gpu = [process_id]
     sim_results = likelihood_fn.simulator.run(np.linspace(0, 5000, 100))
+
+    if results.dataframe[likelihood_fn.simulator_observables].isna().any(axis=None):
+        return 10000000000.0
 
     ll = 0.0
     likelihood_fn.fluorescence_model.update_simulation_result(sim_results)

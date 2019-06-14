@@ -16,7 +16,6 @@ from opt2q.measurement.base import Scale, ScaleGroups
 from opt2q.measurement.base.functions import derivative, where_max, polynomial_features
 from opt2q.calibrator import objective_function
 
-
 # ======= Kinetic Parameters ============
 kc0, kc2, kf3, kc3, kf4, kr7 = (1.0e-05, 1.0e-02, 3.0e-08, 1.0e-02, 1.0e-06, 1.0e-02)
 
@@ -73,7 +72,7 @@ fluorescence_params = pd.DataFrame([['L_0',  3000,   'fluorescence_exp',   50,  
                                    columns=['param', 'value', 'experiment', 'TRAIL_conc', 'apply_noise', 'num_sims'])
 
 # ------- western blot -------
-wb_sample_size = 30
+wb_sample_size = 300
 wb_ligands = pd.DataFrame([['L_0',   600,  'western_blot_exp',  10,   False,   wb_sample_size],
                            ['L_0',  3000,  'western_blot_exp',  50,   False,   wb_sample_size],
                            ['L_0', 15000,  'western_blot_exp', 250,   False,   wb_sample_size]],
@@ -91,7 +90,7 @@ wb_k_values['TRAIL_conc'] = np.tile([10, 50, 250], 6)      # Repeat for each of 
 wb_param_means = pd.concat([wb_ligands, wb_k_values], sort=False, ignore_index=True)
 
 # -------- cell viability -----
-cv_sample_size = 20
+cv_sample_size = 250
 cv_k_values = pd.DataFrame([['kc0', kc0,   'cell_viability_exp',  True,    cv_sample_size],
                             ['kc2', kc2,   'cell_viability_exp',  True,    cv_sample_size],  # co-vary with kc3
                             ['kf3', kf3,   'cell_viability_exp',  False,   cv_sample_size],
@@ -224,9 +223,6 @@ def likelihood_fn(x):
     likelihood_fn.simulator.sim.gpu = [process_id]
     sim_results = likelihood_fn.simulator.run(np.linspace(0, 5000, 100))
 
-    if sim_results.dataframe.isna().any(axis=None):
-        return 100000000  # if integration fails return high number to reject
-
     ll = 0.0
     likelihood_fn.fluorescence_model.update_simulation_result(sim_results)
     ll += likelihood_fn.fluorescence_model.likelihood()
@@ -249,4 +245,3 @@ def likelihood_fn(x):
     print(x)
 
     return ll
-

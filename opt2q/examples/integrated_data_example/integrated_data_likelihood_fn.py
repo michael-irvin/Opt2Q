@@ -127,8 +127,6 @@ parameters = noise.run()
 sim = Simulator(model=model, param_values=parameters, solver='cupsoda')
 results = sim.run(np.linspace(0, 5000, 100))
 results_obs = [x.name for x in sim.model.observables]
-print(results.dataframe[results_obs].isna().any(axis=None))
-quit()
 
 # ========= Measurement Models ======
 # --------- fluorescence ---------

@@ -225,23 +225,26 @@ def likelihood_fn(x):
     likelihood_fn.simulator.sim.gpu = [process_id]
     sim_results = likelihood_fn.simulator.run(np.linspace(0, 5000, 100))
 
-    if results.dataframe[likelihood_fn.simulator_observables].isna().any(axis=None):
+    # if results.dataframe[likelihood_fn.simulator_observables].isna().any(axis=None):
+    #     return 10000000000.0
+
+    try:
+        ll = 0.0
+        likelihood_fn.fluorescence_model.update_simulation_result(sim_results)
+        ll += likelihood_fn.fluorescence_model.likelihood()
+
+        for key, measurement in likelihood_fn.western_blot_models.items():
+            measurement.update_simulation_result(sim_results)
+            ll += measurement.likelihood()
+
+        measurement_model_params = {'classifier__coefficients__viability__coef_': viability_coef,
+                                    'classifier__coefficients__viability__intercept_': viability_intercept}
+
+        likelihood_fn.cell_viability_model.update_simulation_result(sim_results)
+        likelihood_fn.cell_viability_model.process.set_params(**measurement_model_params)
+        ll += likelihood_fn.cell_viability_model.likelihood()
+    except ValueError:
         return 10000000000.0
-
-    ll = 0.0
-    likelihood_fn.fluorescence_model.update_simulation_result(sim_results)
-    ll += likelihood_fn.fluorescence_model.likelihood()
-
-    for key, measurement in likelihood_fn.western_blot_models.items():
-        measurement.update_simulation_result(sim_results)
-        ll += measurement.likelihood()
-
-    measurement_model_params = {'classifier__coefficients__viability__coef_': viability_coef,
-                                'classifier__coefficients__viability__intercept_': viability_intercept}
-
-    likelihood_fn.cell_viability_model.update_simulation_result(sim_results)
-    likelihood_fn.cell_viability_model.process.set_params(**measurement_model_params)
-    ll += likelihood_fn.cell_viability_model.likelihood()
 
     likelihood_fn.evals += 1
 
@@ -250,3 +253,8 @@ def likelihood_fn(x):
     print(x)
 
     return ll
+
+
+likelihood_fn([-1.2053062,   -2.50635065, -11.32608751,  -4.71373947, -10.74176349,
+  -4.83712945,   0.19896594,   0.06511681,   0.05801066,   2.11147502,
+  -1.36353197,   0.9637254,    1.32352659,   7.06380367,   2.21172402])

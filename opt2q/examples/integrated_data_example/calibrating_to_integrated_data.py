@@ -54,9 +54,8 @@ if __name__ == '__main__':
 
     # Save sampling output (sampled parameter values and their corresponding logps).
     for chain in range(len(sampled_params)):
-        np.save(model_name + str(chain) + '_' + str(total_iterations),
-                sampled_params[chain])
-        np.save(model_name + str(chain) + '_' + str(total_iterations), log_ps[chain])
+        np.save(model_name + str(chain) + '_' + str(total_iterations) + '_' + 'parameters', sampled_params[chain])
+        np.save(model_name + str(chain) + '_' + str(total_iterations) + '_' + 'log_p', log_ps[chain])
 
     GR = Gelman_Rubin(sampled_params)
     print('At iteration: ', total_iterations, ' GR = ', GR)

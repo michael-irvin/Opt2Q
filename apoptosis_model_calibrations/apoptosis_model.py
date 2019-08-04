@@ -22,8 +22,10 @@ Bid Dependent Apoptosis
 
 """
 from pysb import *
-from pysb.macros import catalyze_state
+from pysb.macros import catalyze_state, degrade
 Model()
+
+# Model reaction rates have units of copies per cell per min
 
 Parameter('L_0',       3000.0)   # baseline level of TRAIL in most experiments (50 ng/ml SuperKiller TRAIL)
 Parameter('R_0',        200.0)   # TRAIL receptor (for experiments not involving siRNA)
@@ -46,10 +48,10 @@ Monomer('PARP',       ['b', 'state'], {'state': ['unmod', 'cleaved']})
 Initial(L(b=None), L_0)
 Initial(R(b=None), R_0)
 Initial(DISC(b=None), DISC_0)
-Initial(IC(b=None, state='inactive'), PARP_0)
-Initial(EC(b=None, state='inactive'), PARP_0)
-Initial(Bid(b=None, state='unmod'), PARP_0)
-Initial(MOMP_sig(b=None, state='inactive'), PARP_0)
+Initial(IC(b=None, state='inactive'), IC_0)
+Initial(EC(b=None, state='inactive'), EC_0)
+Initial(Bid(b=None, state='unmod'), Bid_0)
+Initial(MOMP_sig(b=None, state='inactive'), MOMP_sig_0)
 Initial(PARP(b=None, state='unmod'), PARP_0)
 
 # 1. Receptor ligation: TRAIL + Receptor  <-> TRAIL:Receptor     kf0, kr0
@@ -103,9 +105,19 @@ Parameter('kr7', 1.0e-02)
 Parameter('kc7', 1.0e-00)
 catalyze_state(EC(state='active'), 'b', PARP(), 'b', 'state', 'unmod', 'cleaved', [kf7, kr7, kc7])
 
+# 10. Initiator Caspase Degradation
+Parameter('kc8', 1.0e-06)
+degrade(IC(state='active'), kc8)
+
+Observable('TRAIL_receptor_obs', L(b=1) % R(b=1) + DISC())
+Observable('DISC_obs', DISC())
+Observable('C8_DISC_recruitment_obs', DISC()%IC())
 Observable('C8_active_obs', IC(state='active'))
 Observable('C8_inactive_obs', IC(state='inactive'))
-Observable('BID_obs',   Bid(state='cleaved'))
+Observable('C3_active_obs', EC(state='active'))
+Observable('C3_inactive_obs', EC(state='inactive'))
+Observable('BID_obs', Bid(state='unmod'))
+Observable('tBID_obs',   Bid(state='cleaved'))
 Observable('cPARP_obs', PARP(b=None, state='cleaved'))
 Observable('PARP_obs',  PARP(b=None, state='unmod'))
 

@@ -184,26 +184,48 @@ def derivative(x):
 
 
 @transform_function
+def cummax(x):
+    return x.cummax(axis=0)
+
+@transform_function
+def cummin(x):
+    return x.cummin(axis=0)
+
+@transform_function
+def cumsum(x):
+    return x.cumsum(axis=0)
+
+
+@transform_function
 def column_max(x):
     return pd.DataFrame(x.max()).T
 
 
 @transform_function
-def where_max(x, var=None):
+def where_max(x, var=None, drop_var=False):
     """
     Return row of x where ``var`` is max.
+    If ``drop_var`` is true, it drops the ``var`` column after the transformation.
     """
     idx_max = x[var].idxmax()
-    return pd.DataFrame([x.loc[idx_max].values], columns=x.columns)
+    res = pd.DataFrame([x.loc[idx_max].values], columns=x.columns)
+    if drop_var:
+        res = res.drop(columns=[var])
+    return res
 
 
 @transform_function
-def where_min(x, var=None):
+def where_min(x, var=None, drop_var=False):
     """
-    Return row of x where ``var`` is max.
+    Return row of x where ``var`` is min.
+        If ``drop_var`` is true, it drops the ``var`` column after the transformation.
+
     """
     idx_min = x[var].idxmin()
-    return pd.DataFrame([x.loc[idx_min].values], columns=x.columns)
+    res = pd.DataFrame([x.loc[idx_min].values], columns=x.columns)
+    if drop_var:
+        res = res.drop(columns=[var])
+    return res
 
 
 def fast_linear_interpolate_fillna(values, indices):

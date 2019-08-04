@@ -102,3 +102,5 @@ probabilities = lc_poly.transform(scaled_grid).values[:, 1].reshape(nx1.shape)
 cs = ax.contour(nx1, nx2, probabilities, colors=['black'], alpha=0.75)  # , levels=np.linspace(0.1, 0.9, 15))
 ax.clabel(cs, inline=1, fontsize=10)
 plt.show()
+
+print(lc_poly.get_params())

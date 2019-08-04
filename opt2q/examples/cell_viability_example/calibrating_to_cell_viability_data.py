@@ -23,7 +23,6 @@ from pydream.core import run_dream
 from pydream.convergence import Gelman_Rubin
 
 from scipy.stats import norm, laplace, uniform
-from opt2q.examples.cell_viability_example.cell_viability_likelihood_fn import likelihood_fn
 
 
 # Model Inference via PyDREAM
@@ -35,7 +34,7 @@ sampled_params_0 = [SampledParam(norm, loc=-5, scale=1.0),           # float  kc
                     SampledParam(norm, loc=-2, scale=3.0),           # float  kr7 -- 95% bounded in (-8,   4)
                     SampledParam(uniform, loc=[0], scale=[0.5]),     # float  kc2_cv -- bounded in [0,  0.5]
                     SampledParam(uniform, loc=[0], scale=[0.5]),     # float  kc3_cv -- bounded in [0,  0.5]
-                    SampledParam(uniform, loc=[-1.0], scale=[3.0]),  # float  kc2_kc3_cor -- bounded in [-1.0,  1.0]
+                    SampledParam(uniform, loc=[-1.0], scale=[2.0]),  # float  kc2_kc3_cor -- bounded in [-1.0,  1.0]
                     SampledParam(laplace, loc=0.0, scale=10),        # float  LR coef
                     SampledParam(laplace, loc=0.0, scale=10),        # float  LR coef
                     SampledParam(laplace, loc=0.0, scale=10),        # float  LR coef
@@ -45,16 +44,17 @@ sampled_params_0 = [SampledParam(norm, loc=-5, scale=1.0),           # float  kc
                     ]
 
 
-def likelihood(x):
-    # PyDREAM maximizes likelihood_fn while Opt2Q returns neg log-likelihood
-    return -likelihood_fn(x)
-
-
 n_chains = 3
 n_iterations = 10000
 model_name = 'PyDream_CellViability_20190613'
 
 if __name__ == '__main__':
+    from opt2q.examples.cell_viability_example.cell_viability_likelihood_fn import likelihood_fn
+
+
+    def likelihood(x):
+        # PyDREAM maximizes likelihood_fn while Opt2Q returns neg log-likelihood
+        return -likelihood_fn(x)
 
     # Run DREAM sampling.  Documentation of DREAM options is in Dream.py.
     converged = False

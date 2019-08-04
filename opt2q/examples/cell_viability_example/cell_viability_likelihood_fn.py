@@ -15,7 +15,7 @@ from opt2q.data import DataSet
 from multiprocessing import current_process
 
 
-sample_size = 250
+sample_size = 10
 
 # ------- Data -------
 script_dir = os.path.dirname(__file__)
@@ -60,18 +60,18 @@ parameters = noise.run()
 
 # ------- Simulate dynamics -------
 sim = Simulator(model=model, param_values=parameters, solver='cupsoda')
-results = sim.run(np.linspace(0, 5000, 100))
+results = sim.run(np.linspace(0, 3600*5, 100))
 
 # ------- Measurement model -------
 fk = FractionalKilling(simulation_result=results,
                        dataset=data,
-                       measured_values={'viability':['cPARP_obs', 'time']},
+                       measured_values={'viability': ['cPARP_obs', 'time']},
                        observables=['cPARP_obs'],
                        experimental_conditions=cell_viability[['TRAIL_conc']],
                        time_dependent=False)
 
 fk.process.remove_step('log_scale')
-fk.process.add_step(('ddx', Scale(columns='cPARP_obs', scale_fn=derivative)),0)
+fk.process.add_step(('ddx', Scale(columns='cPARP_obs', scale_fn=derivative)), 0)
 fk.process.add_step(('at_max_t', ScaleGroups(groupby='simulation', scale_fn=where_max, **{'var': 'cPARP_obs'})), 1)
 fk.process.add_step(('log10', Scale(columns='cPARP_obs', scale_fn='log10')), 2)
 fk.process.add_step(('polynomial', Scale(columns=['cPARP_obs', 'time'], scale_fn=polynomial_features, **{'degree': 2})),
@@ -79,6 +79,12 @@ fk.process.add_step(('polynomial', Scale(columns=['cPARP_obs', 'time'], scale_fn
 fk.process.get_step('classifier').n_jobs = 1  # set number of multiprocessing jobs
 fk.process.get_step('classifier').classifier_kwargs = {'verbose': 5}
 fk.setup()
+
+viability_coef = np.array([[-6.0, -0.08267159, -0.01332687, -0.02024716, 0.01*0.12825571]])
+viability_intercept = np.array([8.00282563])
+measurement_model_params_ = {'classifier__coefficients__viability__coef_': viability_coef,
+                             'classifier__coefficients__viability__intercept_': viability_intercept}
+fk.process.set_params(**measurement_model_params_)
 
 
 # -------- likelihood function -----------

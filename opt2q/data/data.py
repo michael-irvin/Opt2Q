@@ -37,6 +37,9 @@ class DataSet(object):
 
         ``observable``: list
             Names observables in a PySB :class:`models <pysb.core.Model>` that this dataset_fluorescence should require.
+        ``use_common_ordinal_classifier: bool
+            Assumes all ordinal measured values are classified via a single common classifier.
+            Set to true when using WesternBlotPTM.
 
     """
 
@@ -55,14 +58,15 @@ class DataSet(object):
         self.measurement_error_df = self._get_errors_df()
 
         # ordinal error term
+        use_common_classifier = kwargs.get('use_common_ordinal_classifier', False)
         self._ordinal_errors_matrices = dict()
         _ordinal_variables_names = [k for k, v in self.measured_variables.items() if v is 'ordinal']
         _ordinal_error_matrices = self._get_ordinal_errors_matrices(
-            self._ordinal_errors_matrices, _ordinal_variables_names)
+            self._ordinal_errors_matrices, _ordinal_variables_names, single_classifier=use_common_classifier)
         _ordinal_vars_df_one_hot_representation = self._one_hot_transform_of_data(_ordinal_variables_names)
 
-        self._ordinal_errors_df = self._apply_ordinal_errors_matrices_to_one_hot_data(
-            _ordinal_vars_df_one_hot_representation, _ordinal_variables_names)
+        self.ordinal_errors_df = self._apply_ordinal_errors_matrices_to_one_hot_data(
+            _ordinal_vars_df_one_hot_representation, _ordinal_variables_names, single_classifier=use_common_classifier)
         self._ordinal_variables_names = _ordinal_variables_names
 
     def _convert_measured_variables_to_dict(self, measured_vars) -> dict:
@@ -203,20 +207,33 @@ class DataSet(object):
         errors_df[self.experimental_conditions.columns] = self.experimental_conditions
         return errors_df
 
-    def _get_ordinal_errors_matrices(self, ordinal_matrix_dict, ordinal_variables_names):
+    def _get_ordinal_errors_matrices(self, ordinal_matrix_dict, ordinal_variables_names, single_classifier=False):
         """
         Return a dict of ordinal error matrices.
 
         Parameters
         ----------
-        measured_variables_names = list of measured_variables to create an ordinal errors matrix for.
+        ordinal_variables_names = list of measured_variables to create an ordinal errors matrix for.
+
+        single_classifier: bool, all matrices are the same size. Otherwise they are as large as the number of unique
+        categories named in the data.
         """
-        for k in ordinal_variables_names:
-            err_mat_size = len(self.data[k].unique())
-            ordinal_matrix_dict.update(
-                {k: self._make_default_ordinal_errors_matrix(
-                    err_mat_size, measurement_error=self._measurement_error[k])}
-            )
+        if single_classifier:
+            unique_cats = set()
+            for k in ordinal_variables_names:
+                unique_cats |= set(self.data[k].unique())
+            err_mat_size = len(unique_cats)
+            for k in ordinal_variables_names:
+                ordinal_matrix_dict.update(
+                    {k: self._make_default_ordinal_errors_matrix(
+                        err_mat_size, measurement_error=self._measurement_error[k])})
+        else:
+            for k in ordinal_variables_names:
+                err_mat_size = len(self.data[k].unique())
+                ordinal_matrix_dict.update(
+                    {k: self._make_default_ordinal_errors_matrix(
+                        err_mat_size, measurement_error=self._measurement_error[k])}
+                )
         return ordinal_matrix_dict
 
     def _one_hot_transform_of_data(self, ordinal_variables_names):
@@ -234,13 +251,19 @@ class DataSet(object):
             data_for_likelihood[data_i_cols] = data_i[data_i_cols]
         return data_for_likelihood
 
-    def _apply_ordinal_errors_matrices_to_one_hot_data(self, one_hot_transformed_data_df, ordinal_variables_names):
-        if len(one_hot_transformed_data_df)==0:
+    def _apply_ordinal_errors_matrices_to_one_hot_data(self, one_hot_transformed_data_df, ordinal_variables_names,
+                                                       single_classifier=False):
+        if len(one_hot_transformed_data_df) == 0:
             return one_hot_transformed_data_df[ordinal_variables_names]
 
         errors_df = pd.DataFrame()
         for ord_var in ordinal_variables_names:
             data_df = one_hot_transformed_data_df.filter(regex='^{}__'.format(ord_var))
+            if single_classifier:
+                all_cats = [ord_var+'__'+cs.split('__')[1] for cs in one_hot_transformed_data_df.filter(regex='__').columns]
+                missing_cats = list(set(all_cats) - set(data_df.columns))
+                data_df = pd.concat([pd.DataFrame(np.zeros((len(data_df), len(missing_cats))), columns=missing_cats),
+                                     data_df], axis=1)
             cols = sorted(data_df.columns)
             errors_df[cols] = pd.DataFrame(data_df[cols].values.dot(self._ordinal_errors_matrices[ord_var]),
                                            columns=cols)

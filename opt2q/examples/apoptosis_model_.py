@@ -103,6 +103,6 @@ Parameter('kr7', 1.0e-02)
 Parameter('kc7', 1.0e-00)
 catalyze_state(EC(state='active'), 'b', PARP(), 'b', 'state', 'unmod', 'cleaved', [kf7, kr7, kc7])
 
-Observable('BID_obs',   Bid(state='cleaved'))           # Corresponds to IC-RP
-Observable('cPARP_obs', PARP(b=None, state='cleaved'))  # Corresponds to EC-RP
+Observable('BID_obs',   Bid(state='cleaved'))
+Observable('cPARP_obs', PARP(b=None, state='cleaved'))
 Observable('PARP_obs',  PARP(b=None, state='unmod'))

@@ -2,4 +2,4 @@
 from opt2q.measurement.base import base
 from opt2q.measurement.measurement import *
 
-__all__ = ['base', 'WesternBlot', 'FractionalKilling', 'Fluorescence']
+__all__ = ['base', 'WesternBlot', 'FractionalKilling', 'Fluorescence', 'WesternBlotPTM']

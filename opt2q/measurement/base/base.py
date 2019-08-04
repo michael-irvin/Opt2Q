@@ -57,7 +57,7 @@ class MeasurementModel(object):
 
     """
     def __init__(self, simulation_result,  dataset=None, observables=None, time_points=None,
-                 experimental_conditions=None, time_dependent=True):
+                 experimental_conditions=None, time_dependent=True, **kwargs):
 
         self._time_dependent = True if time_dependent is not False else False  # Defaults to True
 
@@ -148,7 +148,7 @@ class MeasurementModel(object):
         if ds is None or isinstance(ds, Opt2qDataSet):
             return ds
         else:
-            raise ValueError("'dataset_fluorescence' must be an Opt2Q DataSet.")
+            raise ValueError("'dataset' must be an Opt2Q DataSet.")
 
     def _get_observables(self, pysb_df, dataset=None, observables=None):
         """
@@ -276,10 +276,14 @@ class MeasurementModel(object):
 
     @staticmethod
     def _add_time_column_w_nans(df):
-        if df.shape[0] is 0:
-            df['time'] = [np.NaN]
-        else:
-            df['time'] = np.NaN
+        df = df.assign(time=pd.Series(np.full(max(len(df), 1), np.NaN)))
+
+        # if df.shape[0] is 0:
+        #     df = df.assign(time=pd.Series(np.full(max(len(df), 1), np.NaN)))
+        #     # df['time'] = [np.NaN]
+        # else:
+        #     df = df.assign(time=pd.Series(np.full(len(df), np.NaN)))
+        #     # df['time'] = np.NaN
         return df
 
     @staticmethod

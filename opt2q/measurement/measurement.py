@@ -13,7 +13,7 @@ from opt2q.measurement.base.transforms import Interpolate, LogisticClassifier, P
 
 class WesternBlot(MeasurementModel):
     """
-    Simulates a Western Blot Measurements.
+    Simulates Western Blot Measurements.
 
     Conducts a series of transformation on a :class:`~pysb.simulator.SimulationResult` to represents attributes of the
     Western blot (ordinal) measurement.
@@ -31,14 +31,16 @@ class WesternBlot(MeasurementModel):
         :class:`~pysb.simulator.SimulationResult` ``opt2q_dataframe`` pertain to the data.
 
     measured_values: dict
-        A dictionary of (keys) measured variables (as named in the DataSet) and a list of corresponding PySB model observables.
+        A dictionary of (keys) measured variables (as named in the DataSet) and a list of corresponding PySB model
+        observables. A list of PySB model observables serves the input variable to the classifier, which predicts
+        the ordinal categories (or labels) in the measured variables.
 
     observables: vector-like, optional
         Lists the names (str) of the PySB PySB :class:`pysb.core.Model` observables and/or species involved in the
         measurement.
 
         These observables apply to all the experimental conditions involved in the measurement. Observables not
-        mentioned in the ``simulation_result`` and/or ``dataset_fluorescence`` (if supplied) are ignored.
+        mentioned in the ``simulation_result`` and/or ``dataset`` (if supplied) are ignored.
 
     time_points: vector-like, optional
         Lists the time-points involved in the measurement. Defaults to the time points in the
@@ -68,16 +70,18 @@ class WesternBlot(MeasurementModel):
     """
 
     def __init__(self, simulation_result, dataset, measured_values, observables=None, time_points=None,
-                 experimental_conditions=None):
+                 experimental_conditions=None, **kwargs):
 
-        super().__init__(simulation_result,
-                         dataset=dataset,
-                         observables=observables,
-                         time_points=time_points,
-                         experimental_conditions=experimental_conditions)
-
+        super(WesternBlot, self).__init__(simulation_result,
+                                          dataset=dataset,
+                                          observables=observables,
+                                          time_points=time_points,
+                                          experimental_conditions=experimental_conditions, **kwargs)
+        if observables is None:
+            self._observables = set()  # Ignore default_observables not mentioned in the measured variables
         _measured_values, _process_observables = self._check_measured_values_dict(measured_values, dataset)
         self._measured_values_dict = _measured_values
+        self._process_observables = _process_observables
 
         self.interpolation_ds = Interpolate('time',
                                             list(_process_observables),
@@ -94,7 +98,7 @@ class WesternBlot(MeasurementModel):
                                                         self.experimental_conditions_df.columns) - {'simulation'}),
                                                     apply_noise=True,
                                                     variances=0.0,
-                                                    sample_size=10000)),
+                                                    sample_size=10000)),  # models sample prep
                    ('log_scale', Scale(columns=list(_process_observables), scale_fn='log10')),
                    ('standardize', Standardize(columns=list(_process_observables), groupby=None)),
                    ('classifier', LogisticClassifier(self._dataset, column_groups=_measured_values,
@@ -118,7 +122,7 @@ class WesternBlot(MeasurementModel):
 
     def _check_measured_values_dict(self, measured_values_dict, dataset) -> (dict, set):
         """
-        Check that measured_values keys are in the dataset_fluorescence.measured_variables.
+        Check that measured_values keys are in the dataset.measured_variables.
 
         Look for observables mentioned in measured_values_dict that are not in self.observables, and add them.
         """
@@ -128,12 +132,12 @@ class WesternBlot(MeasurementModel):
 
         for k, v in measured_values_dict.items():
             if k not in data_cols: raise ValueError(
-                "'measured_values' contains a variable, '{}', not mentioned as an ordinal variable in the 'dataset_fluorescence'."
+                "'measured_values' contains a variable, '{}', not mentioned as an ordinal variable in the 'dataset'."
                 .format(k))
 
             if _is_vector_like(v):  # look for the v in the default_observables
                 measured_obs = _convert_vector_like_to_list(v)
-                for i in measured_obs:  # if v is an observable mentioned in the
+                for i in measured_obs:  # if v is an observable mentioned in i
                     if isinstance(i, str):
                         mentioned_obs = i.split('__')[0]
                         obs |= {mentioned_obs} if mentioned_obs in self._default_observables else set()
@@ -198,7 +202,7 @@ class WesternBlot(MeasurementModel):
         """
 
         self.results = self.run(use_dataset=True)
-        ordinal_errors = self._dataset._ordinal_errors_df
+        ordinal_errors = self._dataset.ordinal_errors_df
 
         exp_conditions_cols = list(self._dataset.experimental_conditions.columns)
         columns_for_merge = exp_conditions_cols + ['simulation']
@@ -213,13 +217,21 @@ class WesternBlot(MeasurementModel):
             self.results = self.results.assign(simulation=np.tile(sims, sims_repeats))
 
         # Duplicate rows of _ordinal_errors_df to match self.results (which can have many simulations per data-point).
-        ordinal_category_dist = ordinal_errors.merge(self.results[columns_for_merge], how='outer',
+        category_names = ordinal_errors.filter(regex='__').columns
+        ordinal_category_dist = ordinal_errors.merge(self.results, how='outer',
                                                      on=exp_conditions_cols).drop_duplicates().reset_index(drop=True)
 
+        results = ordinal_category_dist[columns_for_merge+[cat_col + '_y' for cat_col in category_names]]
+        results = results.rename(columns={cat_col + '_y': cat_col for cat_col in category_names})
+
+        drop_results_cols = [cat_col + '_y' for cat_col in category_names]
+        rename_data_cols = {cat_col + '_x': cat_col for cat_col in category_names}
+        ordinal_category_dist = ordinal_category_dist.drop(columns=drop_results_cols)
+        ordinal_category_dist = ordinal_category_dist.rename(columns=rename_data_cols)
+
         # Probability of the predictions and the data referencing the same ordinal category
-        category_names = ordinal_category_dist.filter(regex='__').columns
         likelihood_per_category_and_simulation = pd.DataFrame(
-            self.results[category_names].values*ordinal_category_dist[category_names].values,
+            results[category_names].values*ordinal_category_dist[category_names].values,
             columns=category_names)
         likelihood_per_category_and_simulation[columns_for_merge] = ordinal_category_dist[columns_for_merge]
 
@@ -240,6 +252,191 @@ class WesternBlot(MeasurementModel):
                 .values)
                 .astype(float)
                ))
+
+
+class WesternBlotPTM(WesternBlot):
+    """
+    Simulates a Western blot measurement where a single primary antibody detects multiple post-translational
+    modifications (PTM) of the target.
+
+    Series of transformations on a :class:`~pysb.simulator.SimulationResult` to represent attributes of the
+    Western blot (ordinal) measurement. Note, unlike the :class:`~opt2q.measurements.WesternBlot`, this class
+    models a Western Blot measurement of targets of only one primary antibody.
+
+    Parameters
+    ----------
+    simulation_result: :class:`~pysb.simulator.SimulationResult`
+        Results of a `PySB` Model simulation. Produced by the run methods in the `PySB`
+        (:meth:`~pysb.simulator.ScipyOdeSimulator.run`) and `Opt2Q` (:meth:`~opt2q.simulator.Simulator.run`)
+        simulators. Since the Western Blot measurement makes use of a classifier, this simulation result should have a
+        large number of simulations.
+
+    dataset: :class:`~opt2q.data.DataSet`
+        Measured values and associated attributes (e.g. experimental conditions names) which dictate the rows of the
+        :class:`~pysb.simulator.SimulationResult` ``opt2q_dataframe`` pertain to the data.
+
+    measured_values: dict
+        A dictionary of (keys) measured variables, as named in the DataSet, and (values) lists of corresponding PySB
+        model observables. The measured variables should only be proteins that are detect via a common primary antibody.
+        A list of PySB model observables serves the input variable to the classifier, which predicts
+        the ordinal categories (or labels) in the measured variables. Since the measured variables rely on a common
+        classifier, they must use the same number of features (i.e. PySB model observables).
+
+    observables: vector-like, optional
+        Lists the names (str) of the PySB PySB :class:`pysb.core.Model` observables and/or species involved in the
+        measurement.
+
+        These observables apply to all the experimental conditions involved in the measurement. Observables not
+        mentioned in the ``simulation_result`` and/or ``dataset`` (if supplied) are ignored.
+    time_points: vector-like, optional
+        Lists the time-points involved in the measurement. Defaults to the time points in the
+        :class:`~pysb.simulator.SimulationResult`. You can also assign time-points using a 'time' in the
+        ``experimental_conditions`` argument (as follows).
+
+    experimental_conditions: :class:`~pandas.DataFrame`, optional
+        The experimental conditions involved in the measurement model. Defaults to experimental conditions in
+        the ``dataset_fluorescence`` (if present) or the ``simulation_result``.
+
+        You can add a 'time' column to specify time-points that are specific to the individual experimental conditions.
+        NaNs in this column will be replace by the ``time_points`` values or the time-points mentioned in the
+        :class:`~pysb.simulator.SimulationResult`
+    """
+
+    def __init__(self, simulation_result, dataset, measured_values, observables=None, time_points=None,
+                 experimental_conditions=None, **kwargs):
+
+        for v in measured_values.values():  # measured values should be list because feature order is important.
+            if not isinstance(v, list):
+                raise ValueError("Every value in measured_values must a list")
+
+        super(WesternBlotPTM, self).__init__(simulation_result,
+                                             dataset,
+                                             measured_values,
+                                             observables=observables,
+                                             time_points=time_points,
+                                             experimental_conditions=experimental_conditions,
+                                             **kwargs)
+
+        self._num_features = self._check_that_measured_values_dict_values_are_same_length(self._measured_values_dict)
+        self._measured_values_list = sorted(self._measured_values_dict.keys())
+
+        self._restructured_ds = self._restructure_dataset(self._dataset)
+        self._restructured_process_observables = ['Opt2_obs_%s' % i for i in range(self._num_features)]
+        self._restructured_measured_values = {'Opt2Qx_measured_values': self._restructured_process_observables}
+        self._restructured_dataset_experimental_conditions_df = self.restructure_ec_df(
+            self._dataset_experimental_conditions_df)
+        self._restructured_experimental_conditions_df = self.restructure_ec_df(self.experimental_conditions_df)
+
+        self.interpolation_ds = Interpolate('time',
+                                            self._restructured_process_observables,
+                                            self._restructured_dataset_experimental_conditions_df,
+                                            groupby=['Opt2Qx_measured_variable', 'simulation'])
+        self.interpolation = Interpolate('time',
+                                         self._restructured_process_observables,
+                                         self._restructured_experimental_conditions_df,
+                                         groupby='simulation')
+
+        self.process = Pipeline(
+            steps=[('sample_average', SampleAverage(columns=self._restructured_process_observables,
+                                                    drop_columns='simulation',
+                                                    groupby=list(set(
+                                                        self._restructured_experimental_conditions_df.columns)
+                                                                 - {'simulation'}),
+                                                    apply_noise=True,
+                                                    variances=0.0,
+                                                    sample_size=4)),  # models sample prep
+                   ('log_scale', Scale(columns=self._restructured_process_observables,
+                                       scale_fn='log10')),
+                   ('standardize', Standardize(columns=self._restructured_process_observables,
+                                               groupby=None)),
+                   ('classifier', LogisticClassifier(self._restructured_ds,
+                                                     column_groups=self._restructured_measured_values,
+                                                     do_fit_transform=False, classifier_type='ordinal_eoc'))])
+
+    @staticmethod
+    def _check_that_measured_values_dict_values_are_same_length(measured_val):
+        """
+        Since the measured variables rely on a common classifier, they must use the same number of features. All
+        observables lists in measured variables must be the same length.
+        """
+        features = list(measured_val.values())
+        feature_len = len(features[0])
+        for k in features:
+            if len(k) != feature_len:
+                raise ValueError(" All the lists in 'measured_variables' must have the same length.")
+        return feature_len
+
+    def _restructure_dataset(self, _dataset):
+        idx_for_new_dataset = np.tile(_dataset.data.index, len(self._measured_values_list))
+        data_array = np.array(self._dataset.data[self._measured_values_list])
+
+        new_dataset = _dataset.data.iloc[idx_for_new_dataset]
+        new_dataset = new_dataset.reset_index(drop=True)
+        new_dataset['Opt2Qx_measured_variable'] = np.repeat(self._measured_values_list, len(self._dataset.data))
+        new_dataset['Opt2Qx_measured_values'] = np.reshape(data_array, np.product(data_array.shape), order='F')
+        new_dataset = new_dataset.drop(columns=self._measured_values_list)
+        return new_dataset
+
+    def _restructure_x(self, x):
+        obs = np.vstack((np.array(x[self._measured_values_dict[k]]) for k in self._measured_values_list))
+        obs_columns = ['Opt2_obs_%s' % i for i in range(self._num_features)]
+
+        idx_for_new_x = np.tile(x.index, len(self._measured_values_list))
+        new_x = x.iloc[idx_for_new_x]
+        new_x = new_x.reset_index(drop=True)
+        new_x['Opt2Qx_measured_variable'] = np.repeat(self._measured_values_list, len(x))
+        new_x[obs_columns] = pd.DataFrame(obs, columns=obs_columns)
+        new_x = new_x.drop(columns=list(self._process_observables))
+        return new_x
+
+    def restructure_ec_df(self, ec_df):
+        idx_for_new_x = np.tile(ec_df.index, len(self._measured_values_list))
+        new_x = ec_df.iloc[idx_for_new_x]
+        new_x = new_x.reset_index(drop=True)
+        new_x['Opt2Qx_measured_variable'] = np.repeat(self._measured_values_list, len(ec_df))
+        return new_x
+
+    def _convert_results_to_original_format(self, res):
+        df_list = []
+        for name, df in res.groupby('Opt2Qx_measured_variable'):
+            df_i = df.rename(columns={obs_n: '%s__%s' % (name, obs_n.split('__')[1]) for obs_n in df.columns
+                                      if 'Opt2Qx_measured_values' in obs_n})
+            df_i = df_i.drop(columns=['Opt2Qx_measured_variable'])
+            df_i = df_i.reset_index(drop=True)
+            df_list.append(df_i)
+
+        converted_df = df_list[0]
+        if len(df_list) > 1:
+            exp_conditions_cols = list(self._dataset.experimental_conditions.columns)
+            if 'simulation' in converted_df.columns:
+                exp_conditions_cols += ['simulation']
+            for df_ in df_list[1:]:
+                # todo: why the fuck doesn't this merge work!?
+                converted_df = pd.concat([converted_df, df_[list(set(df_.columns)-set(exp_conditions_cols))]], axis=1)
+                # converted_df = converted_df.merge(df_, on=exp_conditions_cols, how='inner').reset_index(drop=True)
+        return converted_df
+
+    def run(self, use_dataset=True):
+        x_rst = self._restructure_x(self.simulation_result_df[self._results_cols])
+        if use_dataset:
+            x_ds = self.interpolation_ds.transform(x_rst)
+            result_ds = self.process.transform(x_ds)
+            self.results = self._convert_results_to_original_format(result_ds)
+            return self.results
+
+        else:
+            original_do_fit_transform_settings = {k: v for k, v in self.process.get_params().items()
+                                                  if 'do_fit_transform' in k}
+            do_not_do_fit_transform = {k: False for k in self.process.get_params().keys()
+                                       if 'do_fit_transform' in k}
+
+            self.process.set_params(**do_not_do_fit_transform)
+            x = self.interpolation.transform(x_rst)
+            results = self.process.transform(x)
+            self.results = self._convert_results_to_original_format(results)
+            self.process.set_params(**original_do_fit_transform_settings)
+
+        return self.results
 
 
 class FractionalKilling(MeasurementModel):
@@ -381,7 +578,7 @@ class FractionalKilling(MeasurementModel):
 
     def _check_measured_values_dict(self, measured_values_dict, dataset) -> (dict, set):
         """
-        Check that measured_values has only one key, and it is in the dataset_fluorescence.measured_variables.
+        Check that measured_values has only one key, and it is in the dataset.measured_variables.
 
         Check that the measured_values have values between 0 and 1.
 
@@ -398,19 +595,19 @@ class FractionalKilling(MeasurementModel):
         # Measured_values name exists in DataSet and has values between 0 and 1.
         for k, v in measured_values_dict.items():
             if k not in data_cols: raise ValueError(
-                "'measured_values' contains a variable, '{}', not mentioned as in the 'dataset_fluorescence'."
+                "'measured_values' contains a variable, '{}', not mentioned as in the 'dataset'."
                 .format(k))
             if max(dataset.data[k]) > 1 or min(dataset.data[k]) < 0:
-                raise ValueError("The variable, '{}', in the 'dataset_fluorescence', can only have values between 0.0 and 1.0".format(k))
+                raise ValueError("The variable, '{}', in the 'dataset', "
+                                 "can only have values between 0.0 and 1.0".format(k))
 
             # Corresponding columns in the simulation result
             if _is_vector_like(v):  # look for the v in the default_observables
                 measured_obs = _convert_vector_like_to_list(v)
-                for i in measured_obs:  # if v is an observable mentioned in the simulation result.
-                    # But what if you want to reference only a feature that gets created via a proceeding scaling step?
+                for i in measured_obs:  # if v is an observable or part of one mentioned in the simulation result.
                     if isinstance(i, str):
                         mentioned_obs = i.split('__')[0]
-                        obs |= {mentioned_obs} if mentioned_obs in self._default_observables|{'time'} else set()
+                        obs |= {mentioned_obs} if mentioned_obs in self._default_observables | {'time'} else set()
             else:
                 raise ValueError("'measured_values' must be a dict of lists")
 
@@ -685,9 +882,10 @@ class Fluorescence(MeasurementModel):
     def _add_interpolate_step(self):
         if self.interpolate_first:
             self.process.add_step(('interpolate', self.interpolation), index=0)
+        elif 'classifier' in [s[0] for s in self.process.steps]:
+            self.process.add_step(('interpolate', self.interpolation), 'classifier')
         else:
-            idx = [x for x, y in enumerate(self.process.steps) if y[0] == 'classifier'][0]
-            self.process.steps.insert(idx, ('interpolate', self.interpolation))
+            self.process.add_step(('interpolate', self.interpolation))
 
     def _replace_interpolate_step(self, step):
         idx = [x for x, y in enumerate(self.process.steps) if y[0] == 'interpolate'][0]

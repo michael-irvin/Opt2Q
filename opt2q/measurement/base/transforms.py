@@ -30,8 +30,9 @@ class Transform(object):
     """
     set_params_fn = dict()
 
-    def __init__(self):
-        pass
+    def __init__(self, **kwargs):
+        _parse_columns = kwargs.get('parse_columns', True)
+        self._parse_columns = False if not _parse_columns else True  # non-bool defaults to True.
 
     # setup/init methods
     @staticmethod
@@ -209,7 +210,7 @@ class Transform(object):
             raise TypeError("x must be a DataFrame")
 
         if cols is not None:
-            cols_set_ = self._parse_column_names(set(x.columns), cols_set)
+            cols_set_ = self._parse_column_names(set(x.columns), cols_set) if self._parse_columns else cols_set
             cols_to_scale = scalable_cols.intersection(cols_set_)
         else:
             cols_to_scale = scalable_cols
@@ -262,16 +263,22 @@ class CumulativeComputation(Transform):
         they assume the following name: 'col__name', where "col" is the column's original name and "name" is the name
         of the transform.
 
+    kwargs: dict
+        additional seetings
+        ``parse_columns``:bool
+            defaults to True. When True, transforms all columns that begin with the str listed in ``columns``).
+            Otherwise, only transform columns mentioned ``columns``.
+
     Attributes
     ----------
     supported_operations:list
         list of supported operations
     """
 
-    supported_operations= ['min', 'max', 'sum', 'prod']
+    supported_operations = ['min', 'max', 'sum', 'prod']
 
-    def __init__(self, columns=None, groupby=None, operation='sum', keep_old_columns=False,):
-        super(CumulativeComputation).__init__()
+    def __init__(self, columns=None, groupby=None, operation='sum', keep_old_columns=False, **kwargs):
+        super(CumulativeComputation, self).__init__(**kwargs)
         self._columns, self._columns_set = self._check_columns(columns)
         self._group_by = self._check_group_by(groupby, self._columns_set)  # returns list or None
 
@@ -372,12 +379,12 @@ class Interpolate(Transform):
         method) and ``new_values``, the values in ``x`` are retained.
 
     interpolation_fn:
-    interpolation_fn_kwargs
+    interpolation_fn_kwargs:
     """
 
     def __init__(self, independent_variable_name, dependent_variable_name, new_values, groupby=None,
                  interpolation_fn='fast_linear', **interpolation_fn_kwargs):
-        super(Interpolate).__init__()
+        super(Interpolate, self).__init__(**interpolation_fn_kwargs)
 
         self._independent_variable_name = independent_variable_name
         self._dependent_variable_name = self._dependent_variables_to_list(dependent_variable_name)
@@ -1107,8 +1114,9 @@ class LogisticClassifier(Transform):
                              'nominal': ['coef_', 'intercept_']}
 
     def __init__(self, dataset, columns=None, column_groups=None, group_features=False,
-                 group_name=None, do_fit_transform=True, classifier_type='nominal', n_jobs=1, classifier_kwargs=None):
-        super(LogisticClassifier).__init__()
+                 group_name=None, do_fit_transform=True, classifier_type='nominal', n_jobs=1, classifier_kwargs=None,
+                 **kwargs):
+        super(LogisticClassifier, self).__init__(**kwargs)
 
         # set columns
         columns_set, columns_dict = self._check_columns(columns, column_groups)
@@ -1202,7 +1210,7 @@ class LogisticClassifier(Transform):
 
     def _check_dataset(self, dataset, columns_dict):
         """
-        Check dataset_fluorescence for required attributes. Raise Error if not DataSet or pd.DataFrame
+        Check dataset for required attributes. Raise Error if not DataSet or pd.DataFrame
         """
         if isinstance(dataset, pd.DataFrame):
             # any mentioned columns can be measured variables.
@@ -1222,7 +1230,7 @@ class LogisticClassifier(Transform):
         (i.e. the columns_dict.keys())
         """
         if set(columns_dict.keys()) - set(dataset_columns) != set():
-            raise ValueError("The 'dataset_fluorescence' must have the following nominal or ordinal measured-variables columns: " +
+            raise ValueError("The 'dataset' must have the following nominal or ordinal measured-variables columns: " +
                              _list_the_errors(list(set(columns_dict.keys()) - set(dataset_columns))))
 
     def _check_classifier_type(self, classifier_type):
@@ -1351,6 +1359,9 @@ class LogisticClassifier(Transform):
         # do transform
         result_df = pd.DataFrame()
         for y_col, x_col in columns_dict.items():
+            # check data
+            if 'ordinal' in self._classifier_type:
+                combined_x_y[y_col] = self._check_ordinal_data(combined_x_y[y_col])
             # get model
             model = self._transform_get_logistic_model(combined_x_y[x_col], combined_x_y[y_col], y_col)
             # predict results
@@ -1361,6 +1372,27 @@ class LogisticClassifier(Transform):
         # add exp conditions
         result_df[list(x_extra_columns)] = combined_x_y[list(x_extra_columns)]
         return result_df
+
+    def _check_ordinal_data(self, y):
+        if len(y.unique()) != max(y.unique())+1:
+            y_unique = sorted(y.unique())
+            y_ = y.copy()
+            cat_map = {c_old: c_new for c_new, c_old in enumerate(y_unique)}
+            for cat in y_unique:
+                mask = y_ == cat
+                y_.loc[mask] = cat_map[cat]
+            return y_
+        else:
+            return y
+
+        # cat_map = {c_old: c_new for c_new, c_old in enumerate(ds.data[k].unique())}
+        # for cat in ds.data[k].unique():
+        #     mask = ds.data[k] == cat
+        #     ds.data.loc[mask, k] = cat_map[cat]
+        # col_map.update(
+        #     {f'{k}__{cat_new}': f'{k}__{cat_old}' for cat_new, cat_old in enumerate(ds.data[k].unique())})
+        # print(ds.data)
+        # return ds, col_map
 
     def set_up(self, x, **kwargs):
         return self._set_up(x, self._data_df)
@@ -1479,14 +1511,15 @@ class LogisticClassifier(Transform):
         """
         return logistic_model
 
-    @staticmethod
-    def _get_transform_w_fit(logistic_model, **kwargs):
+    def _get_transform_w_fit(self, logistic_model, **kwargs):
         """
         Return model after running model.fit(x, y)
         """
         x = kwargs.get('x')
-        y = kwargs.get('y')
-
+        if 'ordinal' in self._classifier_type:
+            y = kwargs.get('y').astype('int')
+        else:
+            y = kwargs.get('y')
         logistic_model.fit(x, y)
         return logistic_model
 
@@ -1533,8 +1566,9 @@ class SampleAverage(Transform):
     """
     default_sample_size = 500
 
-    def __init__(self, columns=None, drop_columns=None, groupby=None, apply_noise=False, variances=0.0, sample_size=default_sample_size):
-        super(SampleAverage).__init__()
+    def __init__(self, columns=None, drop_columns=None, groupby=None, apply_noise=False, variances=0.0,
+                 sample_size=default_sample_size, **kwargs):
+        super(SampleAverage, self).__init__(**kwargs)
         self._columns, self._columns_set = self._check_columns(columns)
         self._drop_columns, self._drop_columns_set = self._check_columns(drop_columns)
         self._group_by = self._check_group_by(groupby, self._columns_set)  # returns List or None
@@ -1712,7 +1746,7 @@ class Scale(Transform):
                        'loge': (log_scale, {'base': np.e, 'clip_zeros': True})}
 
     def __init__(self, columns=None, groupby=None, keep_old_columns=False, scale_fn='log2', **scale_fn_kwargs):
-        super(Scale).__init__()
+        super(Scale, self).__init__(**scale_fn_kwargs)
         self._columns, self._columns_set = self._check_columns(columns)
         self._scale_fn, self._scale_fn_kwargs = self._check_scale_fn(scale_fn)
         self._scale_fn_kwargs.update(scale_fn_kwargs)
@@ -1855,7 +1889,7 @@ class Scale(Transform):
             scaled columns' names
         name: str
         """
-        return scaled_df.rename(columns={col : f'{col}__{name}' for col in scaled_columns_set})
+        return scaled_df.rename(columns={col: f'{col}__{name}' for col in scaled_columns_set})
 
 
 class ScaleGroups(Scale):
@@ -1941,17 +1975,20 @@ class ScaleGroups(Scale):
     def _transform_not_in_groups(self, x, _scale_these_cols, kwargs):
         cols = list(_scale_these_cols)
         remaining_cols = list(set(x.columns) - _scale_these_cols)
-        scaled_df = self.scale_fn(x[cols], **self.scale_fn_kwargs)
+        scaled_df = self.scale_fn(x[cols], **self.scale_fn_kwargs).reset_index(drop=True)
 
         if self.keep_old_columns:
             scaled_df = self._rename_scaled_columns(scaled_df, set(cols), kwargs.get('name', 'scale'))
-            scaled_df[cols] = x[cols]
+            remaining_cols += cols
 
         if len(remaining_cols) == 0:
             return scaled_df
 
         x_remaining = x[remaining_cols].drop_duplicates().reset_index(drop=True)
         len_x_remaining = x_remaining.shape[0]
+
+        if len(scaled_df) == len_x_remaining:
+            return pd.concat([scaled_df, x_remaining], axis=1, sort=False)
 
         x_remaining_repeated = x_remaining.iloc[np.tile(x_remaining.index, len(scaled_df))].reset_index(drop=True)
         scaled_df_repeated = scaled_df.iloc[np.repeat(scaled_df.index, len_x_remaining)].reset_index(drop=True)
@@ -1964,8 +2001,8 @@ class SKLColumnWiseScalarIndependentColumns(Transform):
     """
     Scales columns of a :class:`~pandas.DataFrame` using sklearn preprocessing tools.
     """
-    def __init__(self, skl_fn, skl_fn_kwargs=None, columns=None, groupby=None, do_fit_transform=True):
-        super(SKLColumnWiseScalarIndependentColumns).__init__()
+    def __init__(self, skl_fn, skl_fn_kwargs=None, columns=None, groupby=None, do_fit_transform=True, **kwargs):
+        super(SKLColumnWiseScalarIndependentColumns, self).__init__(**kwargs)
 
         self._skl_preprocessor_kwargs = dict() if skl_fn_kwargs is None else skl_fn_kwargs
         self._skl_preprocessor = skl_fn
@@ -2063,11 +2100,12 @@ class Standardize(SKLColumnWiseScalarIndependentColumns):
         When True, Simply scale the values of ``x`` to a (column-wise) mean of zero and unit variance.
         When False, use scaling parameters from most the previous scaling to transform  ``x``.
     """
-    def __init__(self, columns=None, groupby=None, do_fit_transform=True):
-        super().__init__(skl_fn=StandardScaler,
-                         columns=columns,
-                         groupby=groupby,
-                         do_fit_transform=do_fit_transform)
+    def __init__(self, columns=None, groupby=None, do_fit_transform=True, **kwargs):
+        super(Standardize, self).__init__(skl_fn=StandardScaler,
+                                          columns=columns,
+                                          groupby=groupby,
+                                          do_fit_transform=do_fit_transform,
+                                          **kwargs)
 
 
 class ScaleToMinMax(SKLColumnWiseScalarIndependentColumns):
@@ -2097,13 +2135,14 @@ class ScaleToMinMax(SKLColumnWiseScalarIndependentColumns):
         When False, use scaling parameters from most the previous scaling to transform  ``x``.
     """
 
-    def __init__(self, feature_range=(0,1), columns=None, groupby=None, do_fit_transform=True):
+    def __init__(self, feature_range=(0,1), columns=None, groupby=None, do_fit_transform=True, **kwargs):
         _minmax = self._check_feature_range(feature_range)
-        super().__init__(skl_fn=MinMaxScaler,
-                         skl_fn_kwargs= {'feature_range': _minmax},
-                         columns=columns,
-                         groupby=groupby,
-                         do_fit_transform=do_fit_transform)
+        super(ScaleToMinMax, self).__init__(skl_fn=MinMaxScaler,
+                                            skl_fn_kwargs= {'feature_range': _minmax},
+                                            columns=columns,
+                                            groupby=groupby,
+                                            do_fit_transform=do_fit_transform,
+                                            **kwargs)
 
     @staticmethod
     def _check_feature_range(feature_range):

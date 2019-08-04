@@ -33,7 +33,7 @@ sim_results_0 = likelihood_fn.simulator.run()
 
 # -------- Dynamics ---------
 measurement_results_0 = likelihood_fn.measurement_model.run()
-measurement_results_time_hrs = measurement_results_0['time'].apply(lambda x:x/3600)
+measurement_results_time_hrs = measurement_results_0['time'].apply(lambda x: x/3600)
 
 plt.plot(measurement_results_time_hrs, measurement_results_0['BID_obs'], '--',
          color=cm.colors[0], alpha=0.5, label='tBID (starting params)')

@@ -1,18 +1,18 @@
 # MW Irvin -- Lopez Lab -- 2018-08-23
 import numpy as np
-np.random.seed(10)
 from pysb import Monomer, Parameter, Initial, Observable, Rule
 from pysb.bng import generate_equations
 from pysb.testing import *
 from opt2q.simulator import Simulator
 from opt2q.measurement.base import MeasurementModel, SampleAverage, Scale
-from opt2q.measurement import WesternBlot, FractionalKilling, Fluorescence
+from opt2q.measurement import WesternBlot, FractionalKilling, Fluorescence, WesternBlotPTM
 from opt2q.data import DataSet
 # from opt2q.examples.cell_viability_example.cell_viability_likelihood_fn import cell_viability_model
 from opt2q.utils import parse_column_names
 import pandas as pd
 import unittest
 import warnings
+np.random.seed(10)
 
 
 class TestSolverModel(object):
@@ -97,7 +97,7 @@ class TestMeasurementModel(TestSolverModel, unittest.TestCase):
         with self.assertRaises(ValueError) as error:
             mm = MeasurementModel(self.sim_result)
             mm._check_dataset('ds')
-        self.assertTrue(error.exception.args[0] == "'dataset_fluorescence' must be an Opt2Q DataSet.")
+        self.assertTrue(error.exception.args[0] == "'dataset' must be an Opt2Q DataSet.")
 
     def test_get_obs_from_dataset(self):
         ds = DataSet(pd.DataFrame(), [])
@@ -107,7 +107,7 @@ class TestMeasurementModel(TestSolverModel, unittest.TestCase):
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             test = mm._get_obs_from_dataset(ds, mm._default_observables)
-            assert str(w[-1].message) == 'The supplied dataset_fluorescence has observables not present in the simulation result. ' \
+            assert str(w[-1].message) == 'The supplied dataset has observables not present in the simulation result. ' \
                                          'They will be ignored.'
         target = {'AB_complex'}
         self.assertSetEqual(mm._get_required_observables({'A', 'B'}, None), {'A', 'B'})
@@ -526,7 +526,7 @@ class TestWesternBlotModel(TestSolverModel, unittest.TestCase):
             wb._check_measured_values_dict({'PARP': ['A_free'], 'EXTRA': ['AB_complex']}, ds)
         self.assertTrue(
             error.exception.args[0] ==
-            "'measured_values' contains a variable, 'EXTRA', not mentioned as an ordinal variable in the 'dataset_fluorescence'.")
+            "'measured_values' contains a variable, 'EXTRA', not mentioned as an ordinal variable in the 'dataset'.")
 
     def test_check_measured_values_observables_updated(self):
         data = pd.DataFrame([[2, 0, 0, "WT", 1],
@@ -722,7 +722,7 @@ class TestFractionalKillingModel(TestSolverModel, unittest.TestCase):
             fk = FractionalKilling(self.sim_result, ds, {'PARP': ['A_free']})
             fk._check_measured_values_dict({'PARP': ['A_free']}, ds)
         self.assertTrue(
-            error.exception.args[0] == "The variable, 'PARP', in the 'dataset_fluorescence', can only have values between "
+            error.exception.args[0] == "The variable, 'PARP', in the 'dataset', can only have values between "
                                        "0.0 and 1.0")
 
     def test_interpolate_first(self):
@@ -740,7 +740,7 @@ class TestFractionalKillingModel(TestSolverModel, unittest.TestCase):
         data = pd.DataFrame([[1.0, 0, 'WT', 1], [0.78, 10, 'WT', 1]],
                             columns=['viability', 'time', 'condition', 'experiment'])
         ds = DataSet(data, {'viability': 'quantitative'})
-        fk = FractionalKilling(self.sim_result, ds, {'viability':['AB_complex', 'A_free']}, interpolate_first=False)
+        fk = FractionalKilling(self.sim_result, ds, {'viability': ['AB_complex', 'A_free']}, interpolate_first=False)
         fk._replace_interpolate_step('MOCK_STEP')
         self.assertTrue(fk.process.steps[-3][1] == 'MOCK_STEP')
 
@@ -791,10 +791,10 @@ class TestFractionalKillingModel(TestSolverModel, unittest.TestCase):
         #
 
     def test_time_independent(self):
-        # polynomial etc transforms are ignoring the time axis because they
+        # polynomial etc transforms are ignoring the time axis
         data = pd.DataFrame([[0.9, 'WT', 1, 0], [0.50, 'WT', 1, 2], [0.58, 'WT', 1, 1]],
                             columns=['viability', 'condition', 'experiment', 'A_free'])
-        ds = DataSet(data, {'viability': 'quantitative', 'A_free':'ordinal'}, measurement_error=0.05)
+        ds = DataSet(data, {'viability': 'quantitative', 'A_free': 'ordinal'}, measurement_error=0.05)
 
         ff = FractionalKilling(self.sim_result, ds, {'viability': ['AB_complex', 'time']},
                                observables=['AB_complex', 'A_free'],
@@ -802,7 +802,7 @@ class TestFractionalKillingModel(TestSolverModel, unittest.TestCase):
                                time_dependent=False)
         pd.testing.assert_frame_equal(ff._dataset_experimental_conditions_df[['condition', 'experiment']],
                                       pd.DataFrame([['WT', 1]], columns=['condition', 'experiment']))
-
+        ff.run()
     # def test_likelihood_time_independent(self):
     #     test = cell_viability_model.likelihood()
     #     self.assertAlmostEqual(test, 13192.340745562273, 4)
@@ -1095,3 +1095,117 @@ class TestFluorescence(TestSolverModel, unittest.TestCase):
                               columns=['A_free',  'AB_complex',  'time',  'simulation'])
         pd.testing.assert_frame_equal(test[test.columns], target[test.columns], check_less_precise=4)
 
+
+class TestWesternBlotPTM(TestSolverModel, unittest.TestCase):
+    def test_check_measured_values_dict(self):
+        data = pd.DataFrame([[2, 0, 0, "WT", 1],
+                             [2, 0, 1, "WT", 1],
+                             [2, 0, 2, "WT", 1],
+                             [2, 1, 3, "WT", 1],
+                             [2, 2, 4, "WT", 1],
+                             [2, 3, 5, "WT", 1],
+                             [2, 3, 5, "WT", 1],
+                             [1, 4, 7, "WT", 1],
+                             [0, 4, 9, "WT", 1]],
+                            columns=['PARP', 'cPARP', 'time', 'condition', 'experiment'])
+        ds = DataSet(data, {'PARP': 'ordinal', 'cPARP': 'ordinal'})
+        WesternBlotPTM(self.sim_result, ds, {'PARP': ['A_free'], 'cPARP': ['AB_complex']})
+        with self.assertRaises(ValueError) as error:
+            WesternBlotPTM(self.sim_result, ds, {'PARP': ['A_free'], 'cPARP': ['AB_complex', 'A_free']})
+        self.assertTrue(error.exception.args[0] == " All the lists in 'measured_variables' must have the same length.")
+
+    def test_dataset_restructure(self):
+        data = pd.DataFrame([[2, 0, 0, "WT", 1],
+                             [2, 0, 1, "WT", 1],
+                             [2, 0, 2, "WT", 1],
+                             [2, 1, 3, "WT", 1],
+                             [2, 2, 4, "WT", 1],
+                             [2, 3, 5, "WT", 1],
+                             [2, 3, 5, "WT", 1],
+                             [1, 4, 7, "WT", 1],
+                             [0, 4, 9, "WT", 1]],
+                            columns=['PARP', 'cPARP', 'time', 'condition', 'experiment'])
+        ds = DataSet(data, {'PARP': 'ordinal', 'cPARP': 'ordinal'})
+        wb = WesternBlotPTM(self.sim_result, ds, {'cPARP': ['AB_complex'], 'PARP': ['A_free']})
+        print(wb._restructured_ds)
+
+    def test_x_restructure(self):
+        data = pd.DataFrame([[2, 0, 0, "WT", 1],
+                             [2, 0, 1, "WT", 1],
+                             [2, 0, 2, "WT", 1],
+                             [2, 1, 3, "WT", 1],
+                             [2, 2, 4, "WT", 1],
+                             [2, 3, 5, "WT", 1],
+                             [2, 3, 5, "WT", 1],
+                             [1, 4, 7, "WT", 1],
+                             [0, 4, 9, "WT", 1]],
+                            columns=['PARP', 'cPARP', 'time', 'condition', 'experiment'])
+        ds = DataSet(data, {'PARP': 'ordinal', 'cPARP': 'ordinal'})
+        wb = WesternBlotPTM(self.sim_result, ds, {'PARP': ['AB_complex', 'B_free'], 'cPARP': ['A_free', 'B_free']},
+                            ['AB_complex'], experimental_conditions=pd.DataFrame([['WT', 1],
+                                                                                  ['KO', 1]],
+                                                                                 columns=['condition', 'experiment']))
+        print(wb._restructure_x(wb.simulation_result_df[wb._results_cols]))
+
+    def test_wb_run(self):
+        data = pd.DataFrame([[2, 0, 0, "WT", 1],
+                             [2, 0, 1, "WT", 1],
+                             [2, 0, 2, "WT", 1],
+                             [2, 1, 3, "WT", 1],
+                             [2, 2, 4, "WT", 1],
+                             [2, 3, 5, "WT", 1],
+                             [2, 3, 5, "WT", 1],
+                             [1, 4, 7, "WT", 1],
+                             [0, 4, 9, "WT", 1]],
+                            columns=['cPARP', 'PARP', 'time', 'condition', 'experiment'])
+        ds = DataSet(data, {'PARP': 'ordinal', 'cPARP': 'ordinal'})
+        wb = WesternBlotPTM(self.sim_result, ds, {'PARP': ['AB_complex'], 'cPARP': ['A_free']},
+                            ['AB_complex'], experimental_conditions=pd.DataFrame([['WT', 1],
+                                                                                  ['KO', 1]],
+                                                                                 columns=['condition', 'experiment']))
+        wb.process.get_step('sample_average').set_params(**{'sample_size': 1})
+        print(wb.run().columns)
+
+    def test_wb_run_out_of_sample(self):
+        data = pd.DataFrame([[2, 0, 0, "WT", 1],
+                             [2, 0, 1, "WT", 1],
+                             [2, 0, 2, "WT", 1],
+                             [2, 1, 3, "WT", 1],
+                             [2, 2, 4, "WT", 1],
+                             [2, 3, 5, "WT", 1],
+                             [2, 3, 5, "WT", 1],
+                             [1, 4, 7, "WT", 1],
+                             [0, 4, 9, "WT", 1]],
+                            columns=['cPARP', 'PARP', 'time', 'condition', 'experiment'])
+        ds = DataSet(data, {'PARP': 'ordinal', 'cPARP': 'ordinal'})
+        wb = WesternBlotPTM(self.sim_result, ds, {'PARP': ['AB_complex'], 'cPARP': ['A_free']},
+                            ['AB_complex'], experimental_conditions=pd.DataFrame([['WT', 1],
+                                                                                  ['KO', 1]],
+                                                                                 columns=['condition', 'experiment']))
+        wb.process.get_step('sample_average').set_params(**{'sample_size': 1})
+        print(wb.run()[['time', 'PARP__1', 'cPARP__1', 'condition', 'experiment']])
+        print(wb.run(use_dataset=False)[['time', 'PARP__1', 'cPARP__1', 'condition', 'experiment']])
+
+    def test_likelihood(self):
+        data = pd.DataFrame([[2, 0, 0, "WT", 1],
+                             [2, 0, 1, "WT", 1],
+                             [2, 0, 2, "WT", 1],
+                             [2, 1, 3, "WT", 1],
+                             [2, 2, 4, "WT", 1],
+                             [2, 3, 5, "WT", 1],
+                             [1, 3, 5, "WT", 1],
+                             [1, 4, 7, "WT", 1],
+                             [1, 4, 9, "WT", 1]],
+                            columns=['cPARP', 'PARP', 'time', 'condition', 'experiment'])
+        ds = DataSet(data, {'PARP': 'ordinal', 'cPARP': 'ordinal'}, use_common_ordinal_classifier=True)
+        sim = Simulator(self.model)
+        sim.param_values = pd.DataFrame([[100, 'WT', 1, 0], [150, 'WT', 1, 1]],
+                                        columns=['kbindAB', 'condition', 'experiment', 'simulation'])
+        sim_result = sim.run(tspan=np.linspace(0, 10, 3))
+        wb = WesternBlotPTM(sim_result, ds, {'PARP': ['AB_complex'], 'cPARP': ['AB_complex']},
+                            ['AB_complex'], experimental_conditions=pd.DataFrame([['WT', 1],
+                                                                                  ['KO', 1]],
+                                                                                 columns=['condition', 'experiment']))
+        wb.process.remove_step(0)
+        print(wb.likelihood())
+        # self.assertAlmostEqual(results, 12.9654678049418, 10)

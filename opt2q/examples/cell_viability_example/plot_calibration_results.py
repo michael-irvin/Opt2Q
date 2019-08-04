@@ -16,9 +16,13 @@ from opt2q.measurement.base import Scale, ScaleGroups
 from opt2q.measurement.base.functions import derivative, where_max
 from opt2q.examples.cell_viability_example.cell_viability_likelihood_fn import likelihood_fn
 
-calibration_results = np.array([-0.70636527,   0.64134076,   1.00516322,   0.97326623,   0.60482481,
-                                 0.12083115,   -70.75661173, 90.5471205,  46.22491245,
-                                 66.16385524,  3.58463852, 0.64228147])  # -121
+# calibration_results = np.array([-0.70636527,   0.64134076,   1.00516322,   0.97326623,   0.60482481,
+#                                  0.12083115,   -70.75661173, 90.5471205,  46.22491245,
+#                                  66.16385524,  3.58463852, 0.64228147])  # -121
+
+# calibration_results = np.array([-0.42650445,  0.24164825,  1.73705232,  0.68708502, -2.06099316,  0.11092439,
+#                                  0.18259852,  0.42871703, -0.37292799, -1.94781337, -0.14213931, -0.11267816,
+#                                 -1.36704424,  0.32459849,  0.52860056])
 
 # calibration_results = np.array([ -0.88802359,   0.71834574,   1.00998571,   0.99977224,   0.58950459,
 #                                   0.24862495,  33.97529859,  86.94037295,  48.95156694, -89.54725684,
@@ -31,17 +35,17 @@ params_for_update = likelihood_fn.noise_model.param_mean[['TRAIL_conc']].drop_du
 params_for_update['num_sims'] = 50
 likelihood_fn.noise_model.update_values(param_mean=params_for_update)
 
-likelihood_fn(calibration_results)
+# likelihood_fn(calibration_results)
 params = likelihood_fn.noise_model.run()
 
 # -------plot calibrated param values --------
 cm = plt.get_cmap('tab10')
-params[['kc3', 'kc4']].plot.scatter(x='kc3', y='kc4', alpha=0.05, color=cm.colors[0])
+params[['kc2', 'kc3']].plot.scatter(x='kc2', y='kc3', alpha=0.05, color=cm.colors[0])
 plt.show()
 
 
 # ------- Simulate dynamics -------
-results = likelihood_fn.simulator.run(tspan=np.linspace(0, 5000, 100), param_values=params)
+results = likelihood_fn.simulator.run(tspan=np.linspace(0, 3600*8, 100), param_values=params)
 results_df = results.opt2q_dataframe
 results_df.reset_index(inplace=True)
 results_df = results_df[['cPARP_obs', 'time', 'TRAIL_conc','simulation']]
@@ -95,14 +99,13 @@ fig, ax = plt.subplots()
 for i, group_ in enumerate(groups):
     name, group = group_
     ax.plot(group['cPARP_obs'], group['time'],
-            marker='o', linestyle='', ms=10, alpha=0.1,  label=f'{name} ng/mL', color=cm.colors[i%8])
+            marker='o', linestyle='', ms=10, alpha=0.25,  label=f'{name} ng/mL', color=cm.colors[i%8])
 
 # classifier contour lines
-x1 = np.linspace(4.7, 5.1, 1000)
-x2 = np.linspace(1500, 4500, 1000)
-nx1, nx2 = np.meshgrid(x1, x2)
 
-print(likelihood_fn.measurement_model.process.steps)  # Todo: These steps are mislabeled. Fix!
+x1 = np.linspace(4.85, 5., 1000)
+x2 = np.linspace(10000, 30000, 1000)
+nx1, nx2 = np.meshgrid(x1, x2)
 
 grid = np.c_[nx1.ravel(), nx2.ravel()]
 x = pd.DataFrame(grid, columns=['cPARP_obs', 'time'])
@@ -112,13 +115,12 @@ x_std = standardize_.transform(x)
 x_poly = likelihood_fn.measurement_model.process.steps[4][1].transform(x_std)  # polynomial features
 x_prob = likelihood_fn.measurement_model.process.steps[5][1].transform(x_poly)  # probability of cell death
 
-cs = ax.contour(nx1, nx2, x_prob['viability__1'].values.reshape(nx1.shape), colors=['black'], alpha=0.75, levels=np.linspace(0.1, 0.9, 5))
+cs = ax.contour(nx1, nx2, x_prob['viability__1'].values.reshape(nx1.shape), colors=['black'], alpha=0.75, levels=np.linspace(0.1, 0.9, 7))
 ax.clabel(cs, inline=1, fontsize=10)
-
 ax.set_xlabel('log10(k), k=rate of change in Caspase indicator')
 ax.set_ylabel('Time of Max Caspase activity (tau)')
-ax.set_title('Apoptosis in cells treated with TRAIL')
-ax.set_xlim(4.7, 5.1)
+# ax.set_title('Apoptosis in cells treated with TRAIL')
+ax.set_xlim(4.85, 5.)
 ax.legend()
 plt.show()
 

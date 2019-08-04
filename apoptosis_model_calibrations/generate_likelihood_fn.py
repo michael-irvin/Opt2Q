@@ -80,7 +80,8 @@ def generate_likelihood_fn(compiled_data, n_sims, n_timepoints):
             measurement_model.interpolate_first = False
 
         if 'Western' in k[2]:
-            measurement_model.process.set_params(**{'classifier__do_fit_transform': True})
+            measurement_model.process.set_params(**{'classifier__do_fit_transform': True,
+                                                    'sample_average__sample_size': n_sims})
 
         if 'Hellwig_Rehm_2008' in k[0] and 'Caspase 8 FRET Emission' in k[1]:
             # Fluorescent EITD-ase data in Hellwig et al. 2008 does not model Bid concentration in BidKD cells.
@@ -140,7 +141,7 @@ def generate_likelihood_fn(compiled_data, n_sims, n_timepoints):
         if likelihood_fun.noise_model.param_covariance.shape[0] > 0:
             likelihood_fun.noise_model.update_values(param_mean=param_means,
                                                      param_covariance=param_variances)
-        else: # fluorescence data omits noise term
+        else:  # fluorescence data omits noise term
             likelihood_fun.noise_model.update_values(param_mean=cd.experimental_conditions)
 
         # --- Experimental Conditions ---

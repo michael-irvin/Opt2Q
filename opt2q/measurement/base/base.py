@@ -46,7 +46,7 @@ class MeasurementModel(object):
 
     experimental_conditions: :class:`~pandas.DataFrame`, optional
         The experimental conditions involved in the measurement model. Defaults to experimental conditions in
-        the ``dataset_fluorescence`` (if present) or the ``simulation_result``.
+        the ``dataset`` (if present) or the ``simulation_result``.
 
         You can add a 'time' column to specify time-points that are specific to the individual experimental conditions.
         NaNs in this column will be replace by the ``time_points`` values or the time-points mentioned in the
@@ -305,7 +305,7 @@ class MeasurementModel(object):
         trimmed_df = pd.merge(ec_df, sim_res_ec_df, how=how, on=on, suffixes=suffixes)
         trimmed_df = trimmed_df.drop_duplicates().reset_index(drop=True)
 
-        if trimmed_df[on].shape[0] < ec_df[on].drop_duplicates().shape[0]:
+        if trimmed_df[on].shape[0] < ec_df[on].drop_duplicates().shape[0] and kw.get('show_warning', True):
             warnings.warn(
                 "The '{}' dataframe contains rows that are not present in the simulation result".format(var_name)
             )
@@ -415,6 +415,15 @@ class MeasurementModel(object):
                 self._ec_df_pre, self._default_time_points
             )
         return sim_res_df
+
+    def _trim_sim_results_to_have_only_rows_in_experimental_conditions_df(self, use_dataset=True):
+        ec_df = self._dataset_experimental_conditions_df if use_dataset else self.experimental_conditions_df
+        ec_cols = list(set(self.experimental_conditions_df.columns) - {'time', 'simulation'})
+        if len(ec_cols) > 0:
+            sim_results = self._intersect_w_sim_result_ec(ec_df[ec_cols], self.simulation_result_df, ec_cols)
+        else:
+            sim_results = self.simulation_result_df
+        return sim_results
 
     def likelihood(self, use_all_dataset_obs=True, use_all_dataset_exp_cond=True):
         """

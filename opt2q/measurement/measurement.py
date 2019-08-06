@@ -10,6 +10,9 @@ from opt2q.measurement.base.base import MeasurementModel
 from opt2q.measurement.base.transforms import Interpolate, LogisticClassifier, Pipeline, Scale, Standardize, \
     SampleAverage, ScaleToMinMax
 
+from timeit import default_timer as timer
+from datetime import timedelta
+
 
 class WesternBlot(MeasurementModel):
     """
@@ -624,9 +627,13 @@ class FractionalKilling(MeasurementModel):
             it will do "out of sample" predictions; i.e. doing the transform on experimental conditions in
             simulation result but not in the dataset_fluorescence.
         """
+
         if use_dataset and 'interpolate' in [x[0] for x in self.process.steps]:
             self._replace_interpolate_step(self.interpolation_ds)
-            result_ds = self.process.transform(self.simulation_result_df[self._results_cols])
+            sim_results = self._trim_sim_results_to_have_only_rows_in_experimental_conditions_df(
+                use_dataset=use_dataset)
+            result_ds = self.process.transform(sim_results[self._results_cols])
+            # result_ds = self.process.transform(self.simulation_result_df[self._results_cols])
             self._replace_interpolate_step(self.interpolation)
             self.results = result_ds
 
@@ -637,7 +644,10 @@ class FractionalKilling(MeasurementModel):
                                        if 'do_fit_transform' in k}
 
             self.process.set_params(**do_not_do_fit_transform)
-            self.results = self.process.transform(self.simulation_result_df[self._results_cols])
+            sim_results = self._trim_sim_results_to_have_only_rows_in_experimental_conditions_df(
+                use_dataset=use_dataset)
+            self.results = self.process.transform(sim_results[self._results_cols])
+            # self.results = self.process.transform(self.simulation_result_df[self._results_cols])
             self.process.set_params(**original_do_fit_transform_settings)
 
         return self.results
@@ -655,7 +665,10 @@ class FractionalKilling(MeasurementModel):
         """
         if use_dataset and 'interpolate' in [x[0] for x in self.process.steps]:
             self._replace_interpolate_step(self.interpolation_ds)
-            result_ds = self.process.set_up(self.simulation_result_df[self._results_cols])
+            sim_results = self._trim_sim_results_to_have_only_rows_in_experimental_conditions_df(
+                use_dataset=use_dataset)
+            result_ds = self.process.transform(sim_results[self._results_cols])
+            # result_ds = self.process.transform(self.simulation_result_df[self._results_cols])
             self._replace_interpolate_step(self.interpolation)
             self.results = result_ds
 
@@ -666,7 +679,10 @@ class FractionalKilling(MeasurementModel):
                                        if 'do_fit_transform' in k}
 
             self.process.set_params(**do_not_do_fit_transform)
-            self.results = self.process.set_up(self.simulation_result_df[self._results_cols])
+            sim_results = self._trim_sim_results_to_have_only_rows_in_experimental_conditions_df(
+                use_dataset=use_dataset)
+            self.results = self.process.transform(sim_results[self._results_cols])
+            # self.results = self.process.transform(self.simulation_result_df[self._results_cols])
             self.process.set_params(**original_do_fit_transform_settings)
 
         return self.results
@@ -915,11 +931,15 @@ class Fluorescence(MeasurementModel):
         """
         Run the measurement process without considering the dataset_fluorescence. This is used in the absence of a dataset_fluorescence
         """
+
         if 'do_fit_transform' in kwargs:
             do_fit_transform = kwargs.pop('do_fit_transform')
             return self._run_process_set_do_fit_transform(do_fit_transform, **kwargs)
         else:
-            self.results = self.process.transform(self.simulation_result_df[self._results_cols])
+            sim_results = self._trim_sim_results_to_have_only_rows_in_experimental_conditions_df(
+                use_dataset=kwargs.get('use_dataset', False))
+            self.results = self.process.transform(sim_results[self._results_cols])
+            # self.results = self.process.transform(self.simulation_result_df[self._results_cols])
             return self.results
 
     def _run_process_set_do_fit_transform(self, do_fit_transform, **kwargs):
@@ -929,16 +949,20 @@ class Fluorescence(MeasurementModel):
                                          if 'do_fit_transform' in k}
 
         self.process.set_params(**new_do_fit_transform_settings)
-        self.results = self.process.transform(self.simulation_result_df[self._results_cols])
+        sim_results = self._trim_sim_results_to_have_only_rows_in_experimental_conditions_df(
+            use_dataset=kwargs.get('use_dataset', False))
+        self.results = self.process.transform(sim_results[self._results_cols])
+        # self.results = self.process.transform(self.simulation_result_df[self._results_cols])
         self.process.set_params(**original_do_fit_transform_settings)
 
         return self.results
 
     def _run_with_dataset(self, **kwargs):
-        use_dataset=kwargs.get('use_dataset', True)
+        use_dataset = kwargs.get('use_dataset', True)
 
         if use_dataset and 'interpolate' in [x[0] for x in self.process.steps]:
             self._replace_interpolate_step(self.interpolation_ds)
+            kwargs.update({'use_dataset': True})
             result_ds = self._run_process(**kwargs)
             self._replace_interpolate_step(self.interpolation)
             self.results = result_ds
@@ -1010,4 +1034,4 @@ class Fluorescence(MeasurementModel):
         return {k: parse_column_names(x_col_set, set(v)).intersection(x_col_set) for k, v in self._measured_values.items()}
 
     def _likelihood_raise_error(self):
-        raise ValueError("likelihood requires a dataset_fluorescence")
+        raise ValueError("likelihood requires a dataset")

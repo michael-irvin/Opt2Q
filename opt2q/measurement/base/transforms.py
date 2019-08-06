@@ -17,6 +17,10 @@ from opt2q.measurement.base.functions import TransformFunction, log_scale, colum
 from opt2q.data import DataSet
 
 
+from timeit import default_timer as timer
+from datetime import timedelta
+
+
 class Transform(object):
     """
     Base class for measurement processes, i.e. transformations to the simulation results that constitute a simulation of
@@ -2460,7 +2464,6 @@ class Pipeline(Transform):
         """
         xt = x
         for name, transformation in self.steps:
-            print(name)
             xt = transformation.transform(xt, name=name)
             # Note: All transformations must have a run method. If they are sub-class of process, they will.
         return xt

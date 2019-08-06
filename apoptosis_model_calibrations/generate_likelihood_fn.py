@@ -13,6 +13,7 @@ from opt2q.calibrator import objective_function
 from multiprocessing import current_process
 from pydream.parameters import SampledParam
 from scipy.stats import norm, laplace, uniform
+from sklearn.utils.validation import assert_all_finite
 
 
 param_priors = [SampledParam(norm, loc=-5, scale=1.0),           # x0  float  kc0 -- 95% bounded in (-7,  -3)
@@ -60,6 +61,9 @@ def generate_likelihood_fn(compiled_data, n_sims, n_timepoints):
                     integrator_options={'n_blocks': 64, 'memory_usage': 'global', 'vol': 4e-15})
 
     results = sim.run(t_span)
+
+    # some integrators silently return nans, which will crash the entire calibration!
+    assert_all_finite(results.dataframe[[obs.name for obs in model.observables]])
 
     # ------- Measurement Models ---------
     measurement_model_classes = {'Fluorescence': Fluorescence,
@@ -187,6 +191,16 @@ def generate_likelihood_fn(compiled_data, n_sims, n_timepoints):
         likelihood_fun.simulator.sim.gpu = [process_id]
         likelihood_fun.simulator.param_values = simulation_parameters
         sim_results = likelihood_fun.simulator.run()
+
+        try:
+            # some integrators silently return nans, which will crash the entire calibration!
+            assert_all_finite(sim_results.dataframe[[obs.name for obs in model.observables]])
+        except ValueError:
+            print("Current position produces nans")
+            print(results.dataframe.max().max())
+            print(results.dataframe.min().min())
+            print(results.dataframe.isna().any().any())
+            return 1e10
 
         # --- Measurement Model ---
         viability_coef = np.array([[x[16],  # :  (-100, 100),   float

@@ -148,7 +148,7 @@ class CompileData(object):
     def _compile_model_parameters(self):
         # population averaged measurements (e.g. Fractional Killing and Western Blot) will have extrinsic noise applied,
         # while single cell measurements (e.g. Fluorescence) will not. Note: data are for a single representative cell.
-        experiments = self.experimental_conditions[self.annotating_columns - {'time_min'}]
+        experiments = self.experimental_conditions[list(self.annotating_columns - {'time_min'})]
         experiments_parameters = set(self.experimental_conditions['param'].unique()) - \
             {'kc0', 'kc2', 'kf3', 'kc3', 'kf4', 'kr7', 'kc8'}  # experimental conditions parameters
         default_parameters = pd.DataFrame([[p.name, p.value, False]

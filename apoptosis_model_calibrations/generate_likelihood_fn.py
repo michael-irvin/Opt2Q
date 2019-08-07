@@ -217,7 +217,7 @@ def generate_likelihood_fn(compiled_data, n_sims, n_timepoints):
                     print("Current position produces nans")
                     print(results.dataframe.max().max())
                     print(results.dataframe.min().min())
-                    print(results.dataframe.isna().any().any())
+                    print(results.dataframe[[obs.name for obs in model.observables]].isna().any().any())
                     print(x)
                     print(likelihood_fun.evals)
                     return 1e10

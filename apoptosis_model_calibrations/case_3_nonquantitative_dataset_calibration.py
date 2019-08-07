@@ -22,7 +22,7 @@ compiled_dataset = CompileData()
 compiled_dataset.run(data)
 
 sampled_params_0 = param_priors
-neg_log_likelihood = generate_likelihood_fn(compiled_dataset, n_sims=2, n_timepoints=10)
+neg_log_likelihood = generate_likelihood_fn(compiled_dataset, n_sims=200, n_timepoints=100)
 
 
 def likelihood(x):

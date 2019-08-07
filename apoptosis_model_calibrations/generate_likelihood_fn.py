@@ -206,18 +206,23 @@ def generate_likelihood_fn(compiled_data, n_sims, n_timepoints):
         ll = 0
         for mm in likelihood_fun.measurements:
             mm.update_simulation_result(sim_results)
+
             if isinstance(mm, FractionalKilling):
                 mm.process.set_params(**measurement_model_params)
-            try:
+
+            try:  # some parameters silently produced nans that crash the entire calibration.
                 ll += mm.likelihood()
-            except ValueError:  # some parameters silently produced nans that crash the entire calibration.
-                print("Current position produces nans")
-                print(results.dataframe.max().max())
-                print(results.dataframe.min().min())
-                print(results.dataframe.isna().any().any())
-                print(x)
-                print(likelihood_fun.evals)
-                return 1e10
+            except ValueError as e:  # as e syntax added in ~python2.5
+                if str(e) == "Input contains NaN, infinity or a value too large for dtype('float64').":
+                    print("Current position produces nans")
+                    print(results.dataframe.max().max())
+                    print(results.dataframe.min().min())
+                    print(results.dataframe.isna().any().any())
+                    print(x)
+                    print(likelihood_fun.evals)
+                    return 1e10
+                else:
+                    raise
 
         print(likelihood_fun.evals)
         print(x)

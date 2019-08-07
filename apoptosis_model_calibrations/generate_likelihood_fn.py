@@ -192,16 +192,6 @@ def generate_likelihood_fn(compiled_data, n_sims, n_timepoints):
         likelihood_fun.simulator.param_values = simulation_parameters
         sim_results = likelihood_fun.simulator.run()
 
-        try:
-            # some integrators silently return nans, which will crash the entire calibration!
-            assert_all_finite(sim_results.dataframe[[obs.name for obs in model.observables]])
-        except ValueError:
-            print("Current position produces nans")
-            print(results.dataframe.max().max())
-            print(results.dataframe.min().min())
-            print(results.dataframe.isna().any().any())
-            return 1e10
-
         # --- Measurement Model ---
         viability_coef = np.array([[x[16],  # :  (-100, 100),   float
                                     x[17],  # :  (-100, 100),   float
@@ -212,14 +202,23 @@ def generate_likelihood_fn(compiled_data, n_sims, n_timepoints):
         measurement_model_params = {'classifier__coefficients__Fraction Killed__coef_': viability_coef,
                                     'classifier__coefficients__Fraction Killed__intercept_': viability_intercept}
 
+        likelihood_fun.evals += 1
         ll = 0
         for mm in likelihood_fun.measurements:
             mm.update_simulation_result(sim_results)
             if isinstance(mm, FractionalKilling):
                 mm.process.set_params(**measurement_model_params)
-            ll += mm.likelihood()
+            try:
+                ll += mm.likelihood()
+            except ValueError:  # some parameters silently produced nans that crash the entire calibration.
+                print("Current position produces nans")
+                print(results.dataframe.max().max())
+                print(results.dataframe.min().min())
+                print(results.dataframe.isna().any().any())
+                print(x)
+                print(likelihood_fun.evals)
+                return 1e10
 
-        likelihood_fun.evals += 1
         print(likelihood_fun.evals)
         print(x)
         print(ll)

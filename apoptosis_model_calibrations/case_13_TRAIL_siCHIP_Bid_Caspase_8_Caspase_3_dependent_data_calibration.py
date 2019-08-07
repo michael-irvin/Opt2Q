@@ -22,7 +22,7 @@ from pydream.convergence import Gelman_Rubin
 sampled_params_0 = param_priors
 
 n_chains = 4
-n_iterations = 10000
+n_iterations = 4000
 now = dt.datetime.now()
 model_name = f'PyDream_case_10_{now.year}{now.month}{now.day}'
 

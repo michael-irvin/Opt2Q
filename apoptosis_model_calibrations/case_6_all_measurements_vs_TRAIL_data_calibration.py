@@ -31,7 +31,7 @@ def likelihood(x):
 
 
 n_chains = 4
-n_iterations = 10000
+n_iterations = 4000
 now = dt.datetime.now()
 model_name = f'PyDream_case_6_{now.year}{now.month}{now.day}'
 

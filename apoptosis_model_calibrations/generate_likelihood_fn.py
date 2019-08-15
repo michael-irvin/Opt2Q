@@ -212,17 +212,8 @@ def generate_likelihood_fn(compiled_data, n_sims, n_timepoints):
 
             try:  # some parameters silently produced nans that crash the entire calibration.
                 ll += mm.likelihood()
-            except ValueError as e:  # as e syntax added in ~python2.5
-                if str(e) == "Input contains NaN, infinity or a value too large for dtype('float64').":
-                    print("Current position produces nans")
-                    print(results.dataframe.max().max())
-                    print(results.dataframe.min().min())
-                    print(results.dataframe[[obs.name for obs in model.observables]].isna().any().any())
-                    print(x)
-                    print(likelihood_fun.evals)
-                    return 1e10
-                else:
-                    raise
+            except (ValueError, ZeroDivisionError):
+                return 1e10
 
         print(likelihood_fun.evals)
         print(x)

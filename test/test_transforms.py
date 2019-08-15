@@ -1318,7 +1318,7 @@ class TestCumulativeComputation(unittest.TestCase):
     def test_get_set_params(self):
         cum_comp = CumulativeComputation()
         cum_comp.set_params(operation='min', keep_old_columns=True)
-        self.assertDictEqual(cum_comp.get_params(), {'operation':'min', 'keep_old_columns':True})
+        self.assertDictEqual(cum_comp.get_params(), {'operation': 'min', 'keep_old_columns':True})
 
     def test_transform_not_in_groups(self):
         df = pd.DataFrame([[2.0, 1.0],
@@ -1363,6 +1363,14 @@ class TestCumulativeComputation(unittest.TestCase):
             [9.0,   1.0,    'b', 4.0,    0.0]],
             columns=['A__sum', 'B__sum', 'C', 'A', 'B'])
         pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
+
+    # def test_transform_cudf(self):
+    #     df = pd.DataFrame({'A': np.random.randint(0, 100000, 12),
+    #                        'B': ['a'] * 6 + ['b'] * 6})
+    #     max_val = df.groupby('B').max()
+    #     test = CumulativeComputation(operation='max', keep_old_columns=True, groupby='B').transform(df)
+    #     for name, group in test.groupby('B'):
+    #         assert (group.A__max.iloc[-1] == max_val.loc[name].values[0])
 
 
 class TestSampleScale(unittest.TestCase):

@@ -420,11 +420,18 @@ class WesternBlotPTM(WesternBlot):
         return converted_df
 
     def run(self, use_dataset=True):
+        start = timer()
         x_rst = self._restructure_x(self.simulation_result_df[self._results_cols])
+        end = timer()
+        print('restructure x', timedelta(seconds=end - start))
+
         if use_dataset:
             x_ds = self.interpolation_ds.transform(x_rst)
             result_ds = self.process.transform(x_ds)
+            start = timer()
             self.results = self._convert_results_to_original_format(result_ds)
+            end = timer()
+            print('convert back to original', timedelta(seconds=end - start))
             return self.results
 
         else:
@@ -436,7 +443,12 @@ class WesternBlotPTM(WesternBlot):
             self.process.set_params(**do_not_do_fit_transform)
             x = self.interpolation.transform(x_rst)
             results = self.process.transform(x)
+
+            start = timer()
             self.results = self._convert_results_to_original_format(results)
+            end = timer()
+            print('convert back to original', timedelta(seconds=end - start))
+
             self.process.set_params(**original_do_fit_transform_settings)
 
         return self.results

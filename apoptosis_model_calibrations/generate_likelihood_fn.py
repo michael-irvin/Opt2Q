@@ -12,7 +12,7 @@ from apoptosis_model_calibrations.compile_apoptosis_data import convert_cv_param
 from opt2q.calibrator import objective_function
 from multiprocessing import current_process
 from pydream.parameters import SampledParam
-from scipy.stats import norm, laplace, uniform
+from scipy.stats import norm, laplace, uniform, beta
 from sklearn.utils.validation import assert_all_finite
 
 
@@ -23,8 +23,8 @@ param_priors = [SampledParam(norm, loc=-5, scale=1.0),           # x0  float  kc
                 SampledParam(norm, loc=-7, scale=1.5),           # x4  float  kf4 -- 95% bounded in (-10, -4)
                 SampledParam(norm, loc=-2, scale=3.0),           # x5  float  kr7 -- 95% bounded in (-8,   4)
                 SampledParam(norm, loc=-6, scale=1.5),           # x6  float  kc8 -- 95% bounded in (-9,  -3)
-                SampledParam(uniform, loc=[0], scale=[0.5]),     # x7  float  kc2_cv --  bounded in [0,  0.5]
-                SampledParam(uniform, loc=[0], scale=[0.5]),     # x8  float  kc3_cv --  bounded in [0,  0.5]
+                SampledParam(beta, a=1.83, b=5.5),               # x7  float  kc2_cv -- 95% bounded in [0.05,  0.55]
+                SampledParam(beta, a=1.83, b=5.5),               # x8  float  kc3_cv -- 95% bounded in [0.05,  0.55]
                 SampledParam(uniform, loc=[-1.0], scale=[2.0]),  # x9  float  kc2_kc3 -- bounded in [-1.0,  1.0]
                 SampledParam(uniform, loc=[-4.0], scale=[2.0]),  # x10 float  kc2_zVAD -- bounded in [-4.0, -2.0]
                 SampledParam(uniform, loc=[-4.0], scale=[2.0]),  # x11 float  kc4_zVAD -- bounded in [-4.0, -2.0]

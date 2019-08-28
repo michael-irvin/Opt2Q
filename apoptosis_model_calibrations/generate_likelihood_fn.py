@@ -184,7 +184,14 @@ def generate_likelihood_fn(compiled_data, n_sims, n_timepoints):
         else:
             likelihood_fun.noise_model.update_values(param_mean=cd.experimental_conditions)  # no noise term
 
-        simulation_parameters = likelihood_fun.noise_model.run()
+        try:
+            simulation_parameters = likelihood_fun.noise_model.run()
+        except (ValueError, ZeroDivisionError):
+            likelihood_fun.evals += 1
+            print(x)
+            print(likelihood_fun.evals)
+            print("Noise parameters produced NaNs")
+            return 1e10
 
         # --- Dynamics Simulation ---
         process_id = current_process().ident % 4

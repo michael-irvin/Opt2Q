@@ -18,7 +18,8 @@ from apoptosis_model_calibrations.compile_apoptosis_data import CompileData, dat
 
 sampled_params_0 = param_priors
 
-data = data_file[data_file.Condition.str.match(r'^Control$') | data_file.Condition.str.match(r'^siCtrl$')].dropna(axis=1, how='all')
+data = data_file[data_file.Condition.str.match(r'^Control$') | data_file.Condition.str.match(r'^siCtrl$')].\
+    dropna(axis=1, how='all')
 
 compiled_dataset = CompileData()
 compiled_dataset.run(data)

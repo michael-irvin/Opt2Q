@@ -333,11 +333,14 @@ class CumulativeComputation(Transform):
 
     def _transform_in_groups(self, x, _scale_these_cols, kwargs):
         _scale_these_cols -= set(self._group_by)
-        scaled_df = pd.DataFrame()
-        for name, group in x.groupby(self._group_by):
-            scaled_group = self._transform_not_in_groups(group, _scale_these_cols, kwargs)
-            scaled_df = pd.concat([scaled_df, scaled_group], ignore_index=True, sort=False)
-        return scaled_df
+        return x.groupby(self._group_by).apply(self._transform_not_in_groups, _scale_these_cols, kwargs).\
+            reset_index(drop=True)
+
+        # scaled_df = pd.DataFrame()
+        # for name, group in x.groupby(self._group_by):
+        #     scaled_group = self._transform_not_in_groups(group, _scale_these_cols, kwargs)
+        #     scaled_df = pd.concat([scaled_df, scaled_group], ignore_index=True, sort=False)
+        # return scaled_df
 
     def _transform_not_in_groups(self, x, _scale_these_cols, kwargs):
         cols = list(_scale_these_cols)
@@ -1864,6 +1867,7 @@ class Scale(Transform):
 
     def _transform_in_groups(self, x, _scale_these_cols, kwargs):
         _scale_these_cols -= set(self._group_by)
+
         scaled_df = pd.DataFrame()
         for name, group in x.groupby(self._group_by):
             scaled_group = self._transform_not_in_groups(group, _scale_these_cols, kwargs)
@@ -1970,11 +1974,14 @@ class ScaleGroups(Scale):
 
     def _transform_in_groups(self, x, _scale_these_cols, kwargs):
         _scale_these_cols -= set(self._group_by)
-        scaled_df = pd.DataFrame()
-        for name, group in x.groupby(self._group_by):
-            scaled_group = self._transform_not_in_groups(group, _scale_these_cols, kwargs)
-            scaled_df = pd.concat([scaled_df, scaled_group], ignore_index=True, sort=False)
-        return scaled_df
+        return x.groupby(self._group_by).apply(self._transform_not_in_groups, _scale_these_cols, kwargs). \
+            reset_index(drop=True)
+
+        # scaled_df = pd.DataFrame()
+        # for name, group in x.groupby(self._group_by):
+        #     scaled_group = self._transform_not_in_groups(group, _scale_these_cols, kwargs)
+        #     scaled_df = pd.concat([scaled_df, scaled_group], ignore_index=True, sort=False)
+        # return scaled_df
 
     def _transform_not_in_groups(self, x, _scale_these_cols, kwargs):
         cols = list(_scale_these_cols)

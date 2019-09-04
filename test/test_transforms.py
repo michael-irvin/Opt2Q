@@ -440,6 +440,7 @@ class TestPipeline(unittest.TestCase):
         process.remove_step('interpolate1')
         process.remove_step('interpolate1')
 
+
 class TestScale(unittest.TestCase):
     @staticmethod
     def f(x, a=2):
@@ -1362,6 +1363,7 @@ class TestCumulativeComputation(unittest.TestCase):
             [5.0,   np.NaN, 'b', 2.0, np.NaN],
             [9.0,   1.0,    'b', 4.0,    0.0]],
             columns=['A__sum', 'B__sum', 'C', 'A', 'B'])
+        print(test)
         pd.testing.assert_frame_equal(test[test.columns], target[test.columns])
 
     # def test_transform_cudf(self):

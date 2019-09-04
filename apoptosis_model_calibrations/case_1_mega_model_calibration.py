@@ -31,7 +31,8 @@ def likelihood(x):
 
 
 n_chains = 4
-n_iterations = 4000
+n_iterations = 1000
+max_iterations = 10000
 now = dt.datetime.now()
 model_name = f'PyDream_case_1_{now.year}{now.month}{now.day}'
 
@@ -53,11 +54,47 @@ if __name__ == '__main__':
 
     # Save sampling output (sampled parameter values and their corresponding logps).
     for chain in range(len(sampled_params)):
-        np.save(model_name + str(chain) + '_' + str(total_iterations) + '_' + 'parameters', sampled_params[chain])
-        np.save(model_name + str(chain) + '_' + str(total_iterations) + '_' + 'log_p', log_ps[chain])
+        np.save(model_name + '_' + str(chain) + '_' + str(total_iterations) + '_' + 'parameters', sampled_params[chain])
+        np.save(model_name + '_' + str(chain) + '_' + str(total_iterations) + '_' + 'log_p', log_ps[chain])
 
     GR = Gelman_Rubin(sampled_params)
     print('At iteration: ', total_iterations, ' GR = ', GR)
     np.savetxt(model_name + str(total_iterations) + '.txt', GR)
 
+    old_samples = sampled_params
+    if np.isnan(GR).any() or np.any(GR > 1.2):
+        starts = [sampled_params[chain][-1, :] for chain in range(n_chains)]
 
+        # append sample with a re-run of the pyDream algorithm
+        while not converged or (total_iterations < max_iterations):
+            total_iterations += n_iterations
+            print("Saved Results")
+            print(total_iterations)
+            print(not converged and (total_iterations < max_iterations))
+
+            sampled_params, log_ps = run_dream(parameters=sampled_params_0,
+                                               likelihood=likelihood,
+                                               niterations=n_iterations,
+                                               nchains=n_chains,
+                                               multitry=False,
+                                               gamma_levels=4,
+                                               adapt_gamma=True,
+                                               history_thin=1,
+                                               model_name=model_name,
+                                               verbose=True,
+                                               restart=True,  # restart at the last sampled position
+                                               start=starts)
+
+            # Save sampling output (sampled parameter values and their corresponding logps).
+            for chain in range(len(sampled_params)):
+                np.save(model_name + '_' + str(chain) + '_' + str(total_iterations) + '_' + 'parameters',
+                        sampled_params[chain])
+                np.save(model_name + '_' + str(chain) + '_' + str(total_iterations) + '_' + 'log_p', log_ps[chain])
+
+            old_samples = [np.concatenate((old_samples[chain], sampled_params[chain])) for chain in range(n_chains)]
+            GR = Gelman_Rubin(old_samples)
+            print('At iteration: ', total_iterations, ' GR = ', GR)
+            np.savetxt(model_name + str(total_iterations) + '.txt', GR)
+
+            if np.all(GR < 1.2):
+                converged = True

@@ -78,14 +78,18 @@ def likelihood_fn(x):
 
     # dynamics
     sim_results = likelihood_fn.simulator.run()
-    if sim_results.dataframe.isna().any(axis=None):
-        return 100000000  # if integration fails return high number to reject
+
+    # if sim_results.dataframe.isna().any(axis=None):
+    #     return 100000000  # if integration fails return high number to reject
 
     # measurement
     likelihood_fn.measurement_model.update_simulation_result(sim_results)
-    ll = likelihood_fn.measurement_model.likelihood()
-
     likelihood_fn.evals += 1
+
+    try:
+        ll = likelihood_fn.measurement_model.likelihood()
+    except (ValueError, ZeroDivisionError):
+        return 1e10
 
     print(likelihood_fn.evals)
     print(x)

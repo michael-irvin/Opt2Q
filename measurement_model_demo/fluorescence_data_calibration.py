@@ -79,22 +79,22 @@ def likelihood_fn(x):
     # dynamics
     sim_results = likelihood_fn.simulator.run()
 
-    # if sim_results.dataframe.isna().any(axis=None):
-    #     return 100000000  # if integration fails return high number to reject
-
     # measurement
     likelihood_fn.measurement_model.update_simulation_result(sim_results)
     likelihood_fn.evals += 1
 
     try:
-        ll = likelihood_fn.measurement_model.likelihood()
+        ll = -likelihood_fn.measurement_model.likelihood()
     except (ValueError, ZeroDivisionError):
-        return 1e10
+        return -1e10
 
-    print(likelihood_fn.evals)
-    print(x)
-    print(ll)
-    return -ll
+    if np.isnan(ll):
+        return -1e10
+    else:
+        print(likelihood_fn.evals)
+        print(x)
+        print(ll)
+        return ll
 
 
 # -------- Calibration -------
@@ -136,6 +136,7 @@ if __name__ == '__main__':
         np.save(model_name + '_' + str(chain) + '_' + str(total_iterations) + '_' + 'log_p', log_ps[chain])
 
     GR = Gelman_Rubin(sampled_params)
+
     print('At iteration: ', total_iterations, ' GR = ', GR)
     np.savetxt(model_name + str(total_iterations) + '.txt', GR)
 
@@ -146,10 +147,6 @@ if __name__ == '__main__':
         # append sample with a re-run of the pyDream algorithm
         while not converged or (total_iterations < max_iterations):
             total_iterations += n_iterations
-            print("Saved Results")
-            print(total_iterations)
-            print(not converged and (total_iterations < max_iterations))
-
             sampled_params, log_ps = run_dream(parameters=sampled_params_0,
                                                likelihood=likelihood_fn,
                                                niterations=n_iterations,

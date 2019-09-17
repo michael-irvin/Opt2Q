@@ -31,12 +31,12 @@ dataset.measurement_error_df = fluorescence_data[['nrm_var_IC-RP', 'nrm_var_EC-R
 
 # ------- Parameters --------
 # The model is sensitive to these parameters
-parameters = pd.DataFrame([[1.0e-5,   # x0  float  kc0 -- 95% bounded in (-7,  -3)
-                            1.0e-2,   # x1  float  kc2 -- 95% bounded in (-5,   1)
-                            3.0e-8,   # x2  float  kf3 -- 95% bounded in (-11, -6)
-                            1.0e-2,   # x3  float  kc3 -- 95% bounded in (-5,   1)
-                            1.0e-7,   # x4  float  kf4 -- 95% bounded in (-10, -4)
-                            1.0e-2,   # x5  float  kr7 -- 95% bounded in (-8,   4)
+parameters = pd.DataFrame([[1.0e-5,    # x0  float  kc0 -- 95% bounded in (-7,  -3)
+                            1.0e-2,    # x1  float  kc2 -- 95% bounded in (-5,   1)
+                            3.0e-8,    # x2  float  kf3 -- 95% bounded in (-11, -6)
+                            1.0e-2,    # x3  float  kc3 -- 95% bounded in (-5,   1)
+                            1.0e-7,    # x4  float  kf4 -- 95% bounded in (-10, -4)
+                            1.0e-2,    # x5  float  kr7 -- 95% bounded in (-8,   4)
                             1.0e-6]],  # x6  float  kc8 -- 95% bounded in (-9,  -3)
                           columns=['kc0', 'kc2', 'kf3', 'kc3', 'kf4', 'kr7', 'kc8']
                           )

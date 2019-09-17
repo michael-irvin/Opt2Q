@@ -19,6 +19,7 @@ Bid Dependent Apoptosis
 8. Effector Caspase Activation: *MOMP signals -> eCaspases --> *eCaspases         kf6, kr6, kc6
 
 9. PARP Cleavage:                  *eCaspases->  PARP      --> cPARP              kf7, kr7, kc7
+10. Initiator Caspase Degradation:              iCaspsases --> None               kc8
 
 """
 from pysb import *

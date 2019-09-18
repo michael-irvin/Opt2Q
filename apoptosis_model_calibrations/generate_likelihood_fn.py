@@ -32,11 +32,11 @@ param_priors = [SampledParam(norm, loc=-5, scale=1.0),           # x0  float  kc
                 SampledParam(uniform, loc=[-4.0], scale=[2.0]),  # x13 float  kc7_cas3_inh -- bounded in [-4.0,-2.0]
                 SampledParam(uniform, loc=[0.0], scale=[3.0]),   # x14 float  kc0_siCHIP -- bounded in [0.0,  3.0]
                 SampledParam(uniform, loc=[0.0], scale=[0.5]),   # x15 float  Bid_0_BidKD -- bounded in [-1.0,  1.0]
-                SampledParam(laplace, loc=0.0, scale=10.0),      # x16 float  LR coef
-                SampledParam(laplace, loc=0.0, scale=10.0),      # x17 float  LR coef
-                SampledParam(laplace, loc=0.0, scale=10.0),      # x18 float  LR coef
-                SampledParam(laplace, loc=0.0, scale=10.0),      # x19 float  LR coef
-                SampledParam(laplace, loc=0.0, scale=1.0)]       # x20 float  LR intercept
+                SampledParam(laplace, loc=0.0, scale=0.1),       # x16 float  LR coef
+                SampledParam(laplace, loc=0.0, scale=0.1),       # x17 float  LR coef
+                SampledParam(laplace, loc=0.0, scale=0.1),       # x18 float  LR coef
+                SampledParam(laplace, loc=0.0, scale=0.1),       # x19 float  LR coef
+                SampledParam(laplace, loc=0.0, scale=0.1)]       # x20 float  LR intercept
 
 
 def generate_likelihood_fn(compiled_data, n_sims, n_timepoints):

@@ -51,7 +51,8 @@ if __name__ == '__main__':
                                        adapt_gamma=True,
                                        history_thin=1,
                                        model_name=model_name,
-                                       verbose=True)
+                                       verbose=True,
+                                       crossover_burnin=n_iterations)
 
     # Save sampling output (sampled parameter values and their corresponding logps).
     for chain in range(len(sampled_params)):

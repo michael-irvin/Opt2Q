@@ -20,7 +20,8 @@ file_path = os.path.join(script_dir, 'fluorescence_data.csv')
 
 raw_fluorescence_data = pd.read_csv(file_path)
 fluorescence_data = raw_fluorescence_data[['# Time', 'norm_IC-RP', 'nrm_var_IC-RP', 'norm_EC-RP', 'nrm_var_EC-RP']]\
-    .rename(columns={'# Time': 'time'})  # Remove unnecessary whitespace in column name
+    .rename(columns={'# Time': 'time_min'})  # Remove unnecessary whitespace in column name
+fluorescence_data = fluorescence_data.assign(time=fluorescence_data.time_min * 60).drop(columns='time_min')
 
 dataset = DataSet(fluorescence_data[['time', 'norm_IC-RP', 'norm_EC-RP']],
                   measured_variables={'norm_IC-RP': 'semi-quantitative',
@@ -43,14 +44,14 @@ parameters = pd.DataFrame([[1.0e-5,    # x0  float  kc0 -- 95% bounded in (-7,  
 
 # ------- Dynamics -------
 sim = Simulator(model=model, param_values=parameters, solver='cupsoda')
-results = sim.run(np.linspace(0, 21600, 100))
+results = sim.run(np.linspace(0, fluorescence_data.time.max(), 100))
 
 # ------- Measurement -------
 fl = Fluorescence(results,
                   dataset=dataset,
-                  measured_values={'norm_IC-RP': ['BID_obs'],
+                  measured_values={'norm_IC-RP': ['tBID_obs'],
                                    'norm_EC-RP': ['cPARP_obs']},
-                  observables=['BID_obs', 'cPARP_obs'])
+                  observables=['tBID_obs', 'cPARP_obs'])
 measurement_results = fl.run()
 
 

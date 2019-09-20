@@ -19,6 +19,7 @@ Bid Dependent Apoptosis
 8. Effector Caspase Activation: *MOMP signals -> eCaspases --> *eCaspases         kf6, kr6, kc6
 
 9. PARP Cleavage:                  *eCaspases->  PARP      --> cPARP              kf7, kr7, kc7
+10. Initiator Caspase Degradation:              iCaspsases --> None               kc8
 
 """
 from pysb import *
@@ -88,15 +89,15 @@ Parameter('kc4', 1.0e-00)
 catalyze_state(IC(state='active'), 'b', Bid(), 'b', 'state', 'unmod', 'cleaved', [kf4, kr4, kc4])
 
 # 7. MOMP Dependent Signaling: *Bid-> MOMP signals --> *MOMP signals      kf5, kr5, kc5
-Parameter('kf5', 1.0e-09)
+Parameter('kf5', 1.0e-06)
 Parameter('kr5', 1.0e-03)
 Parameter('kc5', 1.0e-05)
 catalyze_state(Bid(state='cleaved'), 'b', MOMP_sig(), 'b', 'state', 'inactive', 'active', [kf5, kr5, kc5])
 
 # 8. Effector Caspase Activation: *MOMP signals -> eCaspases --> *eCaspases  kf6, kr6, kc6
-Parameter('kf6', 5.0e-09)
+Parameter('kf6', 1.0e-06)
 Parameter('kr6', 1.0e-03)
-Parameter('kc6', 1.0e-05)
+Parameter('kc6', 1.0e-00)
 catalyze_state(MOMP_sig(state='active'), 'b', EC(), 'b', 'state', 'inactive', 'active', [kf6, kr6, kc6])
 
 # 9. PARP Cleavage:                *eCaspases->  PARP      --> cPARP              kf7, kr7, kc7

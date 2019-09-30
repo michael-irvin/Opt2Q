@@ -189,7 +189,8 @@ if __name__ == '__main__':
                                        adapt_gamma=True,
                                        history_thin=1,
                                        model_name=model_name,
-                                       verbose=True)
+                                       verbose=True,
+                                       crossover_burnin=1000)
 
     # Save sampling output (sampled parameter values and their corresponding logps).
     for chain in range(len(sampled_params)):
@@ -219,7 +220,8 @@ if __name__ == '__main__':
                                                model_name=model_name,
                                                verbose=True,
                                                restart=True,  # restart at the last sampled position
-                                               start=starts)
+                                               start=starts,
+                                               crossover_burnin=0)
 
             # Save sampling output (sampled parameter values and their corresponding logps).
             for chain in range(len(sampled_params)):

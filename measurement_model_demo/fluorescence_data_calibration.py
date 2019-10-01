@@ -204,10 +204,10 @@ if __name__ == '__main__':
 
     old_samples = sampled_params
     if np.isnan(GR).any() or np.any(GR > 1.2):
-        starts = [sampled_params[chain][-1, :] for chain in range(n_chains)]
-
         # append sample with a re-run of the pyDream algorithm
         while not converged or (total_iterations < max_iterations):
+            starts = [sampled_params[chain][-1, :] for chain in range(n_chains)]
+
             total_iterations += n_iterations
             sampled_params, log_ps = run_dream(parameters=sampled_params_0,
                                                likelihood=likelihood_fn,
@@ -220,8 +220,7 @@ if __name__ == '__main__':
                                                model_name=model_name,
                                                verbose=True,
                                                restart=True,  # restart at the last sampled position
-                                               start=starts,
-                                               crossover_burnin=0)
+                                               start=starts)
 
             # Save sampling output (sampled parameter values and their corresponding logps).
             for chain in range(len(sampled_params)):

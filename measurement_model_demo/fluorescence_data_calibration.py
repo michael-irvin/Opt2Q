@@ -146,10 +146,10 @@ sampled_params_0 = [SampledParam(norm, loc=-5, scale=1.0),           # x0  float
                     SampledParam(norm, loc=-8.5, scale=1.25),        # x2  float  kf3 -- 95% bounded in (-11, -6)
                     SampledParam(norm, loc=-2, scale=1.5),           # x3  float  kc3 -- 95% bounded in (-5,   1)
                     SampledParam(norm, loc=-7, scale=1.5),           # x4  float  kf4 -- 95% bounded in (-10, -4)
-                    SampledParam(norm, loc=-2, scale=3.0),           # x5  float  kr7 -- 95% bounded in (-8,   4)
+                    SampledParam(norm, loc=-3, scale=1.5),           # x5  float  kr7 -- 95% bounded in (-6,   0)
                     SampledParam(norm, loc=-6, scale=1.5),           # x6  float  kc8 -- 95% bounded in (-9,  -3)
 
-                    SampledParam(norm, loc=-7, scale=1.0),           # x7  float  kf0 -- 95% bounded in (-9,  -4)
+                    SampledParam(norm, loc=-6, scale=1.0),           # x7  float  kf0 -- 95% bounded in (-8,  -4)
                     SampledParam(norm, loc=-3, scale=1.0),           # x8  float  kr0 -- 95% bounded in (-5,  -1)
                     SampledParam(norm, loc=-8, scale=1.0),           # x9  float  kf1 -- 95% bounded in (-10, -4)
                     SampledParam(norm, loc=-3, scale=1.0),           # x10 float  kr1 -- 95% bounded in ( -5, -1)
@@ -170,7 +170,8 @@ sampled_params_0 = [SampledParam(norm, loc=-5, scale=1.0),           # x0  float
                     ]
 
 n_chains = 4
-n_iterations = 1000
+n_iterations = 1000  # iterations per file-save
+burn_in_len = 5000   # number of iterations during burn-in
 max_iterations = 10000
 now = dt.datetime.now()
 model_name = f'fluorescence_data_calibration_{now.year}{now.month}{now.day}'
@@ -190,7 +191,7 @@ if __name__ == '__main__':
                                        history_thin=1,
                                        model_name=model_name,
                                        verbose=True,
-                                       crossover_burnin=1000)
+                                       crossover_burnin=min(n_iterations, burn_in_len))
 
     # Save sampling output (sampled parameter values and their corresponding logps).
     for chain in range(len(sampled_params)):
@@ -198,8 +199,10 @@ if __name__ == '__main__':
         np.save(model_name + '_' + str(chain) + '_' + str(total_iterations) + '_' + 'log_p', log_ps[chain])
 
     GR = Gelman_Rubin(sampled_params)
-
+    burn_in_len = max(burn_in_len-n_iterations, 0)
     print('At iteration: ', total_iterations, ' GR = ', GR)
+    print(f'At iteration: {total_iterations}, {burn_in_len} steps of burn-in remain.')
+
     np.savetxt(model_name + str(total_iterations) + '.txt', GR)
 
     old_samples = sampled_params
@@ -220,7 +223,8 @@ if __name__ == '__main__':
                                                model_name=model_name,
                                                verbose=True,
                                                restart=True,  # restart at the last sampled position
-                                               start=starts)
+                                               start=starts,
+                                               crossover_burnin=min(n_iterations, burn_in_len))
 
             # Save sampling output (sampled parameter values and their corresponding logps).
             for chain in range(len(sampled_params)):
@@ -230,7 +234,10 @@ if __name__ == '__main__':
 
             old_samples = [np.concatenate((old_samples[chain], sampled_params[chain])) for chain in range(n_chains)]
             GR = Gelman_Rubin(old_samples)
+            burn_in_len = max(burn_in_len - n_iterations, 0)
             print('At iteration: ', total_iterations, ' GR = ', GR)
+            print(f'At iteration: {total_iterations}, {burn_in_len} steps of burn-in remain.')
+
             np.savetxt(model_name + str(total_iterations) + '.txt', GR)
 
             if np.all(GR < 1.2):

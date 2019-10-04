@@ -32,7 +32,7 @@ dataset.measurement_error_df = fluorescence_data[['nrm_var_IC-RP', 'nrm_var_EC-R
 
 # ------- Parameters --------
 parameters = pd.DataFrame([[p.value for p in model.parameters_rules()]],
-                          columns=[[p.name for p in model.parameters_rules()]])
+                          columns=[p.name for p in model.parameters_rules()])
 
 # ------- Dynamics -------
 sim = Simulator(model=model, param_values=parameters, solver='cupsoda')

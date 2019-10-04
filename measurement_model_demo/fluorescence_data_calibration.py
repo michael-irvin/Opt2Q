@@ -31,16 +31,8 @@ dataset.measurement_error_df = fluorescence_data[['nrm_var_IC-RP', 'nrm_var_EC-R
                     'nrm_var_EC-RP': 'norm_EC-RP__error'})  # DataSet expects error columns to have "__error" suffix
 
 # ------- Parameters --------
-# The model is sensitive to these parameters
-parameters = pd.DataFrame([[1.0e-5,    # x0  float  kc0 -- 95% bounded in (-7,  -3)
-                            1.0e-2,    # x1  float  kc2 -- 95% bounded in (-5,   1)
-                            3.0e-8,    # x2  float  kf3 -- 95% bounded in (-11, -6)
-                            1.0e-2,    # x3  float  kc3 -- 95% bounded in (-5,   1)
-                            1.0e-7,    # x4  float  kf4 -- 95% bounded in (-10, -4)
-                            1.0e-2,    # x5  float  kr7 -- 95% bounded in (-8,   4)
-                            1.0e-6]],  # x6  float  kc8 -- 95% bounded in (-9,  -3)
-                          columns=['kc0', 'kc2', 'kf3', 'kc3', 'kf4', 'kr7', 'kc8']
-                          )
+parameters = pd.DataFrame([[p.value for p in model.parameters_rules()]],
+                          columns=[[p.name for p in model.parameters_rules()]])
 
 # ------- Dynamics -------
 sim = Simulator(model=model, param_values=parameters, solver='cupsoda')
@@ -58,64 +50,49 @@ measurement_results = fl.run()
 # ------- Likelihood Function ------
 @objective_function(simulator=sim, measurement_model=fl, return_results=False, evals=0)
 def likelihood_fn(x):
-    kc0 = 10 ** x[0]   # x0  float  kc0 -- 95% bounded in (-7,  -3)
-    kc2 = 10 ** x[1]   # x1  float  kc2 -- 95% bounded in (-5,   1)
-    kf3 = 10 ** x[2]   # x2  float  kf3 -- 95% bounded in (-11, -6)
-    kc3 = 10 ** x[3]   # x3  float  kc3 -- 95% bounded in (-5,   1)
-    kf4 = 10 ** x[4]   # x4  float  kf4 -- 95% bounded in (-10, -4)
-    kr7 = 10 ** x[5]   # x5  float  kr7 -- 95% bounded in (-8,   4)
-    kc8 = 10 ** x[6]   # x6  float  kc8 -- 95% bounded in (-9,  -3)
+    kf0 = 10 ** x[0]    # x0  float  kf0 -- 95% bounded in (-8,  -4)
+    kr0 = 10 ** x[1]    # x1  float  kr0 -- 95% bounded in (-5,  -1)
+    kc0 = 10 ** x[2]    # x2  float  kc0 -- 95% bounded in (-7,  -1)  DISC formation
 
-    kf0 = 10 ** x[7]   # x7  float  kf0 -- 95% bounded in (-9,  -4)
-    kr0 = 10 ** x[8]   # x8  float  kr0 -- 95% bounded in (-5,  -1)
-    kf1 = 10 ** x[9]   # x9  float  kf1 -- 95% bounded in (-10, -4)
-    kr1 = 10 ** x[10]  # x10 float  kr1 -- 95% bounded in ( -5, -1)
-    kc1 = 10 ** x[11]  # x11 float  kc1 -- 95% bounded in ( -2,  2)
-    kf2 = 10 ** x[12]  # x12 float  kf2 -- 95% bounded in (-12, -8)
-    kr2 = 10 ** x[13]  # x13 float  kr2 -- 95% bounded in ( -5, -1)
-    kr3 = 10 ** x[14]  # x14 float  kr3 -- 95% bounded in ( -5, -1)
-    kr4 = 10 ** x[15]  # x15 float  kr4 -- 95% bounded in ( -5, -1)
-    kc4 = 10 ** x[16]  # x16 float  kc4 -- 95% bounded in ( -2,  2)
-    kf5 = 10 ** x[17]  # x17 float  kf5 -- 95% bounded in ( -8, -4)
-    kr5 = 10 ** x[18]  # x18 float  kr5 -- 95% bounded in ( -5, -1)
-    kc5 = 10 ** x[19]  # x19 float  kc5 -- 95% bounded in ( -7, -3)
-    kf6 = 10 ** x[20]  # x20 float  kf6 -- 95% bounded in ( -8, -4)
-    kr6 = 10 ** x[21]  # x21 float  kr6 -- 95% bounded in ( -5, -1)
-    kc6 = 10 ** x[22]  # x22 float  kc6 -- 95% bounded in ( -2,  2)
-    kf7 = 10 ** x[23]  # x23 float  kf7 -- 95% bounded in ( -8, -4)
-    kc7 = 10 ** x[24]  # x24 float  kc7 -- 95% bounded in ( -2,  2)
+    kf1 = 10 ** x[3]    # x3  float  kf1 -- 95% bounded in ( -8, -4)
+    kr1 = 10 ** x[4]    # x4  float  kr1 -- 95% bounded in ( -5, -1)
+    kc1 = 10 ** x[5]    # x5  float  kc1 -- 95% bounded in ( -2,  2)
 
-    params = pd.DataFrame([[kc0,    # x0  float  kc0 -- 95% bounded in (-7,  -3)
-                            kc2,    # x1  float  kc2 -- 95% bounded in (-5,   1)
-                            kf3,    # x2  float  kf3 -- 95% bounded in (-11, -6)
-                            kc3,    # x3  float  kc3 -- 95% bounded in (-5,   1)
-                            kf4,    # x4  float  kf4 -- 95% bounded in (-10, -4)
-                            kr7,    # x5  float  kr7 -- 95% bounded in (-8,   4)
-                            kc8,    # x6  float  kc8 -- 95% bounded in (-9,  -3)
+    kf2 = 10 ** x[6]    # x6  float  kf2 -- 95% bounded in ( -8, -4)
+    kr2 = 10 ** x[7]    # x7  float  kr2 -- 95% bounded in ( -5, -1)
+    kc2 = 10 ** x[8]    # x8  float  kc2 -- 95% bounded in ( -5,  1)
 
-                            kf0,    # x7  float  kf0 -- 95% bounded in (-9,  -4)
-                            kr0,    # x8  float  kr0 -- 95% bounded in (-5,  -1)
-                            kf1,    # x9  float  kf1 -- 95% bounded in (-10, -4)
-                            kr1,    # x10 float  kr1 -- 95% bounded in ( -5, -1)
-                            kc1,    # x11 float  kc1 -- 95% bounded in ( -2,  2)
-                            kf2,    # x12 float  kf2 -- 95% bounded in (-12, -8)
-                            kr2,    # x13 float  kr2 -- 95% bounded in ( -5, -1)
-                            kr3,    # x14 float  kr3 -- 95% bounded in ( -5, -1)
-                            kr4,    # x15 float  kr4 -- 95% bounded in ( -5, -1)
-                            kc4,    # x16 float  kc4 -- 95% bounded in ( -2,  2)
-                            kf5,    # x17 float  kf5 -- 95% bounded in ( -8, -4)
-                            kr5,    # x18 float  kr5 -- 95% bounded in ( -5, -1)
-                            kc5,    # x19 float  kc5 -- 95% bounded in ( -7, -3)
-                            kf6,    # x20 float  kf6 -- 95% bounded in ( -8, -4)
-                            kr6,    # x21 float  kr6 -- 95% bounded in ( -5, -1)
-                            kc6,    # x22 float  kc6 -- 95% bounded in ( -2,  2)
-                            kf7,    # x23 float  kf7 -- 95% bounded in ( -8, -4)
-                            kc7,    # x24 float  kc7 -- 95% bounded in ( -2,  2)
-                            ]],
-                          columns=['kc0', 'kc2', 'kf3', 'kc3', 'kf4', 'kr7', 'kc8',
-                                   'kf0', 'kr0', 'kf1', 'kr1', 'kc1', 'kf2', 'kr2', 'kr3', 'kr4', 'kc4', 'kf5', 'kr5',
-                                   'kc5', 'kf6', 'kr6', 'kc6', 'kf7', 'kc7']
-                          )
+    kf3 = 10 ** x[9]    # x9  float  kf3 -- 95% bounded in ( -8, -4)
+    kr3 = 10 ** x[10]   # x10 float  kc3 -- 95% bounded in ( -5, -1)
+    kc3 = 10 ** x[11]   # x11 float  kr3 -- 95% bounded in ( -2,  2)
+
+    kf4 = 10 ** x[12]   # x12 float  kf4 -- 95% bounded in ( -8, -4)
+    kr4 = 10 ** x[13]   # x13 float  kr4 -- 95% bounded in ( -5, -1)
+    kc4 = 10 ** x[14]   # x14 float  kc4 -- 95% bounded in ( -2,  2)
+
+    kf5 = 10 ** x[15]   # x15 float  kf5 -- 95% bounded in ( -8, -4)
+    kr5 = 10 ** x[16]   # x16 float  kr5 -- 95% bounded in ( -5, -1)
+    kc5 = 10 ** x[17]   # x17 float  kc5 -- 95% bounded in ( -7, -1)  MOMP Signal 1
+
+    kf6 = 10 ** x[18]   # x18 float  kf6 -- 95% bounded in ( -8, -4)
+    kr6 = 10 ** x[19]   # x19 float  kr6 -- 95% bounded in ( -5, -1)
+    kc6 = 10 ** x[20]   # x20 float  kc6 -- 95% bounded in ( -7,  1)  MOMP Signal 2
+
+    kf7 = 10 ** x[21]   # x21 float  kf7 -- 95% bounded in ( -8, -4)
+    kr7 = 10 ** x[22]   # x22 float  kr7 -- 95% bounded in ( -5, -1)
+    kc7 = 10 ** x[23]   # x23 float  kc7 -- 95% bounded in ( -2,  2)
+
+    kf8 = 10 ** x[24]   # x24 float  kf8 -- 95% bounded in ( -8, -4)
+    kr8 = 10 ** x[25]   # x25 float  kr8 -- 95% bounded in ( -5, -1)
+    kc8 = 10 ** x[26]   # x26 float  kc8 -- 95% bounded in ( -2,  2)  MOMP dependent effector Caspase activation
+
+    kc9 = 10 ** x[27]   # x27 float  kc8 -- 95% bounded in (-9,  -3)  effector Caspase Degradation
+
+    params = pd.DataFrame([[kf0, kr0, kc0, kf1, kr1, kc1, kf2, kr2, kc2, kf3, kr3, kc3, kf4, kr4, kc4, kf5, kr5, kc5,
+                            kf6, kr6, kc6, kr7, kf7, kc7, kf8, kr8, kc8, kc9]],
+                          columns=['kf0', 'kr0', 'kc0', 'kf1', 'kr1', 'kc1', 'kf2', 'kr2', 'kc2', 'kf3', 'kr3', 'kc3',
+                                   'kf4', 'kr4', 'kc4', 'kf5', 'kr5', 'kc5', 'kf6', 'kr6', 'kc6', 'kr7', 'kf7', 'kc7',
+                                   'kf8', 'kr8', 'kc8', 'kc9'])
     likelihood_fn.simulator.param_values = params
 
     # dynamics
@@ -141,32 +118,43 @@ def likelihood_fn(x):
 
 # -------- Calibration -------
 # Model Inference via PyDREAM
-sampled_params_0 = [SampledParam(norm, loc=-5, scale=1.0),           # x0  float  kc0 -- 95% bounded in (-7,  -3)
-                    SampledParam(norm, loc=-2, scale=1.5),           # x1  float  kc2 -- 95% bounded in (-5,   1)
-                    SampledParam(norm, loc=-8.5, scale=1.25),        # x2  float  kf3 -- 95% bounded in (-11, -6)
-                    SampledParam(norm, loc=-2, scale=1.5),           # x3  float  kc3 -- 95% bounded in (-5,   1)
-                    SampledParam(norm, loc=-7, scale=1.5),           # x4  float  kf4 -- 95% bounded in (-10, -4)
-                    SampledParam(norm, loc=-3, scale=1.5),           # x5  float  kr7 -- 95% bounded in (-6,   0)
-                    SampledParam(norm, loc=-6, scale=1.5),           # x6  float  kc8 -- 95% bounded in (-9,  -3)
+sampled_params_0 = [SampledParam(norm, loc=-6, scale=1.0),  # x0  float  kf0 -- 95% bounded in ( -8, -4)
+                    SampledParam(norm, loc=-3, scale=1.0),  # x1  float  kr0 -- 95% bounded in ( -5, -1)
+                    SampledParam(norm, loc=-4, scale=1.5),  # x2  float  kc0 -- 95% bounded in ( -7, -1) DISC formation
 
-                    SampledParam(norm, loc=-6, scale=1.0),           # x7  float  kf0 -- 95% bounded in (-8,  -4)
-                    SampledParam(norm, loc=-3, scale=1.0),           # x8  float  kr0 -- 95% bounded in (-5,  -1)
-                    SampledParam(norm, loc=-8, scale=1.0),           # x9  float  kf1 -- 95% bounded in (-10, -4)
-                    SampledParam(norm, loc=-3, scale=1.0),           # x10 float  kr1 -- 95% bounded in ( -5, -1)
-                    SampledParam(norm, loc=-0, scale=1.0),           # x11 float  kc1 -- 95% bounded in ( -2,  2)
-                    SampledParam(norm, loc=-10, scale=1.0),          # x12 float  kf2 -- 95% bounded in (-12, -8)
-                    SampledParam(norm, loc=-3, scale=1.0),           # x13 float  kr2 -- 95% bounded in ( -5, -1)
-                    SampledParam(norm, loc=-3, scale=1.0),           # x14 float  kr3 -- 95% bounded in ( -5, -1)
-                    SampledParam(norm, loc=-3, scale=1.0),           # x15 float  kr4 -- 95% bounded in ( -5, -1)
-                    SampledParam(norm, loc=-0, scale=1.0),           # x16 float  kc4 -- 95% bounded in ( -2,  2)
-                    SampledParam(norm, loc=-6, scale=1.0),           # x17 float  kf5 -- 95% bounded in ( -8, -4)
-                    SampledParam(norm, loc=-3, scale=1.0),           # x18 float  kr5 -- 95% bounded in ( -5, -1)
-                    SampledParam(norm, loc=-5, scale=1.0),           # x19 float  kc5 -- 95% bounded in ( -7, -3)
-                    SampledParam(norm, loc=-6, scale=1.0),           # x20 float  kf6 -- 95% bounded in ( -8, -4)
-                    SampledParam(norm, loc=-3, scale=1.0),           # x21 float  kr6 -- 95% bounded in ( -5, -1)
-                    SampledParam(norm, loc=-0, scale=1.0),           # x22 float  kc6 -- 95% bounded in ( -2,  2)
-                    SampledParam(norm, loc=-6, scale=1.0),           # x23 float  kf7 -- 95% bounded in ( -8, -4)
-                    SampledParam(norm, loc=-0, scale=1.0),           # x24 float  kc7 -- 95% bounded in ( -2,  2)
+                    SampledParam(norm, loc=-6, scale=1.0),  # x3  float  kf1 -- 95% bounded in ( -8, -4)
+                    SampledParam(norm, loc=-3, scale=1.0),  # x4  float  kr1 -- 95% bounded in ( -5, -1)
+                    SampledParam(norm, loc=-0, scale=1.0),  # x5  float  kc1 -- 95% bounded in ( -2,  2)
+
+                    SampledParam(norm, loc=-6, scale=1.0),  # x6  float  kf2 -- 95% bounded in ( -8, -4)
+                    SampledParam(norm, loc=-3, scale=1.0),  # x7  float  kr2 -- 95% bounded in ( -5, -1)
+                    SampledParam(norm, loc=-0, scale=1.0),  # x8  float  kc2 -- 95% bounded in ( -5,  1)
+
+                    SampledParam(norm, loc=-6, scale=1.0),  # x9  float  kf3 -- 95% bounded in ( -8, -4)
+                    SampledParam(norm, loc=-3, scale=1.0),  # x10 float  kr3 -- 95% bounded in ( -5, -1)
+                    SampledParam(norm, loc=-0, scale=1.0),  # x11 float  kc3 -- 95% bounded in ( -2,  2)
+
+                    SampledParam(norm, loc=-6, scale=1.0),  # x12 float  kf4 -- 95% bounded in ( -8, -4)
+                    SampledParam(norm, loc=-3, scale=1.0),  # x13 float  kr4 -- 95% bounded in ( -5, -1)
+                    SampledParam(norm, loc=-0, scale=1.0),  # x14 float  kc4 -- 95% bounded in ( -2,  2)
+
+                    SampledParam(norm, loc=-6, scale=1.0),  # x15 float  kf5 -- 95% bounded in ( -8, -4)
+                    SampledParam(norm, loc=-3, scale=1.0),  # x16 float  kr5 -- 95% bounded in ( -5, -1)
+                    SampledParam(norm, loc=-4, scale=1.5),  # x17 float  kc5 -- 95% bounded in ( -7, -1) MOMP Signal 1
+
+                    SampledParam(norm, loc=-6, scale=1.0),  # x18 float  kf6 -- 95% bounded in ( -8, -4)
+                    SampledParam(norm, loc=-3, scale=1.0),  # x19 float  kr6 -- 95% bounded in ( -5, -1)
+                    SampledParam(norm, loc=-4, scale=1.5),  # x20 float  kc6 -- 95% bounded in ( -7,  1) MOMP Signal 2
+
+                    SampledParam(norm, loc=-6, scale=1.0),  # x21 float  kf7 -- 95% bounded in ( -8, -4)
+                    SampledParam(norm, loc=-3, scale=1.0),  # x22 float  kr7 -- 95% bounded in ( -5, -1)
+                    SampledParam(norm, loc=-0, scale=1.0),  # x23 float  kc7 -- 95% bounded in ( -2,  2)
+
+                    SampledParam(norm, loc=-6, scale=1.0),  # x24 float  kf8 -- 95% bounded in ( -8, -4)
+                    SampledParam(norm, loc=-3, scale=1.0),  # x25 float  kr8 -- 95% bounded in ( -5, -1)
+                    SampledParam(norm, loc=-0, scale=1.0),  # x26 float  kc8 -- 95% bounded in ( -2,  2)
+
+                    SampledParam(norm, loc=-6, scale=1.0),  # x27 float  kc8 -- 95% bounded in (-9,  -3) eff-Caspase deg
                     ]
 
 n_chains = 4
@@ -186,6 +174,7 @@ if __name__ == '__main__':
                                        niterations=n_iterations,
                                        nchains=n_chains,
                                        multitry=False,
+                                       nCR=10,
                                        gamma_levels=4,
                                        adapt_gamma=True,
                                        history_thin=1,
@@ -217,6 +206,7 @@ if __name__ == '__main__':
                                                niterations=n_iterations,
                                                nchains=n_chains,
                                                multitry=False,
+                                               nCR=10,
                                                gamma_levels=4,
                                                adapt_gamma=True,
                                                history_thin=1,

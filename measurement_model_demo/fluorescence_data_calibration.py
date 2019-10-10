@@ -89,9 +89,9 @@ def likelihood_fn(x):
     kc9 = 10 ** x[27]   # x27 float  kc8 -- 95% bounded in (-9,  -3)  effector Caspase Degradation
 
     params = pd.DataFrame([[kf0, kr0, kc0, kf1, kr1, kc1, kf2, kr2, kc2, kf3, kr3, kc3, kf4, kr4, kc4, kf5, kr5, kc5,
-                            kf6, kr6, kc6, kr7, kf7, kc7, kf8, kr8, kc8, kc9]],
+                            kf6, kr6, kc6, kf7, kr7, kc7, kf8, kr8, kc8, kc9]],
                           columns=['kf0', 'kr0', 'kc0', 'kf1', 'kr1', 'kc1', 'kf2', 'kr2', 'kc2', 'kf3', 'kr3', 'kc3',
-                                   'kf4', 'kr4', 'kc4', 'kf5', 'kr5', 'kc5', 'kf6', 'kr6', 'kc6', 'kr7', 'kf7', 'kc7',
+                                   'kf4', 'kr4', 'kc4', 'kf5', 'kr5', 'kc5', 'kf6', 'kr6', 'kc6', 'kf7', 'kr7', 'kc7',
                                    'kf8', 'kr8', 'kc8', 'kc9'])
     likelihood_fn.simulator.param_values = params
 

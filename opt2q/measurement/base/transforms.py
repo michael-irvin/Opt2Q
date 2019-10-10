@@ -1073,17 +1073,17 @@ class LogisticClassifier(Transform):
 
         All non-numeric columns in ``x`` are ignored (even if they appear in this argument).
 
-        Defaults to the numeric columns present in ``x`` that also exist in the ``dataset_fluorescence``.
+        Defaults to the numeric columns present in ``x`` that also exist in the ``dataset``.
 
     column_groups: dict, optional
         Groups of columns of the :class:`~pandas.DataFrame`, ``x``, (passed to the
         :meth:`~opt2q.measurement.base.transforms.LogisticClassifier.transform` method) that will be classified into
         categories. Each group is constitutes the features that the classification is based on. Each group name (str)
-        (or dict key). This name is a column name in the ``dataset_fluorescence``. Defaults to ``columns`` argument.
+        (or dict key). This name is a column name in the ``^dataset``. Defaults to ``columns`` argument.
 
         All non-numeric columns are ignored (even if they appear in this argument).
 
-        All column-group names must also appear in the ``dataset_fluorescence``.
+        All column-group names must also appear in the ``dataset``.
 
     group_features: bool, optional
         If True, all columns serve as a single feature space for by the classification is depends. If False, each column
@@ -1092,7 +1092,7 @@ class LogisticClassifier(Transform):
         False.
 
     group_name: str, optional
-        If ``group_features`` is True, you must specify a name for the group. This group must appear in the ``dataset_fluorescence``.
+        If ``group_features`` is True, you must specify a name for the group. This group must appear in the ``dataset``.
 
     do_fit_transform: bool, optional
         When True, Simply fit the classifier to values of ``x`` and data ``y``. When False, use a previous fit to

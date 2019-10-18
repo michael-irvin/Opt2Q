@@ -183,7 +183,7 @@ class WesternBlot(MeasurementModel):
 
     def likelihood(self, use_all_dataset_obs=True, use_all_dataset_exp_cond=True):
         """
-        Return scalar value of the likelihood.
+        Return scalar value of the negative log likelihood.
 
         Parameters
         ----------

@@ -202,6 +202,11 @@ def column_max(x):
 
 
 @transform_function
+def column_min(x):
+    return pd.DataFrame(x.min()).T
+
+
+@transform_function
 def where_max(x, var=None, drop_var=False):
     """
     Return row of x where ``var`` is max.

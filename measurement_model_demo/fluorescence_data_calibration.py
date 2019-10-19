@@ -13,8 +13,7 @@ from pydream.parameters import SampledParam
 from pydream.core import run_dream
 from pydream.convergence import Gelman_Rubin
 from measurement_model_demo.apoptosis_model import model
-from matplotlib import pyplot as plt
-from scipy.stats import norm, beta, uniform
+from scipy.stats import norm, beta
 
 
 # ------- Data -------
@@ -102,16 +101,17 @@ def likelihood_fn(x):
     kr8 = 10 ** x[25]        # x25 float  kr8 -- 95% bounded in  ( -5, -1)
     kc8 = 10 ** x[26]        # x26 float  kc8 -- 95% bounded in  ( -2,  2)  MOMP dependent effector Caspase activation
 
-    kc9 = 10 ** x[27]        # x27 float  kc8 -- 95% bounded in  (-9,  -3)  effector Caspase Degradation
-    kd_bid_0 = 4e4 * x[28]   # x28 float  kd_bid_0 -- bounded in ( 0, 0.5)
+    kc9 = 10 ** x[27]        # x27 float  kc9 -- 95% bounded in  (-9,  -3)  effector Caspase Degradation
+    kc10 = 10 ** x[28]       # x28 float  kc10 -- 95% bounded in  (-9,  -3)  effector Caspase Degradation
+    kd_bid_0 = 4e4 * x[29]   # x29 float  kd_bid_0 -- bounded in ( 0, 0.5)
 
     # update parameters
     likelihood_fn.pm.update_values(
         pd.DataFrame({'value': [kf0, kr0, kc0, kf1, kr1, kc1, kf2, kr2, kc2, kf3, kr3, kc3, kf4, kr4, kc4, kf5, kr5,
-                                kc5, kf6, kr6, kc6, kf7, kr7, kc7, kf8, kr8, kc8, kc9],
+                                kc5, kf6, kr6, kc6, kf7, kr7, kc7, kf8, kr8, kc8, kc9, kc10],
                      'param': ['kf0', 'kr0', 'kc0', 'kf1', 'kr1', 'kc1', 'kf2', 'kr2', 'kc2', 'kf3', 'kr3', 'kc3',
                                'kf4', 'kr4', 'kc4', 'kf5', 'kr5', 'kc5', 'kf6', 'kr6', 'kc6', 'kf7', 'kr7', 'kc7',
-                               'kf8', 'kr8', 'kc8', 'kc9']}))
+                               'kf8', 'kr8', 'kc8', 'kc9', 'kc10']}))
     likelihood_fn.pm.update_values(pd.DataFrame([[kd_bid_0, 'Bid_0', 'BidKD']],
                                                 columns=['value', 'param', 'Condition']))
     params = likelihood_fn.pm.run()
@@ -143,48 +143,49 @@ def likelihood_fn(x):
 # Model Inference via PyDREAM
 sampled_params_0 = [
     SampledParam(norm, loc=-6, scale=1.0),        # x0  float  kf0 -- 95% bounded in ( -8, -4)
-    SampledParam(norm, loc=-3, scale=1.0),        # x1  float  kr0 -- 95% bounded in ( -5, -1)
-    SampledParam(norm, loc=-4, scale=1.5),        # x2  float  kc0 -- 95% bounded in ( -7, -1) DISC formation
+    SampledParam(norm, loc=-1, scale=1.0),        # x1  float  kr0 -- 95% bounded in ( -5, -1)
+    SampledParam(norm, loc=-1, scale=2.5),        # x2  float  kc0 -- 95% bounded in ( -7, -1) DISC formation
 
     SampledParam(norm, loc=-6, scale=1.0),        # x3  float  kf1 -- 95% bounded in ( -8, -4)
     SampledParam(norm, loc=-3, scale=1.0),        # x4  float  kr1 -- 95% bounded in ( -5, -1)
-    SampledParam(norm, loc=-0, scale=1.0),        # x5  float  kc1 -- 95% bounded in ( -2,  2)
+    SampledParam(norm, loc=-2, scale=2.0),        # x5  float  kc1 -- 95% bounded in ( -2,  2)
 
     SampledParam(norm, loc=-6, scale=1.0),        # x6  float  kf2 -- 95% bounded in ( -8, -4)
     SampledParam(norm, loc=-3, scale=1.0),        # x7  float  kr2 -- 95% bounded in ( -5, -1)
-    SampledParam(norm, loc=-0, scale=1.0),        # x8  float  kc2 -- 95% bounded in ( -5,  1)
+    SampledParam(norm, loc=-6, scale=2.0),        # x8  float  kc2 -- 95% bounded in ( -5,  1)
 
     SampledParam(norm, loc=-6, scale=1.0),        # x9  float  kf3 -- 95% bounded in ( -8, -4)
     SampledParam(norm, loc=-3, scale=1.0),        # x10 float  kr3 -- 95% bounded in ( -5, -1)
-    SampledParam(norm, loc=-0, scale=1.0),        # x11 float  kc3 -- 95% bounded in ( -2,  2)
+    SampledParam(norm, loc=-4, scale=2.0),        # x11 float  kc3 -- 95% bounded in ( -2,  2)
 
     SampledParam(norm, loc=-6, scale=1.0),        # x12 float  kf4 -- 95% bounded in ( -8, -4)
     SampledParam(norm, loc=-3, scale=1.0),        # x13 float  kr4 -- 95% bounded in ( -5, -1)
-    SampledParam(norm, loc=-0, scale=1.0),        # x14 float  kc4 -- 95% bounded in ( -2,  2)
+    SampledParam(norm, loc=-3, scale=2.0),        # x14 float  kc4 -- 95% bounded in ( -2,  2)
 
-    SampledParam(norm, loc=-6, scale=1.0),        # x15 float  kf5 -- 95% bounded in ( -8, -4)
-    SampledParam(norm, loc=-3, scale=1.0),        # x16 float  kr5 -- 95% bounded in ( -5, -1)
-    SampledParam(norm, loc=-4, scale=1.5),        # x17 float  kc5 -- 95% bounded in ( -7, -1) MOMP Signal 1
+    SampledParam(norm, loc=-6, scale=2.0),        # x15 float  kf5 -- 95% bounded in ( -8, -4)
+    SampledParam(norm, loc=-3, scale=2.0),        # x16 float  kr5 -- 95% bounded in ( -5, -1)
+    SampledParam(norm, loc=-4, scale=2.5),        # x17 float  kc5 -- 95% bounded in ( -7, -1) MOMP Signal 1
 
-    SampledParam(norm, loc=-6, scale=1.0),        # x18 float  kf6 -- 95% bounded in ( -8, -4)
-    SampledParam(norm, loc=-3, scale=1.0),        # x19 float  kr6 -- 95% bounded in ( -5, -1)
-    SampledParam(norm, loc=-4, scale=1.5),        # x20 float  kc6 -- 95% bounded in ( -7,  1) MOMP Signal 2
+    SampledParam(norm, loc=-6, scale=2.0),        # x18 float  kf6 -- 95% bounded in ( -8, -4)
+    SampledParam(norm, loc=-3, scale=2.0),        # x19 float  kr6 -- 95% bounded in ( -5, -1)
+    SampledParam(norm, loc=-4, scale=2.5),        # x20 float  kc6 -- 95% bounded in ( -7,  1) MOMP Signal 2
 
     SampledParam(norm, loc=-6, scale=1.0),        # x21 float  kf7 -- 95% bounded in ( -8, -4)
     SampledParam(norm, loc=-3, scale=1.0),        # x22 float  kr7 -- 95% bounded in ( -5, -1)
-    SampledParam(norm, loc=-0, scale=1.0),        # x23 float  kc7 -- 95% bounded in ( -2,  2)
+    SampledParam(norm, loc=-4, scale=2.0),        # x23 float  kc7 -- 95% bounded in ( -2,  2)
 
     SampledParam(norm, loc=-6, scale=1.0),        # x24 float  kf8 -- 95% bounded in ( -8, -4)
     SampledParam(norm, loc=-3, scale=1.0),        # x25 float  kr8 -- 95% bounded in ( -5, -1)
-    SampledParam(norm, loc=-0, scale=1.0),        # x26 float  kc8 -- 95% bounded in ( -2,  2)
+    SampledParam(norm, loc=-0, scale=2.0),        # x26 float  kc8 -- 95% bounded in ( -2,  2)
 
-    SampledParam(norm, loc=-6, scale=1.0),        # x27 float  kc8 -- 95% bounded in (-9,  -3) Caspase-3 deg
-    SampledParam(beta, a=2.5, b=5.83)             # x28 float  KD_Bid_0   bounded by ( 0, 0.5)
+    SampledParam(norm, loc=-4, scale=2.0),        # x27 float  kc9 -- 95% bounded in (-9,  -3) Caspase-8 deg
+    SampledParam(norm, loc=-4, scale=2.0),        # x28 float  kc10 -- 95% bounded in (-9,  -3) Caspase-3 deg
+    SampledParam(beta, a=2.5, b=5.83)             # x29 float  KD_Bid_0   bounded by ( 0, 0.5)
                     ]
 
 n_chains = 4
 n_iterations = 15000  # iterations per file-save
-burn_in_len = 8000    # number of iterations during burn-in
+burn_in_len = 10000    # number of iterations during burn-in
 max_iterations = 15000
 now = dt.datetime.now()
 model_name = f'fluorescence_data_calibration_{now.year}{now.month}{now.day}'
@@ -199,7 +200,7 @@ if __name__ == '__main__':
                                        niterations=n_iterations,
                                        nchains=n_chains,
                                        multitry=False,
-                                       nCR=10,
+                                       nCR=8,
                                        gamma_levels=4,
                                        adapt_gamma=True,
                                        history_thin=1,
@@ -232,7 +233,7 @@ if __name__ == '__main__':
                                                niterations=n_iterations,
                                                nchains=n_chains,
                                                multitry=False,
-                                               nCR=10,
+                                               nCR=8,
                                                gamma_levels=4,
                                                adapt_gamma=True,
                                                history_thin=1,

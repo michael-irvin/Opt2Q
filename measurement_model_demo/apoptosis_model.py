@@ -117,6 +117,10 @@ catalyze_state(EC(state='active'), 'b', PARP(), 'b', 'state', 'unmod', 'cleaved'
 Parameter('kc9', 1.0e-06)
 degrade(IC(state='active'), kc9)
 
+# 11. Initiator Caspase Degradation                *eCaspase --> None
+Parameter('kc10', 1.0e-06)
+degrade(EC(state='active'), kc10)
+
 Observable('TRAIL_receptor_obs', L(b=1) % R(b=1) + DISC())
 Observable('DISC_obs', DISC())
 Observable('C8_DISC_recruitment_obs', DISC()%IC())

@@ -93,9 +93,9 @@ def likelihood_fn(x):
 sampled_params_0 = [SampledParam(norm, loc=[np.log10(p.value) for p in model.parameters_rules()], scale=1.5)]
 
 n_chains = 4
-n_iterations = 15  # iterations per file-save
-burn_in_len = 10    # number of iterations during burn-in
-max_iterations = 15
+n_iterations = 20000  # iterations per file-save
+burn_in_len = 10000    # number of iterations during burn-in
+max_iterations = 20000
 now = dt.datetime.now()
 model_name = f'ECRP_ICRP_calibration_{now.year}{now.month}{now.day}'
 

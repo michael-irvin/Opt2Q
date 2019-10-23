@@ -102,34 +102,34 @@ Parameter('catalysis_1_C3A_catalyzer_C6pro_substrate_C6A_product_1kc', 7.1618677
 Parameter('catalysis_0_C6A_catalyzer_C8pro_substrate_C8A_product_2kf', 5.294791546454888e-06)
 Parameter('catalysis_0_C6A_catalyzer_C8pro_substrate_C8A_product_1kr', 0.12411380336814638)
 Parameter('catalysis_1_C6A_catalyzer_C8pro_substrate_C8A_product_1kc', 536.7760712534144)
-Parameter('Ligand_0', 1000.0)       # 3000 corresponds to 50ng/mL EARM Albeck.py
+Parameter('Ligand_0', 3000.0)       # 3000 corresponds to 50ng/mL EARM Albeck.py
 Parameter('ParpU_0', 1000000.0)     # 1e6 in EARM Albeck.py
 Parameter('C8A_0', 0.0)
 Parameter('SmacM_0', 100000.0)      # 1e5 in EARM Lopez.py
-Parameter('BaxM_0', 40000.0)        # 0.8e5 in EARM Lopez.py
+Parameter('BaxM_0', 0.8e5)        # 0.8e5 in EARM Lopez.py
 Parameter('Apop_0', 0.0)
-Parameter('Fadd_0', 130000.0)       # Absent from EARM. 
+Parameter('Fadd_0', 130000.0)       # Absent from EARM.
 Parameter('SmacC_0', 0.0)
 Parameter('ParpC_0', 0.0)
-Parameter('Xiap_0', 42000.0)        # 1e5 in EARM Albeck.py
-Parameter('C9_0', 100000.0)         # 1e5 in EARM Albeck.py
+Parameter('Xiap_0', 1.0e5)        # 1e5 in EARM Albeck.py
+Parameter('C9_0', 1.0e5)         # 1e5 in EARM Albeck.py
 Parameter('C3ub_0', 0.0)
-Parameter('C8pro_0', 130000.0)      # 2e4 in EARM Albeck.py
-Parameter('Bcl2_0', 328000.0)       # 2e4 in EARM Lopez.py
-Parameter('C3pro_0', 21000.0)       # 1e4 in EARM Albeck.py
-Parameter('CytoCM_0', 500000.0)     # 5e5 in EARM Lopez.py
+Parameter('C8pro_0', 2.0e4)      # 2e4 in EARM Albeck.py
+Parameter('Bcl2_0', 2.0e4)       # 2e4 in EARM Lopez.py
+Parameter('C3pro_0', 1.0e4)       # 1e4 in EARM Albeck.py
+Parameter('CytoCM_0', 5.0e5)     # 5e5 in EARM Lopez.py
 Parameter('CytoCC_0', 0.0)
 Parameter('BaxA_0', 0.0)
-Parameter('ApafI_0', 100000.0)      # 1e5 in EARM Albeck.py
-Parameter('BidU_0', 171000.0)       # 4e4 in EARM Lopez.py
+Parameter('ApafI_0', 1.0e5)      # 1e5 in EARM Albeck.py
+Parameter('BidU_0', 4.0e4)       # 4e4 in EARM Lopez.py
 Parameter('BidT_0', 0.0)
 Parameter('C3A_0', 0.0)
-Parameter('Bad_0', 53000.0)         # 1e3 in EARM Lopez.py
+Parameter('Bad_0', 1.0e3)         # 1e3 in EARM Lopez.py
 Parameter('ApafA_0', 0.0)
 Parameter('BidM_0', 0.0)
-Parameter('Receptor_0', 100.0)      # 200 in EARM Albeck.py
+Parameter('Receptor_0', 200.0)      # 200 in EARM Albeck.py
 Parameter('C6A_0', 0.0)
-Parameter('C6pro_0', 100.)          # 1e4 in EARM Albeck.py
+Parameter('C6pro_0', 1.0e4)          # 1e4 in EARM Albeck.py
 
 Observable('Ligand_obs', Ligand())
 Observable('ParpU_obs', ParpU())
@@ -263,47 +263,4 @@ if __name__ == '__main__':
             color=cm.colors[2], label='norm EC-RP')
 
     pl.legend()
-
-    # data_object = []
-    # with open('earm_data.csv') as data_file:
-    #     reader = csv.reader(data_file)
-    #     line = list(reader)
-    #     for each in line:
-    #         data_object.append(each)
-    #
-    # for i, each in enumerate(data_object):
-    #     if i > 0:
-    #         for j, item in enumerate(each):
-    #             data_object[i][j] = float(data_object[i][j])
-    #
-    # t = []
-    # for each in data_object[1:]:
-    #     t.append(each.pop(0))
-    #
-    # data_object.pop(0)
-
-    # plot data
-
-    # for i, each in enumerate(data[3]):
-    #     data[3][i] = math.sqrt(data[3][i])
-    # for i, each in enumerate(data[9]):
-    #     data[9][i] = math.sqrt(data[9][i])
-    #
-    # # pl.errorbar(t, data[2], yerr=data[3], c='b', solid_capstyle='projecting', capsize=3, label="IC-RP (Bid)")
-    # # pl.errorbar(t, data[5], yerr=data[6], c='r', ms=2, label="IMS-RP (Smac)")
-    # # pl.errorbar(t, data[8], yerr=data[9], c='g', solid_capstyle='projecting', capsize=3, label="EC-RP (Parp)")
-    #
-    # pl.plot(t, data[2], 'ro', c='b', ms=3, label="IC-RP (Bid)")
-    # pl.plot(t, data[4], 'ro', c='r', ms=3, label="IMS-RP (Smac)")
-    # pl.plot(t, data[8], 'ro', c='g', ms=3, label="EC-RP (Parp)")
-    #
-    # # pl.legend(loc='lower right', fontsize=20, numpoints=1)
-    # pl.xlabel("Time (s)", fontsize=20)
-    # pl.ylabel("Molecules/cell", fontsize=20)
-    # pl.title('Calibration of modified EARM model over chosen priors (parameter ranges)', fontsize=22)
-    # # pl.title('Bid error bars', fontsize=22)
-    # # pl.title('Parp error bars', fontsize=22)
-    # pl.tick_params(labelsize=16)
-    # pl.tight_layout()
-    #
     pl.show()

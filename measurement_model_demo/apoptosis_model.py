@@ -36,6 +36,10 @@ Parameter('EC_0',       1.0e4)   # Effector Caspases
 Parameter('Bid_0',      4.0e4)   # Bid
 Parameter('MOMP_sig_0', 1.0e5)   # MOMP dependent pro-apoptotic Effector Caspase activators (e.g. cytochrome C)
 Parameter('PARP_0',     1.0e6)   # PARP (Caspase-3 substrate)
+Parameter('USM1_0',     1.0e3)
+Parameter('USM2_0',     1.0e3)
+Parameter('USM3_0',     1.0e3)
+
 
 Monomer('L',          ['b'])
 Monomer('R',          ['b'])
@@ -45,6 +49,9 @@ Monomer('EC',         ['b', 'state'], {'state': ['inactive', 'active']})
 Monomer('Bid',        ['b', 'state'], {'state': ['unmod', 'cleaved']})
 Monomer('MOMP_sig',   ['b', 'state'], {'state': ['inactive', 'active']})
 Monomer('PARP',       ['b', 'state'], {'state': ['unmod', 'cleaved']})
+Monomer('USM1',       ['b', 'state'], {'state': ['inactive', 'active']})  # unrelated signaling molecule
+Monomer('USM2',       ['b', 'state'], {'state': ['inactive', 'active']})
+Monomer('USM3',       ['b', 'state'], {'state': ['inactive', 'active']})
 
 Initial(L(b=None), L_0)
 Initial(R(b=None), R_0)
@@ -54,6 +61,10 @@ Initial(EC(b=None, state='inactive'), EC_0)
 Initial(Bid(b=None, state='unmod'), Bid_0)
 Initial(MOMP_sig(b=None, state='inactive'), MOMP_sig_0)
 Initial(PARP(b=None, state='unmod'), PARP_0)
+Initial(USM1(b=None, state='active'), USM1_0)
+Initial(USM2(b=None, state='inactive'), USM2_0)
+Initial(USM3(b=None, state='inactive'), USM3_0)
+
 
 # 1. Receptor ligation: TRAIL + Receptor  <-> TRAIL:Receptor     kf0, kr0
 Parameter('kf0', 1.0e-06)
@@ -116,6 +127,22 @@ catalyze_state(EC(state='active'), 'b', PARP(), 'b', 'state', 'unmod', 'cleaved'
 Parameter('kc9', 1.0e-06)
 degrade(IC(state='active'), kc9)
 
+# 12. Unrelated Signaling
+Parameter('kf10', 1.0e-05)
+Parameter('kr10', 1.0e-03)
+Parameter('kc10', 5.0e-04)
+catalyze_state(USM1(state='active'), 'b', USM2(), 'b', 'state', 'inactive', 'active', [kf10, kr10, kc10])
+catalyze_state(USM2(state='active'), 'b', USM3(), 'b', 'state', 'inactive', 'active', [kf10, kr10, kc10])
+catalyze_state(USM3(state='active'), 'b', USM1(), 'b', 'state', 'inactive', 'active', [kf10, kr10, kc10])
+
+# 13. Unrelated Signaling
+Parameter('kf11', 1.0e-05)
+Parameter('kr11', 1.0e-03)
+Parameter('kc11', 1.0e-00)
+catalyze_state(USM1(state='active'), 'b', USM3(), 'b', 'state', 'active', 'inactive', [kf11, kr11, kc11])
+catalyze_state(USM2(state='active'), 'b', USM1(), 'b', 'state', 'active', 'inactive', [kf11, kr11, kc11])
+catalyze_state(USM3(state='active'), 'b', USM2(), 'b', 'state', 'active', 'inactive', [kf11, kr11, kc11])
+
 Observable('TRAIL_receptor_obs', L(b=1) % R(b=1) + DISC())
 Observable('DISC_obs', DISC())
 Observable('C8_DISC_recruitment_obs', DISC()%IC())
@@ -128,4 +155,5 @@ Observable('tBID_obs',   Bid(state='cleaved'))
 Observable('MOMP_signal', MOMP_sig(state='active'))
 Observable('cPARP_obs', PARP(b=None, state='cleaved'))
 Observable('PARP_obs',  PARP(b=None, state='unmod'))
+Observable('Unrelated_Signal', USM2(state='active'))
 

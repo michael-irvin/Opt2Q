@@ -40,12 +40,13 @@ true_params = [-6.9370612,  -4.98273231, -4.95067084, -5.71425451, -2.76587087, 
                -7.82720074, -1.1626445,  -1.96149179, -5.41782659, -4.85626718, -1.52969156,
                -4.79153366, -1.76493099, -2.46972459, -9.06088874, -2.9369674,  -5.07077935,
                -6.11397529, -3.13346599, -2.2852632 , -4.70290624, -3.73949354, -2.40889128,
-               -4.75438846, -2.87013358, -0.77520986, -7.08167013]  # Rate parameters for apoptosis related reactions
-# , -3.98704917, -2.41849717,  -4.28322569, -7.40096803, -2.27460174,  0.31984082] # Rate params for unrelated reactions
+               -4.75438846, -2.87013358, -0.77520986, -7.08167013,  # Rate parameters for apoptosis related reactions
+               # Rate params for unrelated reactions
+               -3.98704917, -2.41849717,  -4.28322569, -7.40096803, -2.27460174,  0.31984082]
 
 param_names = ['kf0', 'kr0', 'kc0', 'kf1', 'kr1', 'kc1', 'kf2', 'kr2', 'kc2', 'kf3', 'kr3', 'kc3',
                'kf4', 'kr4', 'kc4', 'kf5', 'kr5', 'kc5', 'kf6', 'kr6', 'kc6', 'kr7', 'kf7', 'kc7',
-               'kf8', 'kr8', 'kc8', 'kc9']  # , 'kf10, 'kr10', 'kc10', 'kf11', 'kr11', 'kc11']
+               'kf8', 'kr8', 'kc8', 'kc9', 'kf10', 'kr10', 'kc10', 'kf11', 'kr11', 'kc11']
 
 params = pd.DataFrame({'value': [10**p for p in true_params], 'param': param_names})
 parameters = NoiseModel(params).run()
@@ -93,7 +94,10 @@ def likelihood_fn(x):
 
 # -------- Calibration -------
 # Model Inference via PyDREAM
-sampled_params_0 = [SampledParam(norm, loc=[np.log10(p.value) for p in model.parameters_rules()], scale=1.5)]
+# sampled_params_0 = [SampledParam(norm, loc=[np.log10(p.value) for p in model.parameters_rules()], scale=1.5)]
+
+# Use recent calibration as starting point
+sampled_params_0 = [SampledParam(norm, loc=[np.log10(p) for p in parameters[param_names].values[0]], scale=1.5)]
 
 n_chains = 4
 n_iterations = 10000  # iterations per file-save

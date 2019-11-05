@@ -23,8 +23,7 @@ file_path = os.path.join(script_dir, 'EC-RP_IMS-RP_IC-RP_data_for_models.csv')
 raw_fluorescence_data = pd.read_csv(file_path)
 fluorescence_data = raw_fluorescence_data[
     ['# Time', 'norm_IC-RP', 'nrm_var_IC-RP', 'norm_EC-RP', 'nrm_var_EC-RP']
-].rename(columns={'# Time': 'time_min'})  # Remove unnecessary whitespace in column name
-fluorescence_data = fluorescence_data.assign(time=fluorescence_data.time_min * 60).drop(columns='time_min')
+].rename(columns={'# Time': 'time'})  # Remove unnecessary whitespace in column name
 
 cPARP_dataset = DataSet(fluorescence_data[['time', 'norm_EC-RP']],
                         measured_variables={'norm_EC-RP': 'semi-quantitative'})
@@ -90,7 +89,7 @@ def likelihood_fn(x):
 
 # -------- Calibration -------
 # Model Inference via PyDREAM
-sampled_params_0 = [SampledParam(norm, loc=[np.log10(p.value) for p in model.parameters_rules()], scale=1.5)]
+sampled_params_0 = [SampledParam(norm, loc=[np.log10(p.value) for p in model.parameters_rules()], scale=1.0)]
 
 n_chains = 4
 n_iterations = 20000  # iterations per file-save

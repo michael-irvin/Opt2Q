@@ -97,7 +97,7 @@ def likelihood_fn(x):
 # sampled_params_0 = [SampledParam(norm, loc=[np.log10(p.value) for p in model.parameters_rules()], scale=1.5)]
 
 # Use recent calibration as starting point
-sampled_params_0 = [SampledParam(norm, loc=[np.log10(p) for p in parameters[param_names].values[0]], scale=1.5)]
+sampled_params_0 = [SampledParam(norm, loc=true_params, scale=1.5)]
 
 n_chains = 4
 n_iterations = 10000  # iterations per file-save

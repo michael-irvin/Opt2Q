@@ -107,7 +107,7 @@ class TestMeasurementModel(TestSolverModel, unittest.TestCase):
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             test = mm._get_obs_from_dataset(ds, mm._default_observables)
-            print(w[-1])
+            print(w[-1].message)
             assert str(w[-1].message) == 'The supplied dataset has observables not present in the simulation result. ' \
                                          'They will be ignored.'
         target = {'AB_complex'}
@@ -784,7 +784,7 @@ class TestFractionalKillingModel(TestSolverModel, unittest.TestCase):
         ff = FractionalKilling(sim_result, ds, {'viability': ['AB_complex', 'A_free']},
                                observables=['AB_complex', 'A_free'],
                                interpolate_first=False)
-        self.assertEqual(ff.likelihood(), 673.2677074114804)
+        self.assertEqual(ff.likelihood(), 673.2677074114888)
 
         # print(cell_viability_model.experimental_conditions_df)
         # # print({k: v for k, v in cell_viability_model.process.get_params().items() if 'do_fit_transform' in k})

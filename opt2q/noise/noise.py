@@ -48,8 +48,10 @@ def multivariate_log_normal_fn(mean, covariance, n, names_column='param', *args,
     """
 
     # clip zeros to prevent breaking log-norm function
-    atol = 0.1*covariance[covariance>0].min().min()
-    _mean = mean.set_index(names_column).clip(lower=atol).astype(float, errors='ignore')
+    atol = 0.01*covariance[covariance > 0].min().min()
+    atol_m = 0.01*mean[mean.value > 0]['value'].min()
+
+    _mean = mean.set_index(names_column).clip(lower=atol_m).astype(float, errors='ignore')
     _cov = covariance[_mean.index].reindex(_mean.index)
 
     _cov_diagonal = pd.DataFrame([np.clip(np.diag(_cov), atol, np.inf)], columns=_mean.index)

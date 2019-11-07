@@ -638,7 +638,7 @@ class TestNoise(unittest.TestCase):
         NoiseModel.default_param_values = {'c': 3.0}
         nm = NoiseModel(param_mean=param_mean, param_covariance=param_cov)
         test = nm._add_noisy_values(nm.param_mean, nm.param_covariance, nm.experimental_conditions_dataframe)
-        target_mean = np.array([2, 3, 1.0e-2])
+        target_mean = np.array([2, 3, 2.0e-2])
         target_cov = np.array([[0.16,   0.1,    0.0],
                                [ 0.1,  0.36,    0.0],
                                [ 0.0,   0.0, 1.0e-2]])

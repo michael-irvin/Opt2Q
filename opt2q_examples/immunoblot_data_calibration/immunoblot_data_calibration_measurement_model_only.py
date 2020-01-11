@@ -18,7 +18,7 @@ from opt2q_examples.immunoblot_data_calibration.generate_synthetic_immunoblot_da
 
 script_dir = os.path.dirname(__file__)
 parent_dir = os.path.dirname(script_dir)
-true_params = np.load(parent_dir + '/true_params.npy')
+true_params = np.load('true_params.npy')
 
 param_names = ['kf0', 'kr0', 'kc0', 'kf1', 'kr1', 'kc1', 'kf2', 'kr2', 'kc2', 'kf3', 'kr3', 'kc3',
                'kf4', 'kr4', 'kc4', 'kf5', 'kr5', 'kc5', 'kf6', 'kr6', 'kc6', 'kr7', 'kf7', 'kc7',

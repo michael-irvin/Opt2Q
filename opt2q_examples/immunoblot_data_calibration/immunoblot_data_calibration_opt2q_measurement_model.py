@@ -22,7 +22,7 @@ param_names = [p.name for p in model.parameters_rules()][:-6]
 num_params = len(param_names)
 script_dir = os.path.dirname(__file__)
 parent_dir = os.path.dirname(script_dir)
-true_params = np.load(parent_dir + '/true_params.npy')[:num_params]
+true_params = np.load('true_params.npy')[:num_params]
 
 params = pd.DataFrame({'value': [10**p for p in true_params], 'param': param_names})
 parameters = NoiseModel(params).run()  # No extrinsic noise applied

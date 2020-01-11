@@ -17,7 +17,7 @@ from opt2q_examples.apoptosis_model import model
 script_dir = os.path.dirname(__file__)
 parent_dir = os.path.dirname(script_dir)
 
-file_path = os.path.join(parent_dir, 'fluorescence_data_calibration', 'fluorescence_data.csv')
+file_path = os.path.join(script_dir, '../fluorescence_data_calibration/fluorescence_data.csv')
 
 raw_fluorescence_data = pd.read_csv(file_path)
 fluorescence_data = raw_fluorescence_data[['# Time', 'norm_IC-RP', 'nrm_var_IC-RP', 'norm_EC-RP', 'nrm_var_EC-RP']]\
@@ -38,7 +38,7 @@ dataset.measurement_error_df = fluorescence_data[['nrm_var_IC-RP', 'nrm_var_EC-R
 
 param_names = [p.name for p in model.parameters_rules()][:-6]
 
-true_params = np.load(parent_dir+'/true_params.npy')[:len(param_names)]
+true_params = np.load('true_params.npy')[:len(param_names)]
 
 params = pd.DataFrame({'value': [10**p for p in true_params], 'param': param_names})
 parameters = NoiseModel(params).run()

@@ -29,7 +29,7 @@ extrinsic_noise_params = pd.read_csv(file_path)
 
 # ------- Starting Point ----
 param_names = [p.name for p in model.parameters_rules()]
-true_params = np.load(parent_dir + '/true_params.npy')
+true_params = np.load(os.path.join(parent_dir, 'true_params.npy'))
 
 # ============ Simulate Heterogeneous Population =============
 # divide extrinsic noise columns by the 'true_value' or model preset value (m0) to get the population for each column
@@ -49,7 +49,7 @@ def simulate_heterogeneous_population(m, cv, population_0=standard_population):
 
 # ------- Simulations -------
 # fluorescence data as reference
-file_path = os.path.join(parent_dir, 'fluorescence_data_calibration', 'fluorescence_data.csv')
+file_path = os.path.join(script_dir, '../fluorescence_data_calibration/fluorescence_data.csv')
 raw_fluorescence_data = pd.read_csv(file_path)
 fluorescence_data = raw_fluorescence_data[['# Time', 'norm_IC-RP', 'nrm_var_IC-RP', 'norm_EC-RP', 'nrm_var_EC-RP']]\
     .rename(columns={'# Time': 'time_min'})  # Remove unnecessary whitespace in column name

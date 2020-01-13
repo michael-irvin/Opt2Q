@@ -52,9 +52,17 @@ params = pd.DataFrame({'value': [10**p for p in true_params], 'param': param_nam
 parameters = NoiseModel(params).run()
 
 # ------- Dynamics -------
-sim = Simulator(model=model, param_values=parameters, solver='scipyode', solver_options={'integrator': 'lsoda'})
+sim = Simulator(model=model, param_values=parameters, solver='scipyode',
+                solver_options={'integrator': 'lsoda'},
+                integrator_options={'rtol': 1e-3, 'atol': 1e-1})  # effort to speed-up solver
 # sim = Simulator(model=model, param_values=parameters, solver='cupsoda', integrator_options={'vol': 4.0e-15})
 results = sim.run(np.linspace(0, fluorescence_data.time.max(), 100))
+
+# from matplotlib import pyplot as plt
+# p = results.opt2q_dataframe['cPARP_obs'].plot()
+# plt.legend()
+# plt.show()
+# quit()
 
 # ------- Measurement -------
 fl = Fluorescence(results,

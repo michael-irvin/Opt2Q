@@ -54,7 +54,7 @@ parameters = NoiseModel(params).run()
 # ------- Dynamics -------
 sim = Simulator(model=model, param_values=parameters, solver='scipyode',
                 solver_options={'integrator': 'lsoda'},
-                integrator_options={'rtol': 1e-3, 'atol': 1e-1})  # effort to speed-up solver
+                integrator_options={'rtol': 1e-2, 'atol': 1e-1})  # effort to speed-up solver
 # sim = Simulator(model=model, param_values=parameters, solver='cupsoda', integrator_options={'vol': 4.0e-15})
 results = sim.run(np.linspace(0, fluorescence_data.time.max(), 100))
 

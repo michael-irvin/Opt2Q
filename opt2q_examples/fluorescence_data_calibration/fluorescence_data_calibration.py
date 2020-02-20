@@ -12,6 +12,7 @@ from pydream.parameters import SampledParam
 from pydream.core import run_dream
 from pydream.convergence import Gelman_Rubin
 from opt2q_examples.apoptosis_model import model
+from multiprocessing import get_context, Pool
 
 from scipy.stats import norm
 
@@ -141,8 +142,7 @@ if __name__ == '__main__':
                                        history_thin=1,
                                        model_name=model_name,
                                        verbose=True,
-                                       crossover_burnin=min(n_iterations, burn_in_len),
-                                       )
+                                       crossover_burnin=min(n_iterations, burn_in_len))
 
     # Save sampling output (sampled parameter values and their corresponding logps).
     for chain in range(len(sampled_params)):

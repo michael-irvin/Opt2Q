@@ -19,8 +19,8 @@ from scipy.stats import truncnorm
 
 # ------- Starting Parameters -------
 overwrite_synthetic_datasets = False
-overwrite_large_synthetic_datasets = True
-large_dataset_size = 250  # trajectories per experiment
+overwrite_large_synthetic_datasets = False
+large_dataset_size = 400  # trajectories per experiment
 
 script_dir = os.path.dirname(__file__)
 true_params = np.load(script_dir + '/true_params.npy')

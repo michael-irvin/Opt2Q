@@ -21,10 +21,10 @@ from opt2q_examples.apoptosis_model import model
 script_dir = os.path.dirname(__file__)
 parent_dir = os.path.dirname(script_dir)
 
-file_path = os.path.join(script_dir, 'synthetic_tbid_dependent_apoptosis_data.csv')
+file_path = os.path.join(script_dir, 'synthetic_tbid_dependent_apoptosis_data_large.csv')
 synth_data = pd.read_csv(file_path)
 
-file_path = os.path.join(script_dir, 'true_params_extrinsic_noise.csv')
+file_path = os.path.join(script_dir, 'true_params_extrinsic_noise_large.csv')
 extrinsic_noise_params = pd.read_csv(file_path)
 
 # ------- Simulations -------

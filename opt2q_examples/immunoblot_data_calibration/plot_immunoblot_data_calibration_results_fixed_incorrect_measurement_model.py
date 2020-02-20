@@ -8,8 +8,9 @@ import pandas as pd
 from scipy.stats import norm
 from itertools import combinations
 from matplotlib import pyplot as plt
-from measurement_model_demo.apoptosis_model import model
-from opt2q_examples.immunoblot_data_calibration.immunoblot_data_calibration_fixed_measurement_model import \
+from opt2q_examples.apoptosis_model import model
+from opt2q_examples.fluorescence_data_calibration.fluorescence_data_calibration import dataset
+from opt2q_examples.immunoblot_data_calibration.immunoblot_data_calibration_fixed_incorrect_measurement_model import \
     synthetic_immunoblot_data, sim, wb, burn_in_len, n_chains, \
     n_iterations, sampled_params_0
 from opt2q_examples.immunoblot_data_calibration.immunoblot_data_calibration_fixed_measurement_model import wb \
@@ -23,20 +24,20 @@ parent_dir = os.path.dirname(script_dir)
 calibration_folder = 'immunoblot_calibration_results'
 plot_title = 'Immunoblot Calibration (fixed erroneous measurement model)'
 
-burn_in_len = burn_in_len
+burn_in_len = 1000000
 number_of_traces = n_chains
 
 chain_history_file = [os.path.join(script_dir, calibration_folder, f) for f in
                       os.listdir(os.path.join(script_dir, calibration_folder))
-                      if '20191213' in f and 'inc' in f and 'chain_history' in f][0]
+                      if '2020131' in f and 'inc' in f and 'chain_history' in f][0]
 
 log_p_file_paths_ = sorted([os.path.join(script_dir, calibration_folder, f) for f in
                             os.listdir(os.path.join(script_dir, calibration_folder))
-                            if '20191213' in f and 'inc' in f and 'log_p' in f])
+                            if '2020131' in f and 'inc' in f and 'log_p' in f])
 
 parameter_file_paths_ = sorted([os.path.join(script_dir, calibration_folder, f) for f in
                                 os.listdir(os.path.join(script_dir, calibration_folder))
-                                if '20191213' in f and 'inc' in f and 'parameters' in f])
+                                if '2020131' in f and 'inc' in f and 'parameters' in f])
 
 # reorder traces to be in numerical order (i.e. 1000 before 10000).
 file_order = [str(n_iterations*n) for n in range(1, int(len(log_p_file_paths_)/number_of_traces)+1)]
@@ -46,14 +47,37 @@ for file_num in file_order:
     log_p_file_paths += [f for f in log_p_file_paths_ if f'_{file_num}_' in f]
     parameter_file_paths += [g for g in parameter_file_paths_ if f'_{file_num}_' in g]
 
+
+gr_file = sorted([os.path.join(script_dir, calibration_folder, f) for f in
+                  os.listdir(os.path.join(script_dir, calibration_folder))
+                  if '2020131' in f and file_order[-1] in f and '.txt' in f and 'inc' in f])[0]
+
+gr = np.loadtxt(gr_file)
+
+param_names = [p.name for p in model.parameters_rules()][:-6]
+
+true_params = np.load('true_params.npy')[:len(param_names)]
+
 param_names = [p.name for p in model.parameters_rules()][:-6]
 
 num_params = len(param_names)
 
-true_params = np.load(parent_dir+'/true_params.npy')[:num_params]
 params_of_interest = range(num_params)
+thin = 1000
 
 # =====================================
+# convergence
+# plt.figure(figsize=(10, 3))
+plt.bar(x=param_names[:17], height=gr[:17])
+plt.axhline(y=1.2, linestyle='--', color='k', alpha=0.5)
+plt.title('Gelman Ruben convergence metric for model parameters')
+plt.show()
+
+plt.bar(x=param_names[17:], height=gr[17:])
+plt.axhline(y=1.2, linestyle='--', color='k', alpha=0.5)
+plt.title('Gelman Ruben convergence metric for model parameters')
+plt.show()
+
 # chain history
 chain_history = np.load(chain_history_file)
 
@@ -82,7 +106,7 @@ if __name__ == '__main__':
     plt.show()
 
     for j in params_of_interest:
-        s = pd.DataFrame({f'trace {n}': parameter_samples[n][burn_in_len:, j][::100]
+        s = pd.DataFrame({f'trace {n}': parameter_samples[n][burn_in_len:, j][::thin]
                           for n in range(len(parameter_samples))})
         ax = s.plot.hist(alpha=0.5, bins=20)
         s.plot(kind='kde', ax=ax, secondary_y=True)
@@ -94,9 +118,9 @@ if __name__ == '__main__':
         param_cor = []
         for param_array in parameter_samples:
             param_cor.append(abs(np.corrcoef(param_array[burn_in_len:, j], param_array[burn_in_len:, k])[0][1]))
-        if any(x > 0.5 for x in param_cor):
+        if any(x > 0.9 for x in param_cor):
             for param_array in parameter_samples:
-                plt.scatter(x=param_array[burn_in_len:, j][::100], y=param_array[burn_in_len:, k][::100], alpha=0.5)
+                plt.scatter(x=param_array[burn_in_len:, j][::thin], y=param_array[burn_in_len:, k][::thin], alpha=0.5)
             plt.title('Parameters of Each Trace')
             plt.xlabel(param_names[j])
             plt.ylabel(param_names[k])
@@ -111,7 +135,7 @@ if __name__ == '__main__':
     prior_params = sampled_params_0[0].dist.kwds
 
     for idx in params_of_interest:
-        s = pd.DataFrame({f'{param_names[idx]}': params[:, idx][::100]})
+        s = pd.DataFrame({f'{param_names[idx]}': params[:, idx][::thin]})
         ax1 = s.plot.hist(alpha=0.4, bins=20, color='k')
         s.plot(kind='kde', ax=ax1, color=cm.colors[1], secondary_y=True)
 
@@ -141,7 +165,7 @@ log_ps = np.concatenate([lpt for lpt in log_p_traces])
 params = np.concatenate([p for p in parameter_samples])
 
 # idx = np.argmax(log_ps)
-ids = np.argsort(log_ps[:, 0])[-5000::100]
+ids = np.argsort(log_ps[:, 0])[-5000::thin]
 
 sim_parameters = pd.DataFrame([[10**p for p in params[idx, :num_params]] for idx in ids], columns=param_names)
 
@@ -182,9 +206,14 @@ if __name__ == '__main__':
     ax1.plot(results_0['time'].values, results_0['tBID_obs'].values / max(results_0['tBID_obs'].values), '--',
              label=f'tBID simulations initial fit', color=cm.colors[1])
 
+    ax1.fill_between(dataset.data['time'],
+                     dataset.data['norm_IC-RP'] - np.sqrt(dataset.measurement_error_df['norm_IC-RP__error']),
+                     dataset.data['norm_IC-RP'] + np.sqrt(dataset.measurement_error_df['norm_IC-RP__error']),
+                     color=cm.colors[1], alpha=0.2, label='IC-RP Data')
+
     for name, df in results.groupby('simulation'):
         ax1.plot(df['time'].values, df['tBID_obs'].values / max(df['tBID_obs'].values),
-                 label=f'tBID simulations best fit', color=cm.colors[1], alpha=0.15)
+                 label=f'tBID simulations best fit', color=cm.colors[1], alpha=0.20)
 
     ax1.scatter(x=synthetic_immunoblot_data.data['time'],
                 y=synthetic_immunoblot_data.data['tBID_blot'].values / IC_RP__n_cats,
@@ -195,7 +224,7 @@ if __name__ == '__main__':
 
     ax1.legend()
     handles, labels = ax1.get_legend_handles_labels()
-    ax1.legend(handles=handles[0:2]+handles[-2:], labels=labels[0:2]+labels[-2:])
+    ax1.legend(handles=handles[0:2]+handles[-3:], labels=labels[0:2]+labels[-3:])
     ax1.set_title('Predicted BID truncation dynamics')
 
     c_id = 0
@@ -223,9 +252,14 @@ if __name__ == '__main__':
     ax1.plot(results_0['time'].values, results_0['cPARP_obs'].values / max(results_0['cPARP_obs'].values), '--',
              label=f'cPARP simulations initial fit', color=cm.colors[0])
 
+    ax1.fill_between(dataset.data['time'],
+                     dataset.data['norm_EC-RP'] - np.sqrt(dataset.measurement_error_df['norm_EC-RP__error']),
+                     dataset.data['norm_EC-RP'] + np.sqrt(dataset.measurement_error_df['norm_EC-RP__error']),
+                     color=cm.colors[0], alpha=0.2, label='EC-RP Data')
+
     for name, df in results.groupby('simulation'):
         ax1.plot(df['time'].values, df['cPARP_obs'].values / max(df['cPARP_obs'].values),
-                 label=f'cPARP simulations best fit', color=cm.colors[0], alpha=0.15)
+                 label=f'cPARP simulations best fit', color=cm.colors[0], alpha=0.20)
 
     ax1.scatter(x=synthetic_immunoblot_data.data['time'],
                 y=synthetic_immunoblot_data.data['cPARP_blot'].values / EC_RP__n_cats,
@@ -236,7 +270,7 @@ if __name__ == '__main__':
 
     ax1.legend()
     handles, labels = ax1.get_legend_handles_labels()
-    ax1.legend(handles=handles[0:2]+handles[-2:], labels=labels[0:2]+labels[-2:])
+    ax1.legend(handles=handles[0:2]+handles[-3:], labels=labels[0:2]+labels[-3:])
 
     c_id = 0
     for col in sorted(list(cPARP_results.columns)):

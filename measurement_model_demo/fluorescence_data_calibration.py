@@ -15,6 +15,12 @@ from measurement_model_demo.apoptosis_model import model
 
 from scipy.stats import norm
 
+import sys
+
+# stdoutOrigin = sys.stdout
+# s_dir = os.path.dirname(__file__)
+# f_path = os.path.join(s_dir, 'out_wo_savepoint.txt')
+# sys.stdout = open(f_path, "wt")
 
 # ------- Data -------
 script_dir = os.path.dirname(__file__)
@@ -45,14 +51,15 @@ true_params = [-6.9370612,  -4.98273231, -4.95067084, -5.71425451, -2.76587087, 
                -3.98704917, -2.41849717,  -4.28322569, -7.40096803, -2.27460174,  0.31984082]
 
 param_names = ['kf0', 'kr0', 'kc0', 'kf1', 'kr1', 'kc1', 'kf2', 'kr2', 'kc2', 'kf3', 'kr3', 'kc3',
-               'kf4', 'kr4', 'kc4', 'kf5', 'kr5', 'kc5', 'kf6', 'kr6', 'kc6', 'kr7', 'kf7', 'kc7',
+               'kf4', 'kr4', 'kc4', 'kf5', 'kr5', 'kc5', 'kf6', 'kr6', 'kc6', 'kf7', 'kr7', 'kc7',
                'kf8', 'kr8', 'kc8', 'kc9', 'kf10', 'kr10', 'kc10', 'kf11', 'kr11', 'kc11']
 
 params = pd.DataFrame({'value': [10**p for p in true_params], 'param': param_names})
 parameters = NoiseModel(params).run()
 
 # ------- Dynamics -------
-sim = Simulator(model=model, param_values=parameters, solver='cupsoda')
+sim = Simulator(model=model, param_values=parameters, solver='scipyode', solver_options={'integrator': 'lsoda'})
+# sim = Simulator(model=model, param_values=parameters, solver='cupsoda', integrator_options={'vol': 4.0e-15})
 results = sim.run(np.linspace(0, fluorescence_data.time.max(), 100))
 
 # ------- Measurement -------
@@ -67,11 +74,15 @@ measurement_results = fl.run()
 # ------- Likelihood Function ------
 @objective_function(simulator=sim, measurement_model=fl, return_results=False, evals=0)
 def likelihood_fn(x):
-    params = pd.DataFrame([[10**p for p in x]],
-                          columns=[p.name for p in model.parameters_rules()])
-    likelihood_fn.simulator.param_values = params
+    new_params = pd.DataFrame([[10**p for p in x]],
+                              columns=[p.name for p in model.parameters_rules()])
+    likelihood_fn.simulator.param_values = new_params
 
     # dynamics
+    if hasattr(likelihood_fn.simulator.sim, 'gpu'):
+        # process_id = current_process().ident % 4
+        # likelihood.simulator.sim.gpu = [process_id]
+        likelihood_fn.simulator.sim.gpu = 0
     sim_results = likelihood_fn.simulator.run()
 
     # measurement
@@ -89,6 +100,7 @@ def likelihood_fn(x):
         print(likelihood_fn.evals)
         print(x)
         print(ll)
+        print(dt.datetime.now())
         return ll
 
 
@@ -100,15 +112,19 @@ def likelihood_fn(x):
 sampled_params_0 = [SampledParam(norm, loc=true_params, scale=1.5)]
 
 n_chains = 4
-n_iterations = 10000  # iterations per file-save
-burn_in_len = 5000   # number of iterations during burn-in
-max_iterations = 10000
+n_iterations = 1000    # iterations per file-save
+burn_in_len = 500      # number of iterations during burn-in
+max_iterations = 1000
 now = dt.datetime.now()
 model_name = f'fluorescence_data_calibration_{now.year}{now.month}{now.day}'
 
 if __name__ == '__main__':
 
     # Run DREAM sampling.  Documentation of DREAM options is in Dream.py.
+    ncr = 25
+    gamma_levels = 8
+    p_gamma_unity = 0.1
+
     converged = False
     total_iterations = n_iterations
     sampled_params, log_ps = run_dream(parameters=sampled_params_0,
@@ -116,9 +132,10 @@ if __name__ == '__main__':
                                        niterations=n_iterations,
                                        nchains=n_chains,
                                        multitry=False,
-                                       nCR=10,
-                                       gamma_levels=4,
+                                       nCR=ncr,
+                                       gamma_levels=gamma_levels,
                                        adapt_gamma=True,
+                                       p_gamma_unity=p_gamma_unity,
                                        history_thin=1,
                                        model_name=model_name,
                                        verbose=True,
@@ -149,9 +166,10 @@ if __name__ == '__main__':
                                                niterations=n_iterations,
                                                nchains=n_chains,
                                                multitry=False,
-                                               nCR=10,
-                                               gamma_levels=4,
+                                               nCR=ncr,
+                                               gamma_levels=gamma_levels,
                                                adapt_gamma=True,
+                                               p_gamma_unity=p_gamma_unity,
                                                history_thin=1,
                                                model_name=model_name,
                                                verbose=True,
@@ -175,4 +193,8 @@ if __name__ == '__main__':
 
             if np.all(GR < 1.2):
                 converged = True
+
+# sys.stdout.close()
+# sys.stdout = stdoutOrigin
+# quit()
 

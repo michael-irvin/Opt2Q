@@ -146,7 +146,7 @@ class NoiseModel(object):
         Dictionary of supported noise simulator names and functions
     """
     supported_noise_simulators = {'multivariate_log_norm': multivariate_log_normal_fn}
-    required_columns = {'param_mean':{'param', 'value'}, 'param_covariance':{'param_i', 'param_j', 'value'}}
+    required_columns = {'param_mean':{'param', 'value'}, 'param_covariance': {'param_i', 'param_j', 'value'}}
     other_useful_columns = {'simulation', 'num_sims', 'apply_noise'}
 
     default_param_values = None  # Use dict to designated defaults for 'param' and 'value'.

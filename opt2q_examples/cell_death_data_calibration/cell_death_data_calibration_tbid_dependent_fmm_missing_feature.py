@@ -37,13 +37,13 @@ model_presets = pd.DataFrame({p.name: [p.value] for p in model.parameters if p.n
 starting_params = pd.DataFrame([10**true_params], columns=param_names)
 model_presets.update(starting_params)  # m0
 
-standard_population = extrinsic_noise_params[noisy_param_names].values/model_presets[noisy_param_names].values
+standard_population = (extrinsic_noise_params[noisy_param_names].values - model_presets[noisy_param_names].values) \
+                      / (model_presets[noisy_param_names].values * 0.23263813098020095)
 
 
 def simulate_heterogeneous_population(m, cv, population_0=standard_population):
-    # scale the extrinsic noise to a population centered at 1 (the scale is 20%).
-    population = population_0 ** cv/0.2  # scale population from 20% to cv
-    population *= m.values  # shift population from m0 to m
+    # scale the extrinsic noise to a population centered at 0 (the scale is 1).
+    population = cv * m.values * population_0 + m.values
     return population
 
 

@@ -20,10 +20,10 @@ from opt2q_examples.generate_synthetic_cell_death_dataset import noisy_param_nam
 # ------- Synthetic Data ----
 script_dir = os.path.dirname(__file__)
 
-file_path = os.path.join(script_dir, 'synthetic_tbid_dependent_apoptosis_data.csv')
+file_path = os.path.join(script_dir, 'synthetic_tbid_dependent_apoptosis_data_large.csv')
 synth_data = pd.read_csv(file_path)
 
-file_path = os.path.join(script_dir, 'true_params_extrinsic_noise.csv')
+file_path = os.path.join(script_dir, 'true_params_extrinsic_noise_large.csv')
 extrinsic_noise_params = pd.read_csv(file_path)
 
 # ------- Starting Point ----
@@ -36,13 +36,13 @@ model_presets = pd.DataFrame({p.name: [p.value] for p in model.parameters if p.n
 starting_params = pd.DataFrame([10**true_params], columns=param_names)
 model_presets.update(starting_params)  # m0
 
-standard_population = extrinsic_noise_params[noisy_param_names].values/model_presets[noisy_param_names].values
+standard_population = (extrinsic_noise_params[noisy_param_names].values - model_presets[noisy_param_names].values) \
+                      / (model_presets[noisy_param_names].values * 0.235)  # 0.235 is the starting variance
 
 
 def simulate_heterogeneous_population(m, cv, population_0=standard_population):
-    # scale the extrinsic noise to a population centered at 1 (the scale is 20%).
-    population = population_0 ** cv/0.2  # scale population from 20% to cv
-    population *= m.values  # shift population from m0 to m
+    # scale the extrinsic noise to a population centered at 0 (the scale is 1).
+    population = cv * m.values * population_0 + m.values
     return population
 
 
@@ -57,6 +57,9 @@ fluorescence_data = fluorescence_data.assign(time=fluorescence_data.time_min * 6
 time_axis = np.linspace(0, fluorescence_data.time.max(), 100)
 sim = Simulator(model=model, param_values=extrinsic_noise_params, tspan=time_axis, solver='cupsoda',
                 integrator_options={'vol': 4.0e-15})
+
+# sim = Simulator(model=model, param_values=extrinsic_noise_params, tspan=time_axis, solver='scipyode',
+#                 solver_options={'integrator': 'lsoda'})
 
 sim_results = sim.run()
 results = sim_results.opt2q_dataframe.reset_index().rename(columns={'index': 'time'})

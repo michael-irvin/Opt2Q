@@ -54,11 +54,18 @@ wb.process = Pipeline(steps=[('x_scaled',ScaleToMinMax(columns=['tBID_obs', 'cPA
 wb.run()
 
 a = 50
+# wb.process.get_step('classifier')\
+#     .set_params(** {'coefficients__cPARP_blot__coef_': np.array([a]),  # incorrect thresholds
+#                     'coefficients__cPARP_blot__theta_': np.array([0.00,  0.5, 1.0])*a,
+#                     'coefficients__tBID_blot__coef_': np.array([a]),
+#                     'coefficients__tBID_blot__theta_': np.array([0.00,  0.37,  0.67, 1.0])*a,
+#                     'do_fit_transform': False})
+
 wb.process.get_step('classifier')\
     .set_params(** {'coefficients__cPARP_blot__coef_': np.array([a]),  # incorrect thresholds
-                    'coefficients__cPARP_blot__theta_': np.array([0.00,  0.5, 1.0])*a,
+                    'coefficients__cPARP_blot__theta_': np.array([0.25,  0.5, 0.75])*a,
                     'coefficients__tBID_blot__coef_': np.array([a]),
-                    'coefficients__tBID_blot__theta_': np.array([0.00,  0.37,  0.67, 1.0])*a,
+                    'coefficients__tBID_blot__theta_': np.array([0.20,  0.40,  0.60, 0.8])*a,
                     'do_fit_transform': False})
 
 # -------- Calibration -------
@@ -103,7 +110,8 @@ n_iterations = 100000  # iterations per file-save
 burn_in_len = 50000   # number of iterations during burn-in
 max_iterations = 100000
 now = dt.datetime.now()
-model_name = f'immunoblot_data_calibration_fmm_inc_{now.year}{now.month}{now.day}'
+# model_name = f'immunoblot_data_calibration_fmm_inc_{now.year}{now.month}{now.day}'
+model_name = f'immunoblot_data_calibration_fmm_inc_v2_{now.year}{now.month}{now.day}'
 
 if __name__ == '__main__':
     ncr = 25

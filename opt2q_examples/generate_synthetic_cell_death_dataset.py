@@ -96,7 +96,7 @@ if __name__ == '__main__':
 # ------- Simulations -------
 # fluorescence data as reference
 script_dir = os.path.dirname(__file__)
-file_path = os.path.join(script_dir, 'fluorescence_data_calibration','fluorescence_data.csv')
+file_path = os.path.join(script_dir, 'fluorescence_data_calibration', 'fluorescence_data.csv')
 raw_fluorescence_data = pd.read_csv(file_path)
 fluorescence_data = raw_fluorescence_data[['# Time', 'norm_IC-RP', 'nrm_var_IC-RP', 'norm_EC-RP', 'nrm_var_EC-RP']]\
     .rename(columns={'# Time': 'time_min'})  # Remove unnecessary whitespace in column name

@@ -37,7 +37,7 @@ starting_params = pd.DataFrame([10**true_params], columns=param_names)
 model_presets.update(starting_params)  # m0
 
 standard_population = (extrinsic_noise_params[noisy_param_names].values - model_presets[noisy_param_names].values) \
-                      / (model_presets[noisy_param_names].values * 0.235)  # 0.235 is the starting variance
+                      / (model_presets[noisy_param_names].values * 0.20)  # 0.20 is the starting variance
 
 
 def simulate_heterogeneous_population(m, cv, population_0=standard_population):
@@ -81,6 +81,7 @@ std_tbid_features = pre_processing(results)
 
 # ============ Classify tBID into survival and death cell-fates =======
 # Synthetic dataset
+# minimum dataset for setting up supervised ML classifier
 tbid_0s_1s = pd.DataFrame({'apoptosis': [0, 1, 0, 1],
                            'TRAIL_conc': ['50ng/mL', '50ng/mL', '10ng/mL', '10ng/mL'],
                            'simulation': [48, 49, 50, 51]})  # minimum dataset for setting up supervised ML classifier
@@ -102,7 +103,7 @@ tbid_predictions = tbid_classifier.transform(
 # -------- Calibration -------
 # Model Inference via PyDREAM
 nu = 100
-noisy_param_stdev = 0.235
+noisy_param_stdev = 0.20
 
 alpha = int(np.ceil(nu/2.0))
 beta = alpha/noisy_param_stdev**2

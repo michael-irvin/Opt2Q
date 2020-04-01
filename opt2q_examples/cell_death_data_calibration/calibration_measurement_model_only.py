@@ -9,12 +9,12 @@ from opt2q.calibrator import objective_function
 from opt2q_examples.cell_death_data_calibration.cell_death_data_calibration_setup \
     import shift_and_scale_heterogeneous_population_to_new_params as sim_population
 from opt2q_examples.cell_death_data_calibration.cell_death_data_calibration_setup \
-    import sim, pre_processing, true_params, tbid_classifier, synth_data
+    import sim_results, pre_processing, true_params, set_up_classifier, synth_data
 
 
 # Model name
 now = dt.datetime.now()
-model_name = f'apoptosis_model_tbid_cell_death_data_calibration_opt2q_{now.year}{now.month}{now.day}'
+model_name = f'apoptosis_model_tbid_cell_death_data_calibration_measurement_model_only_{now.year}{now.month}{now.day}'
 
 # Priors
 nu = 100
@@ -42,36 +42,33 @@ unr_coef = slope * 0.00  # "Unrelated_Signal" coef (0.00)
 tbid_coef = slope * 0.25  # "tBID_obs" coef  (0.25)
 time_coef = slope * -1.00  # "time" coef  (-1.00)
 
-tbid_classifier.set_params(**{'coefficients__apoptosis__coef_': np.array([[unr_coef, tbid_coef, time_coef]]),
-                              'coefficients__apoptosis__intercept_': np.array([intercept]),
-                              'do_fit_transform': False})
+classifier = set_up_classifier()
+classifier.set_params(**{'coefficients__apoptosis__coef_': np.array([[unr_coef, tbid_coef, time_coef]]),
+                         'coefficients__apoptosis__intercept_': np.array([intercept]),
+                         'do_fit_transform': False})
 
 
 # likelihood function
-@objective_function(gen_param_df=sim_population, sim=sim, pre_processing=pre_processing, classifier=tbid_classifier,
+@objective_function(sim_results=sim_results, pre_processing=pre_processing, classifier=classifier,
                     target=synth_data, return_results=False, evals=0)
 def likelihood(x):
     try:
-        if hasattr(likelihood.sim.sim, 'gpu'):
-            process_id = current_process().ident % 4
-            likelihood.simulator.sim.gpu = [process_id]
-            # likelihood.sim.sim.gpu = [1]
-        new_results = likelihood.sim.run().opt2q_dataframe.reset_index()
+        new_results = likelihood.sim_results.opt2q_dataframe.reset_index()
 
         # run pre-processing
         features = likelihood.pre_processing(new_results)
 
         # update and run classifier
         n = 0
-        slope = x[n + 1]
-        intercept = x[n + 2] * slope
-        unr_coef = x[n + 3] * slope
-        tbid_coef = x[n + 4] * slope
-        time_coef = x[n + 5] * slope
+        slope_ = x[n + 1]
+        intercept_ = x[n + 2] * slope_
+        unr_coef_ = x[n + 3] * slope_
+        tbid_coef_ = x[n + 4] * slope_
+        time_coef_ = x[n + 5] * slope_
 
-        likelihood.lc.set_params(**{'coefficients__apoptosis__coef_': np.array([[unr_coef, tbid_coef, time_coef]]),
-                                    'coefficients__apoptosis__intercept_': np.array([intercept]),
-                                    'do_fit_transform': False})
+        likelihood.classifier.set_params(**{'coefficients__apoptosis__coef_': np.array([[unr_coef_, tbid_coef_, time_coef_]]),
+                                            'coefficients__apoptosis__intercept_': np.array([intercept_]),
+                                            'do_fit_transform': False})
 
         # run fixed classifier
         prediction = likelihood.classifier.transform(

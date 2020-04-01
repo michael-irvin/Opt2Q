@@ -149,19 +149,21 @@ std_tbid_features = pre_processing(results)
 
 # ============ Classify tBID into survival and death cell-fates =======
 # Setup supervised ML classifier using a small proxy dataset
-tbid_0s_1s = pd.DataFrame({'apoptosis': [0, 1, 0, 1],
-                           'TRAIL_conc': ['50ng/mL', '50ng/mL', '10ng/mL', '10ng/mL'],
-                           'simulation': [48, 49, 50, 51]})
-tbid_classifier = LogisticClassifier(tbid_0s_1s,
-                                     column_groups={'apoptosis': ['tBID_obs', 'time', 'Unrelated_Signal']},
-                                     classifier_type='nominal')
-tbid_classifier.transform(std_tbid_features.iloc[48:52].reset_index(drop=True)
-                          [['simulation', 'tBID_obs', 'time', 'Unrelated_Signal', 'TRAIL_conc']])
+def set_up_classifier():
+    tbid_0s_1s = pd.DataFrame({'apoptosis': [0, 1, 0, 1],
+                               'TRAIL_conc': ['50ng/mL', '50ng/mL', '10ng/mL', '10ng/mL'],
+                               'simulation': [48, 49, 50, 51]})
+    tbid_classifier = LogisticClassifier(tbid_0s_1s,
+                                         column_groups={'apoptosis': ['tBID_obs', 'time', 'Unrelated_Signal']},
+                                         classifier_type='nominal')
+    tbid_classifier.transform(std_tbid_features.iloc[48:52].reset_index(drop=True)
+                              [['simulation', 'tBID_obs', 'time', 'Unrelated_Signal', 'TRAIL_conc']])
 
-# Simulate Cell death outcomes based on tBID features
-tbid_classifier.set_params(**{'do_fit_transform': False})  # Manually set ML parameters
-tbid_predictions = tbid_classifier.transform(
-    std_tbid_features[['simulation', 'tBID_obs', 'time', 'Unrelated_Signal', 'TRAIL_conc']])
+    # Simulate Cell death outcomes based on tBID features
+    tbid_classifier.set_params(**{'do_fit_transform': False})  # Manually set ML parameters
+    tbid_classifier.transform(std_tbid_features[['simulation', 'tBID_obs', 'time', 'Unrelated_Signal', 'TRAIL_conc']])
+    return tbid_classifier
+
 
 params_df = extrinsic_noise_params.copy()
 

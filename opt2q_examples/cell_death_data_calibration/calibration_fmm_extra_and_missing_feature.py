@@ -9,7 +9,7 @@ from opt2q.calibrator import objective_function
 from opt2q_examples.cell_death_data_calibration.cell_death_data_calibration_setup \
     import shift_and_scale_heterogeneous_population_to_new_params as sim_population
 from opt2q_examples.cell_death_data_calibration.cell_death_data_calibration_setup \
-    import sim, pre_processing, true_params, tbid_classifier, synth_data
+    import sim, pre_processing, true_params, set_up_classifier, synth_data
 
 
 # Model name
@@ -39,13 +39,14 @@ unr_coef = slope * 1.00   # "Unrelated_Signal" coef (0.00 --> 1.00) extra featur
 tbid_coef = slope * 0.25  # "tBID_obs" coef  (0.25)
 time_coef = slope * 0.00  # "time" coef  (-1.00 --> 0.00) missing feature
 
-tbid_classifier.set_params(**{'coefficients__apoptosis__coef_': np.array([[unr_coef, tbid_coef, time_coef]]),
-                              'coefficients__apoptosis__intercept_': np.array([intercept]),
-                              'do_fit_transform': False})
+classifier = set_up_classifier()
+classifier.set_params(**{'coefficients__apoptosis__coef_': np.array([[unr_coef, tbid_coef, time_coef]]),
+                         'coefficients__apoptosis__intercept_': np.array([intercept]),
+                         'do_fit_transform': False})
 
 
 # likelihood function
-@objective_function(gen_param_df=sim_population, sim=sim, pre_processing=pre_processing, classifier=tbid_classifier,
+@objective_function(gen_param_df=sim_population, sim=sim, pre_processing=pre_processing, classifier=classifier,
                     target=synth_data, return_results=False, evals=0)
 def likelihood(x):
     params_df = likelihood.gen_param_df(x)  # simulate heterogeneous population around new param values

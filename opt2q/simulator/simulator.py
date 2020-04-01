@@ -373,7 +373,7 @@ class Simulator(object):
     def initials(self, val):
         self._update_components(initials=val)
 
-    def run(self, tspan=None, param_values=None, initials=None, check_updates=True, _run_kwargs=()):
+    def run(self, tspan=None, param_values=None, initials=None, check_updates=True, **run_kwargs):
         """
         Runs a simulation and returns a :class:`~pysb.simulator.SimulationResult`; which may also contain an
         Opt2Q compatible results dataframe ``results.opt2q_dataframe``.
@@ -425,7 +425,8 @@ class Simulator(object):
         # start_time = time.time()
         results = self.sim.run(tspan=self.tspan,
                                initials=self._initials_run,
-                               param_values=self._param_values_run)
+                               param_values=self._param_values_run,
+                               **run_kwargs)
         results.opt2q_dataframe = self.opt2q_dataframe(results.dataframe)
 
         return results

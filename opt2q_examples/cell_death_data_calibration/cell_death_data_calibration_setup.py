@@ -108,6 +108,21 @@ time_axis = np.linspace(0, raw_fluorescence_data['# Time'].max()*60, 100)
 sim = Simulator(model=model, param_values=extrinsic_noise_params, tspan=time_axis, solver='cupsoda',
                 integrator_options={'vol': 4.0e-15})
 
+
+def set_up_simulator(solver_name):
+    # 'cupsoda' and 'scipydoe' are valid slover names
+    if solver_name == 'cupsoda':
+        integrator_options = {'vol': 4.0e-15}
+    else:
+        integrator_options = dict()
+
+    sim_ = Simulator(model=model, param_values=extrinsic_noise_params, tspan=time_axis, solver=solver_name,
+                     integrator_options=integrator_options)
+    sim_.run()
+
+    return sim_
+
+
 sim_results = sim.run()
 results = sim_results.opt2q_dataframe.reset_index().rename(columns={'index': 'time'})
 

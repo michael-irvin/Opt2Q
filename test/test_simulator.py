@@ -70,9 +70,9 @@ class TestSolver(TestSolverModel, unittest.TestCase):
         self.assertDictEqual(sim.solver_kwargs, {'integrator_options': {}})  # when None return empty dict
 
     def test_custom_solver_options(self):
-        sim = Simulator(self.model, solver_options={'integrator':'lsoda'}, integrator_options={'mxstep':2**10})
+        sim = Simulator(self.model, solver_options={'integrator':'lsoda'}, integrator_options={'mxstep': 2**10})
         assert sim.sim.opts == {'mxstep': 1024}
-        assert sim.sim.integrator == 'lsoda'
+        assert sim.sim._init_kwargs['integrator'] == 'lsoda'
 
     def test_warning_setting(self):
         sim = Simulator(self.model)

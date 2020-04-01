@@ -9,9 +9,10 @@ from opt2q.calibrator import objective_function
 from opt2q_examples.cell_death_data_calibration.cell_death_data_calibration_setup \
     import shift_and_scale_heterogeneous_population_to_new_params as sim_population
 from opt2q_examples.cell_death_data_calibration.cell_death_data_calibration_setup \
-    import sim, pre_processing, true_params, set_up_classifier, synth_data, \
+    import set_up_simulator, pre_processing, true_params, set_up_classifier, synth_data, \
     handle_timeouts, TimeoutException
 import signal
+import time
 
 
 # Model name
@@ -32,6 +33,9 @@ n_chains = 4
 n_iterations = 100000  # iterations per file-save
 burn_in_len = 50000   # number of iterations during burn-in
 max_iterations = 100000
+
+# Simulator
+sim = set_up_simulator('scipyode')
 
 # Measurement Model
 slope = 4
@@ -57,13 +61,19 @@ def likelihood(x):
     params_df = likelihood.gen_param_df(x)  # simulate heterogeneous population around new param values
     likelihood.sim.param_values = params_df
 
-    signal.alarm(90)  # Raise timeout exception after 90s
     try:
+        signal.alarm(90)  # Raise timeout exception after 90s
+        start_time = time.time()
         if hasattr(likelihood.sim.sim, 'gpu'):
             process_id = current_process().ident % 4
-            likelihood.simulator.sim.gpu = [process_id]
+            likelihood.sim.sim.gpu = [process_id]
             # likelihood.sim.sim.gpu = [1]
-        new_results = likelihood.sim.run().opt2q_dataframe.reset_index()
+            new_results = likelihood.sim.run().opt2q_dataframe.reset_index()
+        else:
+            new_results = likelihood.sim.run(num_processors=4).opt2q_dataframe.reset_index()
+
+        elapsed_time = time.time() - start_time
+        print("Elapsed time: ", elapsed_time)
         signal.alarm(0)
 
         # run pre-processing

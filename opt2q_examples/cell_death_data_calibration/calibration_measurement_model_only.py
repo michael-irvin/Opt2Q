@@ -7,6 +7,7 @@ from pydream.parameters import SampledParam
 from opt2q.calibrator import objective_function
 from opt2q_examples.cell_death_data_calibration.cell_death_data_calibration_setup \
     import sim_results, pre_processing, true_params, set_up_classifier, synth_data
+import time
 
 
 # Model name
@@ -50,6 +51,7 @@ classifier.set_params(**{'coefficients__apoptosis__coef_': np.array([[unr_coef, 
                     target=synth_data, return_results=False, evals=0)
 def likelihood(x):
     try:
+        start_time = time.time()
         new_results = likelihood.sim_results.opt2q_dataframe.reset_index()
 
         # run pre-processing
@@ -74,6 +76,9 @@ def likelihood(x):
         # calculate likelihood
         ll = sum(np.log(prediction[likelihood.target.apoptosis == 1]['apoptosis__1']))
         ll += sum(np.log(prediction[likelihood.target.apoptosis == 0]['apoptosis__0']))
+
+        elapsed_time = time.time() - start_time
+        print("Elapsed time: ", elapsed_time)
 
         print(x[:len(true_params)])
         print(likelihood.evals)

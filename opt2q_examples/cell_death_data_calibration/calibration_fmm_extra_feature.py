@@ -60,7 +60,7 @@ def likelihood(x):
     likelihood.sim.param_values = params_df
 
     try:
-        signal.alarm(900)  # Raise timeout exception after 90s
+        signal.alarm(90)  # Raise timeout exception after 90s
         start_time = time.time()
         # your code
         if hasattr(likelihood.sim.sim, 'gpu'):

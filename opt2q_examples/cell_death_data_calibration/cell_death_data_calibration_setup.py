@@ -106,18 +106,20 @@ raw_fluorescence_data = pd.read_csv(file_path)
 time_axis = np.linspace(0, raw_fluorescence_data['# Time'].max()*60, 100)
 
 sim = Simulator(model=model, param_values=extrinsic_noise_params, tspan=time_axis, solver='cupsoda',
-                integrator_options={'vol': 4.0e-15})
+                integrator_options={'vol': 4.0e-15, 'max_steps': 2**20})
 
 
 def set_up_simulator(solver_name):
-    # 'cupsoda' and 'scipydoe' are valid slover names
+    # 'cupsoda' and 'scipydoe' are valid solver names
     if solver_name == 'cupsoda':
-        integrator_options = {'vol': 4.0e-15}
+        integrator_options = {'vol': 4.0e-15, 'max_steps': 2**20}
+        solver_options = dict()
     else:
-        integrator_options = dict()
+        solver_options = {'integrator': 'lsoda'}
+        integrator_options = {'mxstep': 2**20}
 
     sim_ = Simulator(model=model, param_values=extrinsic_noise_params, tspan=time_axis, solver=solver_name,
-                     integrator_options=integrator_options)
+                     solver_options=solver_options, integrator_options=integrator_options)
     sim_.run()
 
     return sim_

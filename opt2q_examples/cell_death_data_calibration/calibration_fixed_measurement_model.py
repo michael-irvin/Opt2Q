@@ -9,7 +9,9 @@ from opt2q.calibrator import objective_function
 from opt2q_examples.cell_death_data_calibration.cell_death_data_calibration_setup \
     import shift_and_scale_heterogeneous_population_to_new_params as sim_population
 from opt2q_examples.cell_death_data_calibration.cell_death_data_calibration_setup \
-    import sim, pre_processing, true_params, set_up_classifier, synth_data
+    import sim, pre_processing, true_params, set_up_classifier, synth_data, \
+    handle_timeouts, TimeoutException
+import signal
 
 
 # Model name
@@ -44,6 +46,10 @@ classifier.set_params(**{'coefficients__apoptosis__coef_': np.array([[unr_coef, 
                          'do_fit_transform': False})
 
 
+# Register the timeout signal function handler
+signal.signal(signal.SIGALRM, handle_timeouts)
+
+
 # likelihood function
 @objective_function(gen_param_df=sim_population, sim=sim, pre_processing=pre_processing, classifier=classifier,
                     target=synth_data, return_results=False, evals=0)
@@ -51,12 +57,14 @@ def likelihood(x):
     params_df = likelihood.gen_param_df(x)  # simulate heterogeneous population around new param values
     likelihood.sim.param_values = params_df
 
+    signal.alarm(90)  # Raise timeout exception after 90s
     try:
         if hasattr(likelihood.sim.sim, 'gpu'):
             process_id = current_process().ident % 4
             likelihood.simulator.sim.gpu = [process_id]
             # likelihood.sim.sim.gpu = [1]
         new_results = likelihood.sim.run().opt2q_dataframe.reset_index()
+        signal.alarm(0)
 
         # run pre-processing
         features = likelihood.pre_processing(new_results)
@@ -75,7 +83,7 @@ def likelihood(x):
 
         likelihood.evals += 1
         return ll
-    except (ValueError, ZeroDivisionError, TypeError):
+    except (ValueError, ZeroDivisionError, TypeError, TimeoutException):
         return -1e10
 
 

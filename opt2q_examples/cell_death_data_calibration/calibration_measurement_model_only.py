@@ -1,13 +1,10 @@
 import numpy as np
 import datetime as dt
-from scipy.stats import norm, invgamma, laplace
+from scipy.stats import laplace
 from pydream.core import run_dream
 from pydream.convergence import Gelman_Rubin
 from pydream.parameters import SampledParam
-from multiprocessing import current_process
 from opt2q.calibrator import objective_function
-from opt2q_examples.cell_death_data_calibration.cell_death_data_calibration_setup \
-    import shift_and_scale_heterogeneous_population_to_new_params as sim_population
 from opt2q_examples.cell_death_data_calibration.cell_death_data_calibration_setup \
     import sim_results, pre_processing, true_params, set_up_classifier, synth_data
 

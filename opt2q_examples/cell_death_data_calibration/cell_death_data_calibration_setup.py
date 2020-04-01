@@ -43,6 +43,23 @@ def simulate_heterogeneous_population(m, cv, population_0=standard_population):
     return population
 
 
+params_df = extrinsic_noise_params.copy()
+
+
+def shift_and_scale_heterogeneous_population_to_new_params(x_):
+    new_rate_params = pd.DataFrame([10 ** np.array(x_[:len(param_names)])], columns=param_names).iloc[
+        np.repeat(0, len(params_df))].reset_index(drop=True)
+
+    cv_term = abs(x_[len(param_names)]) ** -0.5
+    model_presets.update(new_rate_params.iloc[0:1])
+    noisy_params = simulate_heterogeneous_population(model_presets, cv=cv_term)
+
+    params_df.update(new_rate_params)
+    params_df.update(pd.DataFrame(noisy_params, columns=noisy_param_names))
+    return params_df
+
+
+# Plot heterogeneous population
 if __name__ == '__main__':
     cm = plt.get_cmap('tab10')
 
@@ -94,6 +111,7 @@ sim = Simulator(model=model, param_values=extrinsic_noise_params, tspan=time_axi
 sim_results = sim.run()
 results = sim_results.opt2q_dataframe.reset_index().rename(columns={'index': 'time'})
 
+# plot simulations
 if __name__ == '__main__':
     from opt2q_examples.generate_synthetic_cell_death_dataset import results_lg, labels
 
@@ -132,6 +150,7 @@ if __name__ == '__main__':
         plt.show()
 
 
+# Measurement model attributes
 # ============ Create tBID dynamics etc. features ============
 def pre_processing(sim_res):
     obs = 'tBID_obs'
@@ -165,20 +184,16 @@ def set_up_classifier():
     return tbid_classifier
 
 
-params_df = extrinsic_noise_params.copy()
+# ============== Timeout exception ==========================
+# Useful for stopping likelihood evaluations that take too long.
+
+class TimeoutException(RuntimeError):
+    """ Time out occurred! """
+    pass
 
 
-def shift_and_scale_heterogeneous_population_to_new_params(x_):
-    new_rate_params = pd.DataFrame([10 ** np.array(x_[:len(param_names)])], columns=param_names).iloc[
-        np.repeat(0, len(params_df))].reset_index(drop=True)
-
-    cv_term = abs(x_[len(param_names)]) ** -0.5
-    model_presets.update(new_rate_params.iloc[0:1])
-    noisy_params = simulate_heterogeneous_population(model_presets, cv=cv_term)
-
-    params_df.update(new_rate_params)
-    params_df.update(pd.DataFrame(noisy_params, columns=noisy_param_names))
-    return params_df
-
+def handle_timeouts(signum, frame):
+    print('took too long. moving on!')
+    raise TimeoutException()
 
 

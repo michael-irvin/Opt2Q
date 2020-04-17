@@ -110,17 +110,19 @@ sim = Simulator(model=model, param_values=extrinsic_noise_params, tspan=time_axi
 
 
 def set_up_simulator(solver_name):
-    # 'cupsoda' and 'scipydoe' are valid solver names
+    # 'cupsoda', dae_solver' and 'scipydoe' are valid solver names
     if solver_name == 'cupsoda':
         integrator_options = {'vol': 4.0e-15, 'max_steps': 2**20}
         solver_options = dict()
-    else:
+    elif solver_name == 'scipydoe':
         solver_options = {'integrator': 'lsoda'}
         integrator_options = {'mxstep': 2**20}
-
+    else:
+        solver_options = {'atol': 1e-12}
+        integrator_options = {}
     sim_ = Simulator(model=model, param_values=extrinsic_noise_params, tspan=time_axis, solver=solver_name,
                      solver_options=solver_options, integrator_options=integrator_options)
-    sim_.run()
+    # sim_.run()
 
     return sim_
 

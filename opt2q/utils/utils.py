@@ -56,6 +56,10 @@ class CupSodaNotInstalledWarning(Warning):
     pass
 
 
+class DaeSimulatorNotInstalledWarning(Warning):
+    pass
+
+
 def incompatible_format_warning(_var):
     """
     Warns that the supplied parameter has an Opt2Q-incompatible format.

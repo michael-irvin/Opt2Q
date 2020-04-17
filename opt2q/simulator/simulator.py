@@ -4,7 +4,8 @@ import logging
 import numpy as np
 import pandas as pd
 from pysb.simulator import ScipyOdeSimulator, CupSodaSimulator
-from opt2q.utils import UnsupportedSimulatorError, incompatible_format_warning, CupSodaNotInstalledWarning
+from opt2q.utils import UnsupportedSimulatorError, incompatible_format_warning, CupSodaNotInstalledWarning, \
+    DaeSimulatorNotInstalledWarning
 import time
 
 try:
@@ -14,6 +15,13 @@ try:
     do_not_use_cupsoda = False
 except Exception:
     do_not_use_cupsoda = True
+
+try:
+    from pysb.simulator import DaeSimulator
+    do_not_use_dae = False
+except ImportError():
+    DaeSimulator = None
+    do_not_use_dae = True
 
 
 class Simulator(object):
@@ -86,7 +94,7 @@ class Simulator(object):
         If True check new parameter and initials objects for compatibility with the solver, etc. Defaults to True
     """
 
-    supported_solvers = {'scipyode': ScipyOdeSimulator, 'cupsoda': CupSodaSimulator}
+    supported_solvers = {'scipyode': ScipyOdeSimulator, 'cupsoda': CupSodaSimulator, 'daesolver': DaeSimulator}
 
     def __init__(self, model, tspan=None, param_values=None, initials=None, solver='scipyode', solver_options=None,
                  integrator_options=None, **kwargs):
@@ -147,6 +155,16 @@ class Simulator(object):
                     self.solver_kwargs.pop(cupsoda_setting)
 
             return self.supported_solvers['scipyode']
+
+        if do_not_use_dae and _solver is 'daesolver':
+            warnings.warn("You cannot use the 'daesolver' solver. "
+                          "The DaeSimulator is not installed. Install PySB from the 'dae' branch."
+                          "The 'scipyode' solver will be used instead and may take longer for simulation.",
+                          category=DaeSimulatorNotInstalledWarning)
+            return self.supported_solvers['scipyode']
+        elif _solver is 'daesolver':
+            self.solver_kwargs.update(self.solver_kwargs['integrator_options'])
+            self.solver_kwargs.pop('integrator_options')
 
         try:
             return self.supported_solvers[_solver]

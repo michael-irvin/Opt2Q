@@ -19,7 +19,7 @@ except Exception:
 try:
     from pysb.simulator import DaeSimulator
     do_not_use_dae = False
-except ImportError():
+except ImportError:
     DaeSimulator = None
     do_not_use_dae = True
 
@@ -161,6 +161,10 @@ class Simulator(object):
                           "The DaeSimulator is not installed. Install PySB from the 'dae' branch."
                           "The 'scipyode' solver will be used instead and may take longer for simulation.",
                           category=DaeSimulatorNotInstalledWarning)
+            # move solver options ('atol' and 'rtol') to integrator_options (as in scipyode)
+            self.solver_kwargs['integrator_options'].update({k: v for k, v in self.solver_kwargs.items() if k in ['atol', 'rtol']})
+            for k in ['atol', 'rtol']:
+                self.solver_kwargs.pop(k)
             return self.supported_solvers['scipyode']
         elif _solver is 'daesolver':
             self.solver_kwargs.update(self.solver_kwargs['integrator_options'])

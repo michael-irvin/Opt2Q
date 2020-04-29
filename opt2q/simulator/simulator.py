@@ -6,7 +6,11 @@ import pandas as pd
 from pysb.simulator import ScipyOdeSimulator, CupSodaSimulator
 from opt2q.utils import UnsupportedSimulatorError, incompatible_format_warning, CupSodaNotInstalledWarning, \
     DaeSimulatorNotInstalledWarning
-import time
+import subprocess
+import sys
+import os
+import socket
+import platform
 
 try:
     from pysb.pathfinder import get_path
@@ -395,6 +399,33 @@ class Simulator(object):
     def initials(self, val):
         self._update_components(initials=val)
 
+    @staticmethod
+    def affinitize_to(target_CPU_ID):
+        # Affinitize to the desired target CPU ID (Only on Linux)
+        response = subprocess.run(['taskset', '-p', '-c', str(target_CPU_ID), str(os.getpid())],
+                                  stdout=subprocess.PIPE)
+        if response.returncode != 0:
+            print("taskset:")
+            print(response.stderr)
+            print(" terminating execution.")
+            sys.exit(-1)
+
+    @staticmethod
+    def report_affinitization():
+        # (Only on Linux)
+        response = subprocess.run(['taskset', '-acp', str(os.getpid())],
+                                  stdout=subprocess.PIPE)
+        if response.returncode != 0:
+            print("taskset:")
+            print(response.stderr)
+            print(" terminating execution.")
+            sys.exit(-1)
+        CPU_IDs = response.stdout.decode().split()[-1]
+        hostname = socket.gethostname()
+        print("Process " + str(os.getpid()) + " affinitized to:" +
+              " logical CPU(s) " + CPU_IDs +
+              " on host " + hostname + ".")
+
     def run(self, tspan=None, param_values=None, initials=None, check_updates=True, **run_kwargs):
         """
         Runs a simulation and returns a :class:`~pysb.simulator.SimulationResult`; which may also contain an
@@ -434,6 +465,11 @@ class Simulator(object):
 
             The :class:`~pysb.simulator.SimulationResult` object that gets returned does not save/load ``results.opt2q_dataframe``. Todo: Write a save and load methods to add to the `SimulationResult`.
         """
+        if 'affinitize_to' in run_kwargs:
+            target_cpu_id = run_kwargs.pop('affinitize_to')
+            if 'Linux' in platform.platform():
+                self.affinitize_to(target_cpu_id)
+                self.report_affinitization()
 
         self.check_updates = check_updates
 

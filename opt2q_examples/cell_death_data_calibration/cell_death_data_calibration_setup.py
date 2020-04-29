@@ -15,10 +15,12 @@ from matplotlib.lines import Line2D
 script_dir = os.path.dirname(__file__)
 
 file_path = os.path.join(script_dir, 'synthetic_tbid_dependent_apoptosis_data_large.csv')
-synth_data = pd.read_csv(file_path)
+synth_data = pd.read_csv(file_path).iloc[::2].reset_index(drop=True)  # Remove half dataset to relieve load on solvers
+synth_data['simulation'] = range(len(synth_data))
 
 file_path = os.path.join(script_dir, 'true_params_extrinsic_noise_large.csv')
-extrinsic_noise_params = pd.read_csv(file_path)
+extrinsic_noise_params = pd.read_csv(file_path).iloc[::2].reset_index(drop=True)  # Remove half parameters as with data
+extrinsic_noise_params['simulation'] = range(len(extrinsic_noise_params))
 
 # ------- Starting Point ----
 param_names = [p.name for p in model.parameters_rules()]
@@ -114,7 +116,7 @@ def set_up_simulator(solver_name):
     if solver_name == 'cupsoda':
         integrator_options = {'vol': 4.0e-15, 'max_steps': 2**20}
         solver_options = dict()
-    elif solver_name == 'scipydoe':
+    elif solver_name == 'scipyode':
         solver_options = {'integrator': 'lsoda'}
         integrator_options = {'mxstep': 2**20}
     else:

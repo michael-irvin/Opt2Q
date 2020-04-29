@@ -5,13 +5,13 @@ from pydream.core import run_dream
 from pydream.convergence import Gelman_Rubin
 from pydream.parameters import SampledParam
 from multiprocessing import current_process
+from multiprocess.context import TimeoutError
+from multiprocess.pool import Pool
 from opt2q.calibrator import objective_function
 from opt2q_examples.cell_death_data_calibration.cell_death_data_calibration_setup \
     import shift_and_scale_heterogeneous_population_to_new_params as sim_population
 from opt2q_examples.cell_death_data_calibration.cell_death_data_calibration_setup \
-    import set_up_simulator, pre_processing, true_params, set_up_classifier, synth_data, \
-    handle_timeouts, TimeoutException
-import signal
+    import set_up_simulator, pre_processing, true_params, set_up_classifier, synth_data
 import time
 
 # Model name
@@ -40,13 +40,10 @@ burn_in_len = 50000   # number of iterations during burn-in
 max_iterations = 100000
 
 # Simulator
-sim = set_up_simulator('scipyode')
+sim = set_up_simulator('cupsoda')
 
 # Measurement Model
 classifier = set_up_classifier()
-
-# Register the timeout signal function handler
-signal.signal(signal.SIGALRM, handle_timeouts)
 
 
 # likelihood function
@@ -56,22 +53,30 @@ def likelihood(x):
     params_df = likelihood.gen_param_df(x)  # simulate heterogeneous population around new param values
     likelihood.sim.param_values = params_df
 
-    try:
-        signal.alarm(90)  # Raise timeout exception after 90s
-        start_time = time.time()
-        if hasattr(likelihood.sim.sim, 'gpu'):
-            process_id = current_process().ident % 4
-            likelihood.sim.sim.gpu = [process_id]
-            # likelihood.sim.sim.gpu = [1]
-            new_results = likelihood.sim.run().opt2q_dataframe.reset_index()
-        else:
-            new_results = likelihood.sim.run(num_processors=4).opt2q_dataframe.reset_index()
+    process_id = current_process().ident % 4
+    if hasattr(likelihood.sim.sim, 'gpu'):
+        likelihood.sim.sim.gpu = [process_id]
+        sim_kwargs = {'affinitize_to': process_id}
+    else:
+        sim_kwargs = {'num_processors': 4}
 
+    s = 25
+    p = Pool(1)
+    start_time = time.time()
+    try:
+        sim_res = p.apply_async(likelihood.sim.run, kwds=sim_kwargs).get(timeout=s)
+    except TimeoutError:
+        print(f"Killing solver after waiting {s} seconds")
+        p.terminate()
+        p.join()
         elapsed_time = time.time() - start_time
         print("Elapsed time: ", elapsed_time)
-        signal.alarm(0)
-
-        # run pre-processing
+        print(x[:len(true_params)])
+        print(likelihood.evals)
+        likelihood.evals += 1
+        return -1e10
+    try:
+        new_results = sim_res.opt2q_dataframe.reset_index()
         features = likelihood.pre_processing(new_results)
 
         # update and run classifier
@@ -94,13 +99,16 @@ def likelihood(x):
         ll = sum(np.log(prediction[likelihood.target.apoptosis == 1]['apoptosis__1']))
         ll += sum(np.log(prediction[likelihood.target.apoptosis == 0]['apoptosis__0']))
 
+        elapsed_time = time.time() - start_time
+        print("Elapsed time: ", elapsed_time)
         print(x)
         print(likelihood.evals)
         print(ll)
 
         likelihood.evals += 1
         return ll
-    except (ValueError, ZeroDivisionError, TypeError, TimeoutException):
+
+    except (ValueError, ZeroDivisionError, TypeError):
         return -1e10
 
 

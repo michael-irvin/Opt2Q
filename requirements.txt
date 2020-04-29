@@ -10,3 +10,4 @@ scikit-learn >= 0.19.1
 mord
 numba == 0.42.0
 pydream
+multiprocess

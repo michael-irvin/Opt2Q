@@ -71,6 +71,7 @@ def likelihood(x):
     except TimeoutError:
         print(f"Killing solver after waiting {s} seconds")
         p.terminate()
+        p.close()
         p.join()
         elapsed_time = time.time() - start_time
         print("Elapsed time: ", elapsed_time)
@@ -78,6 +79,10 @@ def likelihood(x):
         print(likelihood.evals)
         likelihood.evals += 1
         return -1e10
+
+    p.terminate()
+    p.close()
+    p.join()
 
     try:
         new_results = sim_res.opt2q_dataframe.reset_index()

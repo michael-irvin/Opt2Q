@@ -124,7 +124,7 @@ def set_up_simulator(solver_name):
         integrator_options = {}
     sim_ = Simulator(model=model, param_values=extrinsic_noise_params, tspan=time_axis, solver=solver_name,
                      solver_options=solver_options, integrator_options=integrator_options)
-    # sim_.run()
+    sim_.run()
 
     return sim_
 

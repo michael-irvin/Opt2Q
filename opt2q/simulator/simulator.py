@@ -469,7 +469,9 @@ class Simulator(object):
             target_cpu_id = run_kwargs.pop('affinitize_to')
             if 'Linux' in platform.platform():
                 self.affinitize_to(target_cpu_id)
-                self.report_affinitization()
+
+        if run_kwargs.get('report_affinitization', False):
+            self.report_affinitization()
 
         self.check_updates = check_updates
 

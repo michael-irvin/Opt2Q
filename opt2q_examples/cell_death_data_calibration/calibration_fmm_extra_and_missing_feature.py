@@ -60,7 +60,7 @@ def likelihood(x):
     process_id = current_process().ident % 4
     if hasattr(likelihood.sim.sim, 'gpu'):
         likelihood.sim.sim.gpu = [process_id]
-        sim_kwargs = {'affinitize_to': process_id}
+        sim_kwargs = {'affinitize_to': process_id*32}
     else:
         sim_kwargs = {'num_processors': 4}
 
@@ -70,14 +70,14 @@ def likelihood(x):
     try:
         sim_res = p.apply_async(likelihood.sim.run, kwds=sim_kwargs).get(timeout=s)
     except TimeoutError:
-        print(f"Killing solver after waiting {s} seconds")
+        print(f"Killing solver on chain {process_id} after waiting {s} seconds")
         p.terminate()
         p.close()
         p.join()
         elapsed_time = time.time() - start_time
         print("Elapsed time: ", elapsed_time)
         print(x[:len(true_params)])
-        print(likelihood.evals)
+        print(f"{likelihood.evals} on chain {process_id}")
         likelihood.evals += 1
         return -1e10
 
@@ -100,7 +100,7 @@ def likelihood(x):
         elapsed_time = time.time() - start_time
         print("Elapsed time: ", elapsed_time)
         print(x[:len(true_params)])
-        print(likelihood.evals)
+        print(f"{likelihood.evals} on chain {process_id}")
         print(ll)
 
         likelihood.evals += 1

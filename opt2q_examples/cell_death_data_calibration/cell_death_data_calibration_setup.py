@@ -115,6 +115,8 @@ def set_up_simulator(solver_name):
     # 'cupsoda', dae_solver' and 'scipydoe' are valid solver names
     if solver_name == 'cupsoda':
         integrator_options = {'vol': 4.0e-15, 'max_steps': 2**20}
+        if 'timeout' in Simulator.supported_solvers['cupsoda']._integrator_options_allowed:
+            integrator_options.update({'timeout': 60})
         solver_options = dict()
     elif solver_name == 'scipyode':
         solver_options = {'integrator': 'lsoda'}
@@ -179,10 +181,64 @@ def pre_processing(sim_res):
     ddx = ScaleGroups(columns=[obs], groupby='simulation', scale_fn=derivative) \
         .transform(sim_res[[obs, 'Unrelated_Signal', 'cPARP_obs', 'time', 'simulation', 'TRAIL_conc']])
     t_at_max = ScaleGroups(groupby='simulation', scale_fn=where_max, **{'var': obs}).transform(ddx)
+
+    if t_at_max['time'].max() > 0.95 * sim_res['time'].max():
+        # Enforce BID truncation rate maximization to occur within 5.6 hours.
+        # This is consistent with our knowledge of the apoptosis system.
+        return None
+
     log_max_ddx = Scale(columns='tBID_obs', scale_fn='log10').transform(t_at_max)
     standardized_features = Standardize(columns=['tBID_obs', 'time', 'Unrelated_Signal']).transform(log_max_ddx)
     return standardized_features
 
+
+# plot preprocessing
+if __name__ == '__main__':
+    cm = plt.get_cmap('tab10')
+    k = 'tBID'
+    idx, obs = labels[k]
+
+    ddx_ = ScaleGroups(columns=[obs], groupby='simulation', scale_fn=derivative) \
+        .transform(results_lg[[obs, 'Unrelated_Signal', 'cPARP_obs', 'time', 'simulation', 'TRAIL_conc']])
+    t_at_max_ = ScaleGroups(groupby='simulation', scale_fn=where_max, **{'var': obs}).transform(ddx_)
+    log_max_ddx_ = Scale(columns='tBID_obs', scale_fn='log10').transform(t_at_max_)
+    std_tbid_features = Standardize(columns=['tBID_obs', 'time', 'Unrelated_Signal']).transform(log_max_ddx_)
+
+    for name, df in ddx_.groupby(['simulation', 'TRAIL_conc']):
+        if name[1] == '10ng/mL':
+            plt.plot(df['time'], df[obs], alpha=0.2, color=cm.colors[7])
+        else:
+            plt.plot(df['time'], df[obs], alpha=0.2, color=cm.colors[idx])
+
+    plt.legend([Line2D([0], [0], color=cm.colors[idx]),
+                Line2D([0], [0], alpha=0.6, color='k')],
+               [f'd{k}/dx 50ng/mL TRAIL', f'd{k}/dx 10ng/mL TRAIL'])
+    plt.title(f'simulations based on "true parameters"  and 20% variation in \n '
+              f'{list_items(noisy_param_names)} large-dataset')
+    plt.xlabel('time [seconds]')
+    plt.ylabel('copies per cell')
+    plt.show()
+
+    ddx_cs = ScaleGroups(columns=[obs], groupby='simulation', scale_fn=derivative) \
+        .transform(results_lg[[obs, 'Unrelated_Signal', 'cPARP_obs', 'time', 'simulation', 'TRAIL_conc']])
+    t_at_max_cs = ScaleGroups(groupby='simulation', scale_fn=where_max, **{'var': obs}).transform(ddx_cs)
+    log_max_ddx_cs = Scale(columns='tBID_obs', scale_fn='log10').transform(t_at_max_cs)
+    std_tbid_features = Standardize(columns=['tBID_obs', 'time', 'Unrelated_Signal']).transform(log_max_ddx_cs)
+
+    for name, df in ddx_.groupby(['simulation', 'TRAIL_conc']):
+        if name[1] == '10ng/mL':
+            plt.plot(df['time'], df[obs], alpha=0.2, color=cm.colors[7])
+        else:
+            plt.plot(df['time'], df[obs], alpha=0.2, color=cm.colors[idx])
+
+    plt.legend([Line2D([0], [0], color=cm.colors[idx]),
+                Line2D([0], [0], alpha=0.6, color='k')],
+               [f'd{k}/dx 50ng/mL TRAIL', f'd{k}/dx 10ng/mL TRAIL'])
+    plt.title(f'simulations based on "true parameters"  and 20% variation in \n '
+              f'{list_items(noisy_param_names)} large-dataset\n CALIBRATION SETUP')
+    plt.xlabel('time [seconds]')
+    plt.ylabel('copies per cell')
+    plt.show()
 
 std_tbid_features = pre_processing(results)
 

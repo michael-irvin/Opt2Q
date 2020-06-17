@@ -5,8 +5,8 @@ from pydream.core import run_dream
 from pydream.convergence import Gelman_Rubin
 from pydream.parameters import SampledParam
 from multiprocessing import current_process
-from multiprocess.context import TimeoutError
-from multiprocess.pool import Pool
+from opt2q_examples.apoptosis_model import model
+from opt2q.simulator import Simulator
 from opt2q.calibrator import objective_function
 from opt2q_examples.cell_death_data_calibration.cell_death_data_calibration_setup \
     import shift_and_scale_heterogeneous_population_to_new_params as sim_population
@@ -30,7 +30,7 @@ sampled_params_0 = [SampledParam(norm, loc=true_params, scale=1.5),
                     SampledParam(invgamma, *[alpha], scale=beta)]
 
 n_chains = 4
-n_iterations = 100000  # iterations per file-save
+n_iterations = 20000  # iterations per file-save
 burn_in_len = 50000   # number of iterations during burn-in
 max_iterations = 100000
 
@@ -57,55 +57,32 @@ def likelihood(x):
     params_df = likelihood.gen_param_df(x)  # simulate heterogeneous population around new param values
     likelihood.sim.param_values = params_df
 
-    process_id = current_process().ident % 4
-    if hasattr(likelihood.sim.sim, 'gpu'):
-        likelihood.sim.sim.gpu = [process_id]
-        sim_kwargs = {'affinitize_to': process_id*32}
-    else:
-        sim_kwargs = {'num_processors': 4}
-
-    s = 25
-    p = Pool(1)
-    start_time = time.time()
     try:
-        sim_res = p.apply_async(likelihood.sim.run, kwds=sim_kwargs).get(timeout=s)
-    except TimeoutError:
-        print(f"Killing solver on chain {process_id} after waiting {s} seconds")
-        p.terminate()
-        p.close()
-        p.join()
-        elapsed_time = time.time() - start_time
-        print("Elapsed time: ", elapsed_time)
-        print(x[:len(true_params)])
-        print(f"{likelihood.evals} on chain {process_id}")
-        likelihood.evals += 1
-        return -1e10
+        if hasattr(likelihood.sim.sim, 'gpu'):
+            process_id = current_process().ident % 4
+            likelihood.simulator.sim.gpu = [process_id]
 
-    p.terminate()
-    p.close()
-    p.join()
+            # likelihood.sim.sim.gpu = [1]
+        new_results = likelihood.sim.run().opt2q_dataframe.reset_index()
 
-    try:
-        new_results = sim_res.opt2q_dataframe.reset_index()
+        # run pre-processing
         features = likelihood.pre_processing(new_results)
 
         # run fixed classifier
         prediction = likelihood.classifier.transform(
             features[['simulation', 'tBID_obs', 'time', 'Unrelated_Signal', 'TRAIL_conc']])
+        likelihood.prediction = prediction
 
         # calculate likelihood
         ll = sum(np.log(prediction[likelihood.target.apoptosis == 1]['apoptosis__1']))
         ll += sum(np.log(prediction[likelihood.target.apoptosis == 0]['apoptosis__0']))
 
-        elapsed_time = time.time() - start_time
-        print("Elapsed time: ", elapsed_time)
         print(x[:len(true_params)])
-        print(f"{likelihood.evals} on chain {process_id}")
+        print(likelihood.evals)
         print(ll)
 
         likelihood.evals += 1
         return ll
-
     except (ValueError, ZeroDivisionError, TypeError):
         return -1e10
 

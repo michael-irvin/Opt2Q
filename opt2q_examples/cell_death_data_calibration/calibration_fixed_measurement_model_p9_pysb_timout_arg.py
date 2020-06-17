@@ -1,22 +1,25 @@
 import numpy as np
 import datetime as dt
-from scipy.stats import norm, invgamma, laplace
+from scipy.stats import norm, invgamma
 from pydream.core import run_dream
 from pydream.convergence import Gelman_Rubin
 from pydream.parameters import SampledParam
 from multiprocessing import current_process
-from multiprocess.context import TimeoutError
-from multiprocess.pool import Pool
 from opt2q.calibrator import objective_function
 from opt2q_examples.cell_death_data_calibration.cell_death_data_calibration_setup \
     import shift_and_scale_heterogeneous_population_to_new_params as sim_population
 from opt2q_examples.cell_death_data_calibration.cell_death_data_calibration_setup \
-    import set_up_simulator, pre_processing, true_params, set_up_classifier, synth_data
+    import set_up_simulator, pre_processing, true_params, set_up_classifier, synth_data, \
+    time_axis, handle_timeouts, TimeoutException
+from pysb.simulator import ScipyOdeSimulator
+from opt2q_examples.apoptosis_model import model
 import time
+import signal
+
 
 # Model name
 now = dt.datetime.now()
-model_name = f'apoptosis_model_tbid_cell_death_data_calibration_opt2q_{now.year}{now.month}{now.day}'
+model_name = f'apoptosis_model_tbid_cell_death_data_calibration_fmm_{now.year}{now.month}{now.day}'
 
 # Priors
 nu = 100
@@ -26,13 +29,7 @@ alpha = int(np.ceil(nu/2.0))
 beta = alpha/noisy_param_stdev**2
 
 sampled_params_0 = [SampledParam(norm, loc=true_params, scale=1.5),
-                    SampledParam(invgamma, *[alpha], scale=beta),
-                    SampledParam(laplace, loc=0.0, scale=1.0),  # slope   float
-                    SampledParam(laplace, loc=0.0, scale=0.1),  # intercept  float
-                    SampledParam(laplace, loc=0.0, scale=0.1),  # "Unrelated_Signal" coef  float
-                    SampledParam(laplace, loc=0.0, scale=0.1),  # "tBID_obs" coef  float
-                    SampledParam(laplace, loc=0.0, scale=0.1),  # "time" coef  float
-                    ]  # coef are assigned in order by their column names' ASCII values
+                    SampledParam(invgamma, *[alpha], scale=beta)]
 
 n_chains = 4
 n_iterations = 100000  # iterations per file-save
@@ -40,58 +37,60 @@ burn_in_len = 50000   # number of iterations during burn-in
 max_iterations = 100000
 
 # Simulator
-sim = set_up_simulator('cupsoda')
+# opt2q_solver doesn't run on Power9, but has useful methods for handling simulation results
+opt2q_solver = set_up_simulator('cupsoda')
+delattr(opt2q_solver, 'sim')
+delattr(opt2q_solver, 'solver')
+
+solver = ScipyOdeSimulator(model, tspan=time_axis, **{'integrator': 'lsoda', 'integrator_options': {'mxstep': 2**20}})
 
 # Measurement Model
+slope = 4
+intercept = slope * -0.25  # Intercept (-0.25)
+unr_coef = slope * 0.00  # "Unrelated_Signal" coef (0.00)
+tbid_coef = slope * 0.25  # "tBID_obs" coef  (0.25)
+time_coef = slope * -1.00  # "time" coef  (-1.00)
+
 classifier = set_up_classifier()
+classifier.set_params(**{'coefficients__apoptosis__coef_': np.array([[unr_coef, tbid_coef, time_coef]]),
+                         'coefficients__apoptosis__intercept_': np.array([intercept]),
+                         'do_fit_transform': False})
 
 
 # likelihood function
-@objective_function(gen_param_df=sim_population, sim=sim, pre_processing=pre_processing, classifier=classifier,
-                    target=synth_data, return_results=False, evals=0)
 def likelihood(x):
-    params_df = likelihood.gen_param_df(x)  # simulate heterogeneous population around new param values
-    likelihood.sim.param_values = params_df
+    params_df = sim_population(x)  # simulate heterogeneous population around new param values
+    opt2q_solver.param_values = params_df
 
+    # Add scipyodesolver using parameter values from Opt2Q solver
+    params_array = opt2q_solver._param_values_run
+
+    start_time = time.time()
     try:
-        if hasattr(likelihood.sim.sim, 'gpu'):
-            process_id = current_process().ident % 4
-            likelihood.simulator.sim.gpu = [process_id]
+        results = solver.run(param_values=params_array, num_processors=2, timeout=60)  # run model
 
-            # likelihood.sim.sim.gpu = [1]
-        new_results = likelihood.sim.run().opt2q_dataframe.reset_index()
+        new_results = opt2q_solver.opt2q_dataframe(results.dataframe).reset_index()
 
-        # run pre-processing
-        features = likelihood.pre_processing(new_results)
+        features = pre_processing(new_results)
 
-        # update and run classifier
-        n = len(true_params)
-        slope = x[n + 1]
-        intercept = x[n + 2] * slope
-        unr_coef = x[n + 3] * slope
-        tbid_coef = x[n + 4] * slope
-        time_coef = x[n + 5] * slope
-
-        likelihood.classifier.set_params(
-            **{'coefficients__apoptosis__coef_': np.array([[unr_coef, tbid_coef, time_coef]]),
-               'coefficients__apoptosis__intercept_': np.array([intercept]),
-               'do_fit_transform': False})
-
-        prediction = likelihood.classifier.transform(
+        # run fixed classifier
+        prediction = classifier.transform(
             features[['simulation', 'tBID_obs', 'time', 'Unrelated_Signal', 'TRAIL_conc']])
-        likelihood.prediction = prediction
 
         # calculate likelihood
-        ll = sum(np.log(prediction[likelihood.target.apoptosis == 1]['apoptosis__1']))
-        ll += sum(np.log(prediction[likelihood.target.apoptosis == 0]['apoptosis__0']))
+        ll = sum(np.log(prediction[synth_data.apoptosis == 1]['apoptosis__1']))
+        ll += sum(np.log(prediction[synth_data.apoptosis == 0]['apoptosis__0']))
 
+        elapsed_time = time.time() - start_time
+        print("Elapsed time: ", elapsed_time)
         print(x[:len(true_params)])
-        print(likelihood.evals)
         print(ll)
-
-        likelihood.evals += 1
         return ll
-    except (ValueError, ZeroDivisionError, TypeError):
+
+    except (ValueError, ZeroDivisionError, TypeError, TimeoutException):
+        elapsed_time = time.time() - start_time
+        print("Elapsed time: ", elapsed_time)
+        print(x[:len(true_params)])
         return -1e10
 
 

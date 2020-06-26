@@ -60,14 +60,13 @@ def likelihood(x):
     try:
         if hasattr(likelihood.sim.sim, 'gpu'):
             process_id = current_process().ident % 4
-            likelihood.simulator.sim.gpu = [process_id]
+            likelihood.sim.sim.gpu = [process_id]
 
             # likelihood.sim.sim.gpu = [1]
         new_results = likelihood.sim.run().opt2q_dataframe.reset_index()
 
         # run pre-processing
         features = likelihood.pre_processing(new_results)
-        features = None
 
         # run fixed classifier
         prediction = likelihood.classifier.transform(

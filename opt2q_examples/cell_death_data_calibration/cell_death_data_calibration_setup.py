@@ -115,9 +115,9 @@ def set_up_simulator(solver_name):
     # 'cupsoda', dae_solver' and 'scipydoe' are valid solver names
     if solver_name == 'cupsoda':
         integrator_options = {'vol': 4.0e-15, 'max_steps': 2**20}
-        if 'timeout' in Simulator.supported_solvers['cupsoda']._integrator_options_allowed:
-            integrator_options.update({'timeout': 60})
         solver_options = dict()
+        if 'timeout' in Simulator.supported_solvers['cupsoda']._integrator_options_allowed:
+            solver_options.update({'timeout': 60})
     elif solver_name == 'scipyode':
         solver_options = {'integrator': 'lsoda'}
         integrator_options = {'mxstep': 2**20}

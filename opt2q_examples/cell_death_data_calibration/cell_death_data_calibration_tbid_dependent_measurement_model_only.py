@@ -6,7 +6,7 @@ import os
 import numpy as np
 import pandas as pd
 import datetime as dt
-from scipy.stats import laplace
+from scipy.stats import laplace, cauchy
 from pydream.core import run_dream
 from pydream.convergence import Gelman_Rubin
 from pydream.parameters import SampledParam
@@ -77,12 +77,27 @@ sampled_params_0 = [SampledParam(laplace, loc=0.0, scale=1.0),      # slope   fl
                     SampledParam(laplace, loc=0.0, scale=0.1),      # "time" coef  float
                     ]  # coef are assigned in order by their column names' ASCII values
 
+s = 2.0*np.exp(1)/(4.0*np.pi)  # convert above Laplace Priors to Cauchy priors with the same Entropy
+cauchy_priors = [SampledParam(cauchy, loc=0.0, scale=1.0*s),      # slope   float
+                 SampledParam(cauchy, loc=0.0, scale=0.1*s),      # intercept  float
+                 SampledParam(cauchy, loc=0.0, scale=0.1*s),      # "Unrelated_Signal" coef  float
+                 SampledParam(cauchy, loc=0.0, scale=0.1*s),      # "tBID_obs" coef  float
+                 SampledParam(cauchy, loc=0.0, scale=0.1*s),      # "time" coef  float
+                 ]  # coef are assigned in order by their column names' ASCII values
+use_cauchy = True
+
 n_chains = 4
 n_iterations = 10000  # iterations per file-save
 burn_in_len = 5000   # number of iterations during burn-in
 max_iterations = 10000
 now = dt.datetime.now()
-model_name = f'apoptosis_classifier_calibration_{now.year}{now.month}{now.day}'
+
+if use_cauchy:
+    model_name = f'apoptosis_classifier_calibration_cauchy{now.year}{now.month}{now.day}'
+    param_priors = cauchy_priors
+else:
+    model_name = f'apoptosis_classifier_calibration_{now.year}{now.month}{now.day}'
+    param_priors = sampled_params_0
 
 
 # ------- Likelihood Function ------
@@ -117,7 +132,7 @@ if __name__ == '__main__':
     # Run DREAM sampling.  Documentation of DREAM options is in Dream.py.
     converged = False
     total_iterations = n_iterations
-    sampled_params, log_ps = run_dream(parameters=sampled_params_0,
+    sampled_params, log_ps = run_dream(parameters=param_priors,
                                        likelihood=likelihood,
                                        niterations=n_iterations,
                                        nchains=n_chains,
@@ -150,7 +165,7 @@ if __name__ == '__main__':
             starts = [sampled_params[chain][-1, :] for chain in range(n_chains)]
 
             total_iterations += n_iterations
-            sampled_params, log_ps = run_dream(parameters=sampled_params_0,
+            sampled_params, log_ps = run_dream(parameters=param_priors,
                                                likelihood=likelihood,
                                                niterations=n_iterations,
                                                nchains=n_chains,

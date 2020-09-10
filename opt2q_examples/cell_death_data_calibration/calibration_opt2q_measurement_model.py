@@ -36,8 +36,8 @@ sampled_params_0 = [SampledParam(norm, loc=true_params, scale=1.5),
 
 n_chains = 4
 n_iterations = 100000  # iterations per file-save
-burn_in_len = 50000   # number of iterations during burn-in
-max_iterations = 100000
+burn_in_len = 100000   # number of iterations during burn-in
+max_iterations = 120000
 
 # Simulator
 sim = set_up_simulator('cupsoda')

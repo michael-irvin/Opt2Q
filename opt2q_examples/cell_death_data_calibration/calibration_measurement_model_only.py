@@ -1,6 +1,6 @@
 import numpy as np
 import datetime as dt
-from scipy.stats import laplace
+from scipy.stats import laplace, cauchy
 from pydream.core import run_dream
 from pydream.convergence import Gelman_Rubin
 from pydream.parameters import SampledParam
@@ -10,9 +10,7 @@ from opt2q_examples.cell_death_data_calibration.cell_death_data_calibration_setu
 import time
 
 
-# Model name
-now = dt.datetime.now()
-model_name = f'apoptosis_model_tbid_cell_death_data_calibration_measurement_model_only_{now.year}{now.month}{now.day}'
+use_cauchy = False
 
 # Priors
 nu = 100
@@ -27,6 +25,24 @@ sampled_params_0 = [SampledParam(laplace, loc=0.0, scale=1.0),  # slope   float
                     SampledParam(laplace, loc=0.0, scale=0.1),  # "tBID_obs" coef  float
                     SampledParam(laplace, loc=0.0, scale=0.1),  # "time" coef  float
                     ]  # coef are assigned in order by their column names' ASCII values
+
+s = 2.0*np.exp(1)/(4.0*np.pi)  # convert above Laplace Priors to Cauchy priors with the same Entropy
+cauchy_priors = [SampledParam(cauchy, loc=0.0, scale=1.0*s),      # slope   float
+                 SampledParam(cauchy, loc=0.0, scale=0.1*s),      # intercept  float
+                 SampledParam(cauchy, loc=0.0, scale=0.1*s),      # "Unrelated_Signal" coef  float
+                 SampledParam(cauchy, loc=0.0, scale=0.1*s),      # "tBID_obs" coef  float
+                 SampledParam(cauchy, loc=0.0, scale=0.1*s),      # "time" coef  float
+                 ]  # coef are assigned in order by their column names' ASCII values
+
+# Model name
+now = dt.datetime.now()
+
+if use_cauchy:
+    model_name = f'apoptosis_model_tbid_cell_death_data_calibration_measurement_model_only_cauchy{now.year}{now.month}{now.day}'
+    param_priors = cauchy_priors
+else:
+    model_name = f'apoptosis_model_tbid_cell_death_data_calibration_measurement_model_only_{now.year}{now.month}{now.day}'
+    param_priors = sampled_params_0
 
 n_chains = 4
 n_iterations = 100000  # iterations per file-save
@@ -58,7 +74,7 @@ def likelihood(x):
         features = likelihood.pre_processing(new_results)
 
         # update and run classifier
-        n = 0
+        n = -1
         slope_ = x[n + 1]
         intercept_ = x[n + 2] * slope_
         unr_coef_ = x[n + 3] * slope_

@@ -29,12 +29,12 @@ sampled_params_0 = [SampledParam(norm, loc=true_params, scale=1.5),
                     SampledParam(invgamma, *[alpha], scale=beta)]
 
 n_chains = 4
-n_iterations = 100000  # iterations per file-save
+n_iterations = 20000  # iterations per file-save
 burn_in_len = 100000   # number of iterations during burn-in
 max_iterations = 120000
 
 # Simulator
-sim = set_up_simulator('cupsoda')
+sim = set_up_simulator('scipyode')
 
 # Measurement Model
 slope = 4
@@ -61,8 +61,9 @@ def likelihood(x):
             process_id = current_process().ident % 4
             likelihood.sim.sim.gpu = [process_id]
 
-            # likelihood.sim.sim.gpu = [1]
-        new_results = likelihood.sim.run().opt2q_dataframe.reset_index()
+            new_results = likelihood.sim.run().opt2q_dataframe.reset_index()
+        else:
+            new_results = likelihood.sim.run(num_processors=16).opt2q_dataframe.reset_index()
 
         # run pre-processing
         features = likelihood.pre_processing(new_results)

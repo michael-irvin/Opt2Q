@@ -13,6 +13,7 @@ from opt2q.measurement.base import LogisticClassifier, Interpolate, ScaleToMinMa
 from opt2q_examples.apoptosis_model import model
 
 
+save_dataset = True
 # ------- Data -------
 script_dir = os.path.dirname(__file__)
 parent_dir = os.path.dirname(script_dir)
@@ -157,6 +158,7 @@ cPARP_results = lc_results.filter(regex='cPARP_blot')
 tBID_results = lc_results.filter(regex='tBID_blot')
 
 # ------- Synthetic Immunoblot Data -------
+n = 60
 time_span = list(range(fluorescence_data['time'].max()))[::60]  # ::30 = one measurement per 30s; 6x fluorescence data
 
 x_scaled = ScaleToMinMax(columns=['tBID_obs', 'cPARP_obs'])\
@@ -180,6 +182,18 @@ lc_results['cPARP_blot'] = lc_results.apply(lambda x: np.random.choice(
 immunoblot_data = lc_results[['time', 'tBID_blot', 'cPARP_blot']]
 synthetic_immunoblot_data = DataSet(immunoblot_data,
                                     measured_variables={'tBID_blot': 'ordinal', 'cPARP_blot': 'ordinal'})
+
+if save_dataset:
+    import pickle
+    import datetime as dt
+
+    now = dt.datetime.now()
+
+    with open(f'synthetic_WB_dataset_{n}s_{now.year}_{now.month}_{now.day}.pkl', 'wb') as output:
+        pickle.dump(synthetic_immunoblot_data, output, pickle.HIGHEST_PROTOCOL)
+
+    with open(f'synthetic_WB_dataset_{n}s_{now.year}_{now.month}_{now.day}.pkl', 'rb') as data_input:
+        loaded_dataset = pickle.load(data_input)
 
 if __name__ == '__main__':
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6), sharey='all', gridspec_kw={'width_ratios': [2, 1]})
@@ -215,14 +229,3 @@ if __name__ == '__main__':
     ax2.set_xlabel('category probability')
     ax2.legend()
     plt.show()
-
-
-# ------- Test that Synthetic Data Reproduces ML Parameters -------
-lc2 = LogisticClassifier(synthetic_immunoblot_data,
-                         column_groups={'tBID_blot': ['tBID_obs'], 'cPARP_blot': ['cPARP_obs']},
-                         do_fit_transform=True,
-                         classifier_type='ordinal_eoc')
-lc2.set_up(x_int)
-
-
-

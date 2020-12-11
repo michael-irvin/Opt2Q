@@ -38,7 +38,7 @@ wb = WesternBlot(simulation_result=sim_results,
                  measured_values={'tBID_blot': ['tBID_obs'], 'cPARP_blot': ['cPARP_obs']},
                  observables=['tBID_obs', 'cPARP_obs'])
 
-wb.process = Pipeline(steps=[('x_scaled',ScaleToMinMax(columns=['tBID_obs', 'cPARP_obs'])),
+wb.process = Pipeline(steps=[('x_scaled', ScaleToMinMax(columns=['tBID_obs', 'cPARP_obs'])),
                              ('x_int', Interpolate(
                                  'time',
                                  ['tBID_obs', 'cPARP_obs'],

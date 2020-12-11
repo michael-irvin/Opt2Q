@@ -1,5 +1,6 @@
 import os
 import pandas as pd
+import numpy as np
 from opt2q_examples.plot_tools import utils, plot, calc
 from opt2q_examples.apoptosis_model import model
 from matplotlib import pyplot as plt
@@ -10,7 +11,7 @@ import matplotlib.gridspec as gridspec
 # Update this part with the new file name/location info for log-p, parameter files, etc
 script_dir = os.path.dirname(__file__)
 calibration_folder = 'cell_death_data_calibration_results'
-calibration_date = '2020910'  # calibration file name contains date string
+calibration_date = '20201016'  # calibration file name contains date string
 calibration_tag = 'fmm_extra_and_missing'
 
 # ====================================================
@@ -34,19 +35,24 @@ model_param_true = utils.get_model_param_true(include_extra_reactions=True)
 
 # Priors
 model_param_priors = utils.get_model_param_priors(include_extra_reactions=True)
+population_param_prior = utils.get_population_param_priors()
 
 # Post-Burn-in Parameters
 burn_in = 80000
 parameter_traces_burn_in, log_p_traces_burn_in = utils.thin_traces(parameter_traces, log_p_traces, 1, burn_in)
 
 # Sample of Max Posterior Parameters
-sample_size = 10
+sample_size = 100
 best_parameter_sample, best_log_p_sample, best_indices = utils.get_max_posterior_parameters(
     parameter_traces_burn_in, log_p_traces_burn_in, sample_size=sample_size)
 
 # # Random Sample from Posterior
 parameter_sample, log_p_sample = utils.get_parameter_sample(
     parameter_traces_burn_in, log_p_traces_burn_in, sample_size=sample_size)
+
+# Random Sample from Prior
+prior_parameter_sample = utils.sample_model_param_priors(model_param_priors, sample_size)
+prior_parameter_sample = np.column_stack([prior_parameter_sample, population_param_prior[0].dist.rvs(sample_size)])
 
 # =====================================================
 # Run Simulations

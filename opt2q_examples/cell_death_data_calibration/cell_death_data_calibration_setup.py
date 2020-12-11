@@ -38,6 +38,31 @@ model_presets.update(starting_params)  # m0
 standard_population = (extrinsic_noise_params[noisy_param_names].values - model_presets[noisy_param_names].values) \
                       / (model_presets[noisy_param_names].values * 0.20)  # coef variation is %20
 
+# Plot Dataset
+if __name__ == '__main__':
+    cm = plt.get_cmap('tab10')
+    x = extrinsic_noise_params[(extrinsic_noise_params.TRAIL_conc == '10ng/mL') & (synth_data.apoptosis == 0)]['kc0']
+    y = np.random.random(len(x))
+    plt.scatter(x * 1e5, y, color=cm.colors[7], marker='o', alpha=0.5, label='surviving cells 10ng/mL TRAIL')
+
+    x = extrinsic_noise_params[(extrinsic_noise_params.TRAIL_conc == '10ng/mL') & (synth_data.apoptosis == 1)]['kc0']
+    y = np.random.random(len(x))
+    plt.scatter(x * 1e5, y, color=cm.colors[7], marker='x', alpha=0.5, label='apoptotic cells 10ng/mL TRAIL')
+
+    x = extrinsic_noise_params[(extrinsic_noise_params.TRAIL_conc == '50ng/mL') & (synth_data.apoptosis == 0)]['kc0']
+    y = np.random.random(len(x))
+    plt.scatter(x * 1e5, y, color=cm.colors[1], marker='o', alpha=0.5, label='surviving cell 50ng/mL TRAIL')
+
+    x = extrinsic_noise_params[(extrinsic_noise_params.TRAIL_conc == '50ng/mL') & (synth_data.apoptosis == 1)]['kc0']
+    y = np.random.random(len(x))
+    plt.scatter(x * 1e5, y, color=cm.colors[1], marker='x', alpha=0.5, label='apoptotic cells 50ng/mL TRAIL')
+    # plt.xlim(0.95 * min(x * 1e5), 1.05 * max(x * 1e5))
+    plt.title('Dataset relating Initial Conditions to Apoptosis vs Survival Outcome')
+    plt.ylim(0.85 * min(y), 1.15 * max(y))
+    plt.xlabel('DISC Initial Conditions')
+    plt.legend()
+    plt.show()
+
 
 def simulate_heterogeneous_population(m, cv, population_0=standard_population):
     # rescale the extrinsic noise from (0, 1) to (m, m*cv).

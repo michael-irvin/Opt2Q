@@ -66,7 +66,7 @@ wb.process = Pipeline(steps=[('x_scaled', ScaleToMinMax(columns=['tBID_obs'])), 
                              ])
 
 wb.run()
-print(wb.process.get_params())
+# print(wb.process.get_params())
 # Notice the parameters that begin with 'classifier'. We will make these free-parameters that are calibrated along with
 # the apoptosis model.
 # The print-out should have something like this:
@@ -103,9 +103,12 @@ n_params = len(param_values)
 @objective_function(simulator=sim, immunoblot_model=wb, return_results=False, evals=0)
 def likelihood_fn(x):
     # x is a concatenation of the apoptosis-model parameters and the classifier parameters.
-    new_params = pd.DataFrame([[10 ** p for p in x[:n_params]]], columns=param_names)
+    new_params = pd.DataFrame([[10 ** p for p in x[:n_params]]+['50ng/mL']], columns=param_names+['Initial_TRAIL'])
 
     # classifier
+    if any(xi < 0 for xi in x[n_params:]):
+        return -np.inf  # negative terms violate empirical order constraints
+
     c0 = x[n_params+0]
     t1 = x[n_params+1]
     t2 = t1 + x[n_params+2]  # Doing these successive sums helps me insure the boundaries are monotonic increasing
@@ -148,8 +151,8 @@ def likelihood_fn(x):
 #        9.76079853e-01, -1.36115104e+00, -2.14204777e+01, -1.28266823e+01,
 #       -2.05758431e+01, -2.25599947e+01, -7.94466216e-01,  1.06393724e+01,
 #        3.45066195e+02,  3.31410222e-01,  2.22110330e+00,  1.23686260e+00,
-#        2.21589231e+00,  5.98761382e+02,  2.26288920e-02,  2.87476277e+00,
-#        1.38313381e+00,  2.80363829e+00]
+#        2.21589231e+00]
+#
 # likelihood_fn(x_)
 # quit()
 

@@ -158,8 +158,8 @@ cPARP_results = lc_results.filter(regex='cPARP_blot')
 tBID_results = lc_results.filter(regex='tBID_blot')
 
 # ------- Synthetic Immunoblot Data -------
-n = 60
-time_span = list(range(fluorescence_data['time'].max()))[::60]  # ::30 = one measurement per 30s; 6x fluorescence data
+n = 1800
+time_span = list(range(fluorescence_data['time'].max()))[::n]  # ::30 = one measurement per 30s; 6x fluorescence data
 
 x_scaled = ScaleToMinMax(columns=['tBID_obs', 'cPARP_obs'])\
             .transform(results[['time', 'tBID_obs', 'cPARP_obs']])

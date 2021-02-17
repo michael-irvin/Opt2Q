@@ -7,22 +7,27 @@ from matplotlib import pyplot as plt
 from matplotlib import colors
 from matplotlib.lines import Line2D
 import matplotlib.gridspec as gridspec
-from opt2q_examples.immunoblot_data_calibration.generate_synthetic_immunoblot_dataset import synthetic_immunoblot_data
 from opt2q_examples.immunoblot_data_calibration.immunoblot_data_calibration_fixed_measurement_model import wb
 import pickle
 from opt2q.measurement import Fluorescence
+from opt2q.measurement.base import ScaleToMinMax
+import random
 
+random.seed(100)
 
 # ================ UPDATE THIS PART ==================
 # Update this part with the new file name/location info for log-p, parameter files, etc
 script_dir = os.path.dirname(__file__)
 calibration_folder = 'immunoblot_calibration_results'
-calibration_date = '2020118'  # calibration file name contains date string
-calibration_tag = 'apoptosis_params_and_immunoblot'
+calibration_date = '2021210'  # calibration file name contains date string
+calibration_tag = 'apoptosis_params_and_immunoblot_classifier_calibration_cauchy_005'
+# calibration_date = '2020118'  # calibration file name contains date string
+# calibration_tag = 'apoptosis_params_and_immunoblot_classifier_calibration'
 
 # ====================================================
 # Load data
-with open(f'synthetic_WB_dataset_300s_2020_12_3.pkl', 'rb') as data_input:
+# with open(f'synthetic_WB_dataset_300s_2020_12_3.pkl', 'rb') as data_input:
+with open(f'synthetic_WB_dataset_60s_2020_12_7.pkl', 'rb') as data_input:
     dataset = pickle.load(data_input)
 
 cal_args = (script_dir, calibration_folder, calibration_date, calibration_tag)
@@ -51,11 +56,12 @@ measurement_model_param_true = measurement_model_param_start
 model_param_priors = utils.get_model_param_priors()
 
 # Post-Burn-in Parameters
-burn_in = 70000
+# burn_in = 1350000
+burn_in = 50000
 parameter_traces_burn_in, log_p_traces_burn_in = utils.thin_traces(parameter_traces, log_p_traces, 1, burn_in)
 
 # Sample of Max Posterior Parameters
-sample_size = 100
+sample_size = 400
 best_parameter_sample, best_log_p_sample, best_indices = utils.get_max_posterior_parameters(
     parameter_traces_burn_in, log_p_traces_burn_in, sample_size=sample_size)
 
@@ -66,10 +72,12 @@ parameter_sample, log_p_sample = utils.get_parameter_sample(
 # Random Sample from Prior
 prior_parameter_sample = utils.sample_model_param_priors(model_param_priors, sample_size)
 
-calibration_tag = 'opt2q'
+calibration_tag += '_opt2q'
 if 'opt2q' in calibration_tag:
-    best_measurement_model_parameters = best_parameter_sample[:, -10:]
-    random_post_measurement_model_parameters = parameter_sample[:, -10:]
+    # best_measurement_model_parameters = best_parameter_sample[:, -10:]
+    # random_post_measurement_model_parameters = parameter_sample[:, -10:]
+    best_measurement_model_parameters = best_parameter_sample[:, -9:]
+    random_post_measurement_model_parameters = parameter_sample[:, -9:]
 else:
     best_measurement_model_parameters = []
     random_post_measurement_model_parameters = []
@@ -85,6 +93,9 @@ sim_res_param_start = sim.run()
 # Simulate True Params
 sim.param_values = pd.DataFrame([10**model_param_true], columns=model_param_names)
 sim_res_param_true = sim.run()
+sim_res_param_true.opt2q_dataframe = sim_res_param_true.opt2q_dataframe.reset_index()
+sim_res_param_true_normed = ScaleToMinMax(feature_range=(0, 1), columns=['tBID_obs', 'C8_DISC_recruitment_obs'],
+                                          do_fit_transform=True).transform(sim_res_param_true.opt2q_dataframe)
 
 # Simulate Best Params (wo extrinsic noise)
 best_parameters = pd.DataFrame(10**best_parameter_sample[:, :len(model_param_names)], columns=model_param_names)
@@ -177,8 +188,8 @@ plt.show()
 # Plot the Data
 fig3, ax1 = plt.subplots()
 ax1.set_title('Dataset with Synthetic Ordinal Measurements of tBID Concentration')
-ax1.scatter(x=synthetic_immunoblot_data.data['time'],
-            y=synthetic_immunoblot_data.data['tBID_blot'].values,
+ax1.scatter(x=dataset.data['time'],
+            y=dataset.data['tBID_blot'].values,
             s=10, color=cm.colors[1], label=f'tBID ordinal data', alpha=0.5)
 ax1.set_xlabel('time [s]')
 ax1.set_ylabel('Ordinal Categories of tBID')
@@ -204,7 +215,7 @@ plot.plot_simulation_results(ax, prior_sim_res_low_quantile, 'tBID_obs',
 plot.plot_simulation_results(ax, prior_sim_res_high_quantile, 'tBID_obs',
                              alpha=1.0, color=cm.colors[1], linestyle='--', label='prior 50ng/mL')
 ax.set_xlabel('time [s]')
-ax.set_ylabel('Normalized tBID Concentration')
+ax.set_ylabel('tBID Concentration [copies per cell]')
 plt.legend()
 plt.show()
 
@@ -215,8 +226,8 @@ prior_sim_res_low_quantile_normed, prior_sim_res_high_quantile_normed = calc.sim
 measurement_model = wb
 
 fig5, (ax1, ax2) = plt.subplots(1, 2, figsize=(10.5, 5.5), sharey='all', gridspec_kw={'width_ratios': [2, 1]})
-ax1.set_title('Normalized tBID 90% Credible Interval using Random Sample from Posterior '
-              '\n of Model Trained to Fluorescence Data')
+ax1.set_title('Normalized tBID 90% Credible Interval using Random Sample from \n Posterior'
+              ' of Model Trained to Fluorescence Data')
 
 plot.plot_simulation_results_quantile_fill_between(ax1, sim_res_param_ensemble_normed, 'tBID_obs',
                                                    alpha=0.2, color=cm.colors[1], label='posterior')
@@ -228,11 +239,13 @@ plot.plot_simulation_results(ax1, prior_sim_res_low_quantile_normed, 'tBID_obs',
                              alpha=1.0, color=cm.colors[1], linestyle='--')
 plot.plot_simulation_results(ax1, prior_sim_res_high_quantile_normed, 'tBID_obs',
                              alpha=1.0, color=cm.colors[1], linestyle='--', label='prior')
+plot.plot_simulation_results(ax1, sim_res_param_true_normed, 'tBID_obs', linestyle=':', alpha=1.0, color=cm.colors[1],
+                             label='"true" 50ng/mL ')
 ax1.set_xlabel('time [s]')
 ax1.set_ylabel('Normalized tBID Concentration')
 
-ax1.scatter(x=synthetic_immunoblot_data.data['time'],
-            y=synthetic_immunoblot_data.data['tBID_blot'].values / synthetic_immunoblot_data.data['tBID_blot'].max(),
+ax1.scatter(x=dataset.data['time'],
+            y=dataset.data['tBID_blot'].values / dataset.data['tBID_blot'].max(),
             s=10, color=cm.colors[1], label=f'tBID ordinal data', alpha=0.5)
 
 ax1.legend()
@@ -264,7 +277,7 @@ if 'opt2q' in calibration_tag:
         tBID_results = lc_results.filter(regex='tBID_blot')
         ci = 0
         for col in sorted(list(tBID_results.columns)):
-            ax2.plot(tBID_results[col].values, np.linspace(0, 1, 100), alpha=0.1, color=cm.colors[ci])
+            ax2.plot(tBID_results[col].values, np.linspace(0, 1, 100), alpha=0.05, color=cm.colors[ci])
             ci += 1
     ax2.set_title('Opt2Q Calibration of Measurement Model')
     ax2.set_xlabel('Probability of Class Membership')
@@ -290,7 +303,18 @@ if 'opt2q' in calibration_tag:
     lc_results = wb.process.get_step('classifier').transform(plot_domain)
     cPARP_results = lc_results.filter(regex='cPARP_blot')
     tBID_results = lc_results.filter(regex='tBID_blot')
-    ax2.set_title('Opt2Q Calibration of Measurement Model')
+
+    if 'uniform' in calibration_tag:
+        ax2.set_title('Opt2Q Calibration of Measurement Model \n (Uniform Priors)')
+
+    elif 'cauchy_05' in calibration_tag:
+            ax2.set_title('Opt2Q Calibration of Measurement Model \n (Cauchy Priors, s=0.05)')
+
+    elif 'cauchy_005' in calibration_tag:
+        ax2.set_title('Opt2Q Calibration of Measurement Model \n (Cauchy Priors, s=0.005)')
+
+    else:
+        ax2.set_title('Opt2Q Calibration of Measurement Model')
 
     c_id = 0
     for col in sorted(list(tBID_results.columns)):
@@ -336,6 +360,8 @@ plot.plot_simulation_results(ax1, prior_sim_res_low_quantile_normed, 'tBID_obs',
                              alpha=1.0, color=cm.colors[1], linestyle='--')
 plot.plot_simulation_results(ax1, prior_sim_res_high_quantile_normed, 'tBID_obs',
                              alpha=1.0, color=cm.colors[1], linestyle='--', label='prior')
+plot.plot_simulation_results(ax1, sim_res_param_true_normed, 'tBID_obs', linestyle=':', alpha=1.0, color=cm.colors[1],
+                             label='"true" 50ng/mL ')
 ax1.set_xlabel('time [s]')
 ax1.set_ylabel('Normalized tBID Concentration')
 

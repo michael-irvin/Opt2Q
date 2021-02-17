@@ -23,15 +23,21 @@ number_of_traces = n_chains
 
 chain_history_file = [os.path.join(script_dir, calibration_folder, f) for f in
                       os.listdir(os.path.join(script_dir, calibration_folder))
-                      if '20191031' in f and 'chain_history' in f][0]
+                      # if '20191031' in f and 'chain_history' in f][0]
+                      # if 'cauchy_priors_2021210' in f and 'chain_history' in f][0]
+                      if 'calibration_202129' in f and 'chain_history' in f][0]
 
 log_p_file_paths_ = sorted([os.path.join(script_dir, calibration_folder, f) for f in
                             os.listdir(os.path.join(script_dir, calibration_folder))
-                            if '20191031' in f and 'log_p' in f])
+                            # if '20191031' in f and 'log_p' in f])
+                            # if 'cauchy_priors_2021210' in f and 'log_p' in f])
+                            if 'calibration_202129' in f and 'log_p' in f])
 
 parameter_file_paths_ = sorted([os.path.join(script_dir, calibration_folder, f) for f in
                                 os.listdir(os.path.join(script_dir, calibration_folder))
-                                if '20191031' in f and 'parameters' in f])
+                                # if '20191031' in f and 'parameters' in f])
+                                # if 'cauchy_priors_2021210' in f and 'parameters' in f])
+                                if 'calibration_202129' in f and 'parameters' in f])
 
 # reorder traces to be in numerical order (i.e. 1000 before 10000).
 file_order = [str(n_iterations*n) for n in range(1, int(len(log_p_file_paths_)/number_of_traces)+1)]
@@ -142,13 +148,28 @@ lc.set_up(x_int)
 lc.do_fit_transform = False
 
 # # classifier prediction
-lc.set_params(**make_classifier_params(params[burn_in_len+idx]))
+for idx in np.random.choice(range(burn_in_len, len(params)), 100):
+    lc.set_params(**make_classifier_params(params[idx]))
+    plot_domain = pd.DataFrame({'tBID_obs': np.linspace(0, 1, 100), 'cPARP_obs': np.linspace(0, 1, 100)})
+    lc_results = lc.transform(plot_domain)
+    cPARP_results = lc_results.filter(regex='cPARP_blot')
+    tBID_results = lc_results.filter(regex='tBID_blot')
+
+    for n, col in enumerate(sorted(list(tBID_results.columns))):
+        ax2.plot(tBID_results[col].values, np.linspace(0, 1, 100), label=col, color=cm.colors[n], alpha=0.1)
+
+a = 50
+true_mm_params = {'coefficients__cPARP_blot__coef_': np.array([a]),
+                  'coefficients__cPARP_blot__theta_': np.array([0.03, 0.20, 0.97]) * a,
+                  'coefficients__tBID_blot__coef_': np.array([a]),
+                  'coefficients__tBID_blot__theta_': np.array([0.03, 0.4, 0.82, 0.97]) * a}
+lc.set_params(**true_mm_params)
 plot_domain = pd.DataFrame({'tBID_obs': np.linspace(0, 1, 100), 'cPARP_obs': np.linspace(0, 1, 100)})
 lc_results = lc.transform(plot_domain)
 cPARP_results = lc_results.filter(regex='cPARP_blot')
 tBID_results = lc_results.filter(regex='tBID_blot')
 
-for col in sorted(list(tBID_results.columns)):
-    ax2.plot(tBID_results[col].values, np.linspace(0, 1, 100), label=col)
+for n, col in enumerate(sorted(list(tBID_results.columns))):
+    ax2.plot(tBID_results[col].values, np.linspace(0, 1, 100), label=col, color=cm.colors[n], linewidth=2)
 
 plt.show()

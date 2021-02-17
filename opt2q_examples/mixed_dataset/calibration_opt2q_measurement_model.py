@@ -42,8 +42,8 @@ sampled_params_0 = [SampledParam(norm, loc=true_params, scale=1.5),  # model pri
 # PyDREAM Settings
 n_chains = 4
 n_iterations = 20000  # iterations per file-save
-burn_in_len = 140000   # number of iterations during burn-in
-max_iterations = 180000
+burn_in_len = 200000   # number of iterations during burn-in
+max_iterations = 240000
 
 # Simulator
 cd_sim = set_up_simulator('scipyode')

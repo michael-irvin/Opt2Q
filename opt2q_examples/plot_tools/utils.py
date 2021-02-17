@@ -140,7 +140,7 @@ def get_measurement_param_names(measurement_type):
         return ['coefficients__IC_DISC_localization__coef_',
                 'coefficients__IC_DISC_localization__theta_1',
                 'coefficients__IC_DISC_localization__theta_2',
-                'coefficients__IC_DISC_localization__theta_3',]
+                'coefficients__IC_DISC_localization__theta_3']
     else:
         raise ValueError("measurement_type can only be 'fluorescence', 'immunoblot', 'immunoblot_disc', "
                          "or 'cell_death_data'")
@@ -218,7 +218,7 @@ def set_up_simulator(measurement_type, model):
     if measurement_type == 'cell_death_data':
         sim = Simulator(model=model, param_values=parameters, solver='scipyode',
                         solver_options={'integrator': 'lsoda'}, tspan=np.linspace(0, 20160, 100),
-                        integrator_options={'rtol': 1e-12, 'atol': 1e-12})
+                        integrator_options={'rtol': 1e-12, 'atol': 1e-12, 'mxstep': 2**20})
         sim.run()
         return sim
 

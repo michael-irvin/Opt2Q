@@ -11,18 +11,20 @@ from opt2q_examples.immunoblot_data_calibration.generate_synthetic_immunoblot_da
 from opt2q_examples.immunoblot_data_calibration.immunoblot_data_calibration_fixed_measurement_model import wb
 import pickle
 from opt2q.measurement import Fluorescence
+from opt2q.measurement.base import ScaleToMinMax
 
 
 # ================ UPDATE THIS PART ==================
 # Update this part with the new file name/location info for log-p, parameter files, etc
 script_dir = os.path.dirname(__file__)
 calibration_folder = 'immunoblot_calibration_results'
-calibration_date = '2020131'  # calibration file name contains date string
+# calibration_date = '2020131'  # calibration file name contains date string
+calibration_date = '20191213'  # calibration file name contains date string
 calibration_tag = 'fmm_inc'
 
 # ====================================================
 # Load data
-with open(f'synthetic_WB_dataset_300s_2020_12_3.pkl', 'rb') as data_input:
+with open(f'synthetic_WB_dataset_60s_2020_12_7.pkl', 'rb') as data_input:
     dataset = pickle.load(data_input)
 
 cal_args = (script_dir, calibration_folder, calibration_date, calibration_tag)
@@ -75,8 +77,8 @@ elif 'fmm' == calibration_tag:
     random_post_measurement_model_parameters = measurement_model_param_true
 else:
     best_measurement_model_parameters = measurement_model_param_true
-    random_post_measurement_model_parameters = np.array([50, 0.20, 0.20, 0.20, 0.20, 50, 0.25, 0.25, 0.25])
-    # random_post_measurement_model_parameters = np.array([50, 0.00, 0.33, 0.34, 0.33, 50, 0.0, 0.5, 0.5])
+    # random_post_measurement_model_parameters = np.array([50, 0.20, 0.20, 0.20, 0.20, 50, 0.25, 0.25, 0.25]) # 2020131
+    random_post_measurement_model_parameters = np.array([50, 0.00, 0.33, 0.34, 0.33, 50, 0.0, 0.5, 0.5])  # 20191213
 
 
 # =====================================================
@@ -90,6 +92,9 @@ sim_res_param_start = sim.run()
 # Simulate True Params
 sim.param_values = pd.DataFrame([10**model_param_true], columns=model_param_names)
 sim_res_param_true = sim.run()
+sim_res_param_true.opt2q_dataframe = sim_res_param_true.opt2q_dataframe.reset_index()
+sim_res_param_true_normed = ScaleToMinMax(feature_range=(0, 1), columns=['tBID_obs', 'C8_DISC_recruitment_obs'],
+                                          do_fit_transform=True).transform(sim_res_param_true.opt2q_dataframe)
 
 # Simulate Best Params (wo extrinsic noise)
 best_parameters = pd.DataFrame(10**best_parameter_sample[:, :len(model_param_names)], columns=model_param_names)
@@ -232,8 +237,14 @@ plot.plot_simulation_results(ax1, prior_sim_res_low_quantile_normed, 'tBID_obs',
                              alpha=1.0, color=cm.colors[1], linestyle='--')
 plot.plot_simulation_results(ax1, prior_sim_res_high_quantile_normed, 'tBID_obs',
                              alpha=1.0, color=cm.colors[1], linestyle='--', label='prior')
+plot.plot_simulation_results(ax1, sim_res_param_true_normed, 'tBID_obs', linestyle=':', alpha=1.0, color=cm.colors[1],
+                             label='"true" 50ng/mL ')
 ax1.set_xlabel('time [s]')
 ax1.set_ylabel('Normalized tBID Concentration')
+
+ax1.scatter(x=dataset.data['time'],
+            y=dataset.data['tBID_blot'].values / dataset.data['tBID_blot'].max(),
+            s=10, color=cm.colors[1], label=f'tBID ordinal data', alpha=0.5)
 
 # ax1.scatter(x=synthetic_immunoblot_data.data['time'],
 #             y=synthetic_immunoblot_data.data['tBID_blot'].values / synthetic_immunoblot_data.data['tBID_blot'].max(),

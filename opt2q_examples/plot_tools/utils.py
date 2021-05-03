@@ -51,7 +51,6 @@ def load_parameter_and_log_p_traces(script_dir, cal_folder, cal_date, cal_tag, i
     parameter_samples = []
 
     traces = sorted(list(set(int(re.findall(r'\d+', file_name)[-2]) for file_name in parameter_file_paths_)))
-    print("log_p_file_paths", log_p_file_paths)
     for trace_num in traces:
         print('Trace: ', trace_num)
         log_p_trace = np.concatenate([np.load(os.path.join(script_dir, cal_folder, lp))
@@ -109,7 +108,6 @@ def load_gelman_rubin_values(script_dir, cal_folder, cal_date, cal_tag):
     parameter_file_paths_ = sorted([os.path.join(script_dir, cal_folder, f) for f in
                                     os.listdir(os.path.join(script_dir, cal_folder))
                                     if cal_date in f and 'parameters' in f and cal_tag in f])
-    print("parameter_file_paths_", parameter_file_paths_)
     file_order = sorted(list(set(int(re.findall(r'\d+', file_name)[-1]) for file_name in parameter_file_paths_)))
     gr_file = sorted([os.path.join(script_dir, cal_folder, f) for f in
                       os.listdir(os.path.join(script_dir, cal_folder))

@@ -158,7 +158,7 @@ cPARP_results = lc_results.filter(regex='cPARP_blot')
 tBID_results = lc_results.filter(regex='tBID_blot')
 
 # ------- Synthetic Immunoblot Data -------
-n = 1800
+n = 180
 time_span = list(range(fluorescence_data['time'].max()))[::n]  # ::30 = one measurement per 30s; 6x fluorescence data
 
 x_scaled = ScaleToMinMax(columns=['tBID_obs', 'cPARP_obs'])\
@@ -183,7 +183,7 @@ immunoblot_data = lc_results[['time', 'tBID_blot', 'cPARP_blot']]
 synthetic_immunoblot_data = DataSet(immunoblot_data,
                                     measured_variables={'tBID_blot': 'ordinal', 'cPARP_blot': 'ordinal'})
 
-if save_dataset:
+if __name__ == '__main__' and save_dataset:
     import pickle
     import datetime as dt
 

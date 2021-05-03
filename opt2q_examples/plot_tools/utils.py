@@ -51,8 +51,9 @@ def load_parameter_and_log_p_traces(script_dir, cal_folder, cal_date, cal_tag, i
     parameter_samples = []
 
     traces = sorted(list(set(int(re.findall(r'\d+', file_name)[-2]) for file_name in parameter_file_paths_)))
-
+    print("log_p_file_paths", log_p_file_paths)
     for trace_num in traces:
+        print('Trace: ', trace_num)
         log_p_trace = np.concatenate([np.load(os.path.join(script_dir, cal_folder, lp))
                                       for lp in log_p_file_paths if f'_{trace_num}_' in lp])
         log_p_traces.append(log_p_trace)
@@ -108,9 +109,8 @@ def load_gelman_rubin_values(script_dir, cal_folder, cal_date, cal_tag):
     parameter_file_paths_ = sorted([os.path.join(script_dir, cal_folder, f) for f in
                                     os.listdir(os.path.join(script_dir, cal_folder))
                                     if cal_date in f and 'parameters' in f and cal_tag in f])
-
+    print("parameter_file_paths_", parameter_file_paths_)
     file_order = sorted(list(set(int(re.findall(r'\d+', file_name)[-1]) for file_name in parameter_file_paths_)))
-
     gr_file = sorted([os.path.join(script_dir, cal_folder, f) for f in
                       os.listdir(os.path.join(script_dir, cal_folder))
                       if cal_date in f and str(file_order[-1]) in f and '.txt' in f and cal_tag in f])[0]
@@ -154,10 +154,11 @@ def get_population_param(measurement_type):
 
 
 def get_model_param_true(include_extra_reactions=False):
+    script_dir = os.path.dirname(__file__)
     if include_extra_reactions:
-        return np.load('true_params.npy')
+        return np.load(os.path.join(script_dir, 'true_params.npy'))
     else:
-        return np.load('true_params.npy')[:-6]
+        return np.load(os.path.join(script_dir, 'true_params.npy'))[:-6]
 
 
 def get_model_param_start(model, include_extra_reactions=False):
@@ -189,6 +190,31 @@ def get_measurement_model_true_params(measurement_type='cell_death_data'):
         return np.array([50, 0.03, 0.37, 0.42, 0.15, 50, 0.03, 0.17, 0.77])
     if measurement_type == 'immunoblot_disc':
         return np.array([25, 0.05, 0.35, 0.45])
+
+
+def get_classifier_params(x, measurement_type='immunoblot'):
+    if measurement_type == 'immunoblot':
+        return get_classifier_params_immunoblot(x)
+    else:
+        raise ValueError('try immunoblot')
+
+
+def get_classifier_params_immunoblot(x):
+    x = abs(x)
+    c0 = x[0]
+    t1 = x[1]
+    t2 = t1 + x[2]
+    t3 = t2 + x[3]
+    t4 = t3 + x[4]
+
+    c5 = x[5]
+    t6 = x[6]
+    t7 = t6 + x[7]
+    t8 = t7 + x[8]
+    return {'coefficients__tBID_blot__coef_': np.array([c0]),
+            'coefficients__tBID_blot__theta_': np.array([t1, t2, t3, t4]) * c0,
+            'coefficients__cPARP_blot__coef_': np.array([c5]),
+            'coefficients__cPARP_blot__theta_': np.array([t6, t7, t8]) * c5}
 
 
 def get_model_param_priors(include_extra_reactions=False):
@@ -231,7 +257,7 @@ def set_up_simulator(measurement_type, model):
 
     if measurement_type == 'immunoblot':
         sim = Simulator(model=model, param_values=parameters, solver='scipyode', tspan=np.linspace(0, 20160, 100),
-                        solver_options={'integrator': 'lsoda'})
+                        solver_options={'integrator': 'lsoda'}, integrator_options={'mxstep': 2**20})
         return sim
 
     else:

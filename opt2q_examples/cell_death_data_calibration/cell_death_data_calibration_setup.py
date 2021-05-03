@@ -24,7 +24,7 @@ extrinsic_noise_params['simulation'] = range(len(extrinsic_noise_params))
 
 # ------- Starting Point ----
 param_names = [p.name for p in model.parameters_rules()]
-true_params = np.load('true_params.npy')
+true_params = np.load(os.path.join(script_dir, 'true_params.npy'))
 
 # ============ Simulate Heterogeneous Population =============
 noisy_param_names = ['MOMP_sig_0', 'USM1_0', 'USM2_0', 'USM3_0', 'kc0']

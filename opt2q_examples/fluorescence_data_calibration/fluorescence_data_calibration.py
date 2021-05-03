@@ -72,7 +72,8 @@ fl = Fluorescence(results,
                                    'norm_EC-RP': ['cPARP_obs']},
                   observables=['tBID_obs', 'cPARP_obs'])
 measurement_results = fl.run()
-
+fl.likelihood()
+quit
 
 # ------- Likelihood Function ------
 @objective_function(simulator=sim, measurement_model=fl, return_results=False, evals=0)

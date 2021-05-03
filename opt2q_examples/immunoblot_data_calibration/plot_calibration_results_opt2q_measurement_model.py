@@ -226,21 +226,21 @@ prior_sim_res_low_quantile_normed, prior_sim_res_high_quantile_normed = calc.sim
 measurement_model = wb
 
 fig5, (ax1, ax2) = plt.subplots(1, 2, figsize=(10.5, 5.5), sharey='all', gridspec_kw={'width_ratios': [2, 1]})
-ax1.set_title('Normalized tBID 90% Credible Interval using Random Sample from \n Posterior'
-              ' of Model Trained to Fluorescence Data')
+# ax1.set_title('Normalized tBID 90% Credible Interval using Random Sample from \n Posterior'
+#               ' of Model Trained to Fluorescence Data')
 
 plot.plot_simulation_results_quantile_fill_between(ax1, sim_res_param_ensemble_normed, 'tBID_obs',
                                                    alpha=0.2, color=cm.colors[1], label='posterior')
 
 sim_res_param_ensemble_median_normed = calc.simulation_results_quantile(sim_res_param_ensemble_normed, 0.5)
 
-plot.plot_simulation_results(ax1, sim_res_param_ensemble_median_normed, 'tBID_obs', alpha=1.0, color=cm.colors[1])
+plot.plot_simulation_results(ax1, sim_res_param_ensemble_median_normed, 'tBID_obs', alpha=1.0, color=cm.colors[1], linewidth=2)
 plot.plot_simulation_results(ax1, prior_sim_res_low_quantile_normed, 'tBID_obs',
-                             alpha=1.0, color=cm.colors[1], linestyle='--')
+                             alpha=1.0, color=cm.colors[1], linestyle='--', linewidth=2)
 plot.plot_simulation_results(ax1, prior_sim_res_high_quantile_normed, 'tBID_obs',
-                             alpha=1.0, color=cm.colors[1], linestyle='--', label='prior')
+                             alpha=1.0, color=cm.colors[1], linestyle='--', label='prior', linewidth=2)
 plot.plot_simulation_results(ax1, sim_res_param_true_normed, 'tBID_obs', linestyle=':', alpha=1.0, color=cm.colors[1],
-                             label='"true" 50ng/mL ')
+                             label='"true" 50ng/mL ', linewidth=2)
 ax1.set_xlabel('time [s]')
 ax1.set_ylabel('Normalized tBID Concentration')
 
@@ -248,7 +248,8 @@ ax1.scatter(x=dataset.data['time'],
             y=dataset.data['tBID_blot'].values / dataset.data['tBID_blot'].max(),
             s=10, color=cm.colors[1], label=f'tBID ordinal data', alpha=0.5)
 
-ax1.legend()
+ax1.tick_params(axis='both', which='major', labelsize=17)
+ax1.legend(bbox_to_anchor=(0.2, -0.2))
 
 plot_domain = pd.DataFrame({'tBID_obs': np.linspace(0, 1, 100), 'cPARP_obs': np.linspace(0, 1, 100)})
 
@@ -279,7 +280,7 @@ if 'opt2q' in calibration_tag:
         for col in sorted(list(tBID_results.columns)):
             ax2.plot(tBID_results[col].values, np.linspace(0, 1, 100), alpha=0.05, color=cm.colors[ci])
             ci += 1
-    ax2.set_title('Opt2Q Calibration of Measurement Model')
+    # ax2.set_title('Opt2Q Calibration of Measurement Model')
     ax2.set_xlabel('Probability of Class Membership')
 
     classifier_params = measurement_model_param_true
@@ -304,24 +305,27 @@ if 'opt2q' in calibration_tag:
     cPARP_results = lc_results.filter(regex='cPARP_blot')
     tBID_results = lc_results.filter(regex='tBID_blot')
 
-    if 'uniform' in calibration_tag:
-        ax2.set_title('Opt2Q Calibration of Measurement Model \n (Uniform Priors)')
+    # if 'uniform' in calibration_tag:
+    #     ax2.set_title('Opt2Q Calibration of Measurement Model \n (Uniform Priors)')
+    #
+    # elif 'cauchy_05' in calibration_tag:
+    #         ax2.set_title('Opt2Q Calibration of Measurement Model \n (Cauchy Priors, s=0.05)')
+    #
+    # elif 'cauchy_005' in calibration_tag:
+    #     ax2.set_title('Opt2Q Calibration of Measurement Model \n (Cauchy Priors, s=0.005)')
+    #
+    # else:
+    #     ax2.set_title('Opt2Q Calibration of Measurement Model')
 
-    elif 'cauchy_05' in calibration_tag:
-            ax2.set_title('Opt2Q Calibration of Measurement Model \n (Cauchy Priors, s=0.05)')
-
-    elif 'cauchy_005' in calibration_tag:
-        ax2.set_title('Opt2Q Calibration of Measurement Model \n (Cauchy Priors, s=0.005)')
-
-    else:
-        ax2.set_title('Opt2Q Calibration of Measurement Model')
-
-    c_id = 0
-    for col in sorted(list(tBID_results.columns)):
-        ax2.plot(tBID_results[col].values, np.linspace(0, 1, 100), alpha=1, color=cm.colors[c_id])
+    c_id = 1
+    for col in sorted(list(tBID_results.columns))[1:]:  # the zeroth column is not predictions
+        ax2.plot(tBID_results[col].values, np.linspace(0, 1, 100), alpha=1,
+                 color=cm.colors[c_id], linestyle='--', label=f'category {c_id}', linewidth=3)
         c_id += 1
 
-    ax2.legend(loc='lower center')
+    ax2.legend(bbox_to_anchor=(0.5, -0.2))
+    ax2.tick_params(axis='x', which='major', labelsize=17)
+    plt.savefig('Opt2Q_Calibration_with_Cauchy_Priors_005.pdf')
     plt.show()
 
     # classifier_params = all_true_params[len(true_params):]

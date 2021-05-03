@@ -18,8 +18,8 @@ from opt2q.measurement.base import ScaleToMinMax
 # Update this part with the new file name/location info for log-p, parameter files, etc
 script_dir = os.path.dirname(__file__)
 calibration_folder = 'immunoblot_calibration_results'
-# calibration_date = '2020131'  # calibration file name contains date string
-calibration_date = '20191213'  # calibration file name contains date string
+calibration_date = '2020131'  # calibration file name contains date string
+# calibration_date = '20191213'  # calibration file name contains date string
 calibration_tag = 'fmm_inc'
 
 # ====================================================
@@ -77,8 +77,8 @@ elif 'fmm' == calibration_tag:
     random_post_measurement_model_parameters = measurement_model_param_true
 else:
     best_measurement_model_parameters = measurement_model_param_true
-    # random_post_measurement_model_parameters = np.array([50, 0.20, 0.20, 0.20, 0.20, 50, 0.25, 0.25, 0.25]) # 2020131
-    random_post_measurement_model_parameters = np.array([50, 0.00, 0.33, 0.34, 0.33, 50, 0.0, 0.5, 0.5])  # 20191213
+    random_post_measurement_model_parameters = np.array([50, 0.20, 0.20, 0.20, 0.20, 50, 0.25, 0.25, 0.25]) # 2020131
+    # random_post_measurement_model_parameters = np.array([50, 0.00, 0.33, 0.34, 0.33, 50, 0.0, 0.5, 0.5])  # 20191213
 
 
 # =====================================================
@@ -233,18 +233,18 @@ plot.plot_simulation_results_quantile_fill_between(ax1, sim_res_param_ensemble_n
 sim_res_param_ensemble_median_normed = calc.simulation_results_quantile(sim_res_param_ensemble_normed, 0.5)
 
 plot.plot_simulation_results(ax1, sim_res_param_ensemble_median_normed, 'tBID_obs', alpha=1.0, color=cm.colors[1])
-plot.plot_simulation_results(ax1, prior_sim_res_low_quantile_normed, 'tBID_obs',
-                             alpha=1.0, color=cm.colors[1], linestyle='--')
-plot.plot_simulation_results(ax1, prior_sim_res_high_quantile_normed, 'tBID_obs',
-                             alpha=1.0, color=cm.colors[1], linestyle='--', label='prior')
-plot.plot_simulation_results(ax1, sim_res_param_true_normed, 'tBID_obs', linestyle=':', alpha=1.0, color=cm.colors[1],
-                             label='"true" 50ng/mL ')
+# plot.plot_simulation_results(ax1, prior_sim_res_low_quantile_normed, 'tBID_obs',
+#                              alpha=1.0, color=cm.colors[1], linestyle='--')
+# plot.plot_simulation_results(ax1, prior_sim_res_high_quantile_normed, 'tBID_obs',
+#                              alpha=1.0, color=cm.colors[1], linestyle='--', label='prior')
+# plot.plot_simulation_results(ax1, sim_res_param_true_normed, 'tBID_obs', linestyle=':', alpha=1.0, color=cm.colors[1],
+#                              label='"true" 50ng/mL ')
 ax1.set_xlabel('time [s]')
 ax1.set_ylabel('Normalized tBID Concentration')
 
-ax1.scatter(x=dataset.data['time'],
-            y=dataset.data['tBID_blot'].values / dataset.data['tBID_blot'].max(),
-            s=10, color=cm.colors[1], label=f'tBID ordinal data', alpha=0.5)
+# ax1.scatter(x=dataset.data['time'],
+#             y=dataset.data['tBID_blot'].values / dataset.data['tBID_blot'].max(),
+#             s=10, color=cm.colors[1], label=f'tBID ordinal data', alpha=0.5)
 
 # ax1.scatter(x=synthetic_immunoblot_data.data['time'],
 #             y=synthetic_immunoblot_data.data['tBID_blot'].values / synthetic_immunoblot_data.data['tBID_blot'].max(),

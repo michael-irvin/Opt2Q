@@ -3,7 +3,6 @@ import os
 import pandas as pd
 import numpy as np
 import datetime as dt
-from opt2q.noise import NoiseModel
 from opt2q.simulator import Simulator
 from opt2q.measurement import Fluorescence
 from opt2q.data import DataSet
@@ -12,7 +11,6 @@ from pydream.parameters import SampledParam
 from pydream.core import run_dream
 from pydream.convergence import Gelman_Rubin
 from opt2q_examples.apoptosis_model import model
-from multiprocessing import get_context, Pool
 
 from scipy.stats import norm
 
@@ -34,36 +32,25 @@ dataset.measurement_error_df = fluorescence_data[['nrm_var_IC-RP', 'nrm_var_EC-R
                     'nrm_var_EC-RP': 'norm_EC-RP__error'})  # DataSet expects error columns to have "__error" suffix
 
 # ------- Parameters --------
+param_names = [p.name for p in model.parameters_rules()]
+
+# Starting Parameters
 # parameters = pd.DataFrame([[p.value for p in model.parameters_rules()]],
 #                           columns=[p.name for p in model.parameters_rules()])
 
-true_params = [-6.9370612,  -4.98273231, -4.95067084, -5.71425451, -2.76587087, -0.48233495,
-               -7.82720074, -1.1626445,  -1.96149179, -5.41782659, -4.85626718, -1.52969156,
-               -4.79153366, -1.76493099, -2.46972459, -9.06088874, -2.9369674,  -5.07077935,
-               -6.11397529, -3.13346599, -2.2852632 , -4.70290624, -3.73949354, -2.40889128,
-               -4.75438846, -2.87013358, -0.77520986, -7.08167013,  # Rate parameters for apoptosis related reactions
-               # Rate params for unrelated reactions
-               -3.98704917, -2.41849717,  -4.28322569, -7.40096803, -2.27460174,  0.31984082]
+# Ground truth parameters
+true_params = np.load(os.path.join(script_dir, 'true_params.npy'))
+parameters = pd.DataFrame([[10**p for p in true_params]], columns=[p.name for p in model.parameters_rules()])
 
-param_names = ['kf0', 'kr0', 'kc0', 'kf1', 'kr1', 'kc1', 'kf2', 'kr2', 'kc2', 'kf3', 'kr3', 'kc3',
-               'kf4', 'kr4', 'kc4', 'kf5', 'kr5', 'kc5', 'kf6', 'kr6', 'kc6', 'kf7', 'kr7', 'kc7',
-               'kf8', 'kr8', 'kc8', 'kc9', 'kf10', 'kr10', 'kc10', 'kf11', 'kr11', 'kc11']
-
-params = pd.DataFrame({'value': [10**p for p in true_params], 'param': param_names})
-parameters = NoiseModel(params).run()
 
 # ------- Dynamics -------
 sim = Simulator(model=model, param_values=parameters, solver='scipyode',
                 solver_options={'integrator': 'lsoda'},
-                integrator_options={'rtol': 1e-2, 'atol': 1e-1})  # effort to speed-up solver
+                integrator_options={'mx_step': 2**20})  # effort to speed-up solver
+
 # sim = Simulator(model=model, param_values=parameters, solver='cupsoda', integrator_options={'vol': 4.0e-15})
 results = sim.run(np.linspace(0, fluorescence_data.time.max(), 100))
 
-# from matplotlib import pyplot as plt
-# p = results.opt2q_dataframe['cPARP_obs'].plot()
-# plt.legend()
-# plt.show()
-# quit()
 
 # ------- Measurement -------
 fl = Fluorescence(results,
@@ -73,7 +60,7 @@ fl = Fluorescence(results,
                   observables=['tBID_obs', 'cPARP_obs'])
 measurement_results = fl.run()
 fl.likelihood()
-quit
+
 
 # ------- Likelihood Function ------
 @objective_function(simulator=sim, measurement_model=fl, return_results=False, evals=0)

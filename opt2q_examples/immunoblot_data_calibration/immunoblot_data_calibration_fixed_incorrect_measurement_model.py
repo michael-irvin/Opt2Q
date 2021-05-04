@@ -24,8 +24,8 @@ param_names = [p.name for p in model.parameters_rules()][:-6]  # exclude paramet
 script_dir = os.path.dirname(__file__)
 true_params = np.load('true_params.npy')[:len(param_names)]
 
-params = pd.DataFrame({'value': [10**p for p in true_params], 'param': param_names})
-parameters = NoiseModel(params).run()  # No extrinsic noise applied
+parameters = pd.DataFrame([[10**p for p in true_params]], columns=param_names)
+
 
 # ------- Simulations -------
 # sim = Simulator(model=model, param_values=parameters, solver='cupsoda', integrator_options={'vol': 4.0e-15})
@@ -40,7 +40,7 @@ wb = WesternBlot(simulation_result=sim_results,
                  measured_values={'tBID_blot': ['tBID_obs'], 'cPARP_blot': ['cPARP_obs']},
                  observables=['tBID_obs', 'cPARP_obs'])
 
-wb.process = Pipeline(steps=[('x_scaled',ScaleToMinMax(columns=['tBID_obs', 'cPARP_obs'])),
+wb.process = Pipeline(steps=[('x_scaled', ScaleToMinMax(columns=['tBID_obs', 'cPARP_obs'])),
                              ('x_int', Interpolate(
                                  'time',
                                  ['tBID_obs', 'cPARP_obs'],

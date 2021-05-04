@@ -21,8 +21,8 @@ parent_dir = os.path.dirname(script_dir)
 true_params = np.load('true_params.npy')
 
 param_names = [p.name for p in model.parameters_rules()]
-params = pd.DataFrame({'value': [10**p for p in true_params], 'param': param_names})
-parameters = NoiseModel(params).run()
+parameters = pd.DataFrame([[10**p for p in true_params]], columns=param_names)
+
 
 # ------- Simulations -------
 sim = Simulator(model=model, param_values=parameters, solver='scipyode')

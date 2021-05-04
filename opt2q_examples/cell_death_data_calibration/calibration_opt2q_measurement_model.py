@@ -5,14 +5,11 @@ from pydream.core import run_dream
 from pydream.convergence import Gelman_Rubin
 from pydream.parameters import SampledParam
 from multiprocessing import current_process
-from multiprocess.context import TimeoutError
-from multiprocess.pool import Pool
 from opt2q.calibrator import objective_function
 from opt2q_examples.cell_death_data_calibration.cell_death_data_calibration_setup \
     import shift_and_scale_heterogeneous_population_to_new_params as sim_population
 from opt2q_examples.cell_death_data_calibration.cell_death_data_calibration_setup \
     import set_up_simulator, pre_processing, true_params, set_up_classifier, synth_data
-import time
 
 # Model name
 now = dt.datetime.now()
@@ -40,7 +37,7 @@ burn_in_len = 100000   # number of iterations during burn-in
 max_iterations = 120000
 
 # Simulator
-sim = set_up_simulator('cupsoda')
+sim = set_up_simulator('scipyode')
 
 # Measurement Model
 classifier = set_up_classifier()

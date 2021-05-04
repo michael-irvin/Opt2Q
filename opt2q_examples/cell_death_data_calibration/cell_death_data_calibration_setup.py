@@ -2,14 +2,12 @@
 import os
 import numpy as np
 import pandas as pd
-from scipy.stats import norm, invgamma
+from scipy.stats import norm
 from opt2q.simulator import Simulator
 from opt2q.measurement.base.transforms import LogisticClassifier, Scale, ScaleGroups, Standardize
 from opt2q.measurement.base.functions import derivative, where_max
 from opt2q_examples.apoptosis_model import model
 from opt2q.utils import _list_the_errors as list_items
-from matplotlib import pyplot as plt
-from matplotlib.lines import Line2D
 
 # ------- Synthetic Data ----
 script_dir = os.path.dirname(__file__)
@@ -38,31 +36,6 @@ model_presets.update(starting_params)  # m0
 standard_population = (extrinsic_noise_params[noisy_param_names].values - model_presets[noisy_param_names].values) \
                       / (model_presets[noisy_param_names].values * 0.20)  # coef variation is %20
 
-# Plot Dataset
-if __name__ == '__main__':
-    cm = plt.get_cmap('tab10')
-    x = extrinsic_noise_params[(extrinsic_noise_params.TRAIL_conc == '10ng/mL') & (synth_data.apoptosis == 0)]['kc0']
-    y = np.random.random(len(x))
-    plt.scatter(x * 1e5, y, color=cm.colors[7], marker='o', alpha=0.5, label='surviving cells 10ng/mL TRAIL')
-
-    x = extrinsic_noise_params[(extrinsic_noise_params.TRAIL_conc == '10ng/mL') & (synth_data.apoptosis == 1)]['kc0']
-    y = np.random.random(len(x))
-    plt.scatter(x * 1e5, y, color=cm.colors[7], marker='x', alpha=0.5, label='apoptotic cells 10ng/mL TRAIL')
-
-    x = extrinsic_noise_params[(extrinsic_noise_params.TRAIL_conc == '50ng/mL') & (synth_data.apoptosis == 0)]['kc0']
-    y = np.random.random(len(x))
-    plt.scatter(x * 1e5, y, color=cm.colors[1], marker='o', alpha=0.5, label='surviving cell 50ng/mL TRAIL')
-
-    x = extrinsic_noise_params[(extrinsic_noise_params.TRAIL_conc == '50ng/mL') & (synth_data.apoptosis == 1)]['kc0']
-    y = np.random.random(len(x))
-    plt.scatter(x * 1e5, y, color=cm.colors[1], marker='x', alpha=0.5, label='apoptotic cells 50ng/mL TRAIL')
-    # plt.xlim(0.95 * min(x * 1e5), 1.05 * max(x * 1e5))
-    plt.title('Dataset relating Initial Conditions to Apoptosis vs Survival Outcome')
-    plt.ylim(0.85 * min(y), 1.15 * max(y))
-    plt.xlabel('DISC Initial Conditions')
-    plt.legend()
-    plt.show()
-
 
 def simulate_heterogeneous_population(m, cv, population_0=standard_population):
     # rescale the extrinsic noise from (0, 1) to (m, m*cv).
@@ -86,8 +59,109 @@ def shift_and_scale_heterogeneous_population_to_new_params(x_):
     return params_df
 
 
-# Plot heterogeneous population
+# ------- Simulations -------
+# fluorescence data as reference
+file_path = os.path.join(script_dir, '../fluorescence_data_calibration/fluorescence_data.csv')
+raw_fluorescence_data = pd.read_csv(file_path)
+time_axis = np.linspace(0, raw_fluorescence_data['# Time'].max()*60, 100)
+
+sim = Simulator(model=model, param_values=extrinsic_noise_params, tspan=time_axis, solver='cupsoda',
+                integrator_options={'vol': 4.0e-15, 'max_steps': 2**20})
+
+
+def set_up_simulator(solver_name):
+    # 'cupsoda' and 'scipydoe' are valid solver names
+    if solver_name == 'cupsoda':
+        integrator_options = {'vol': 4.0e-15, 'max_steps': 2**20}
+        solver_options = dict()
+        if 'timeout' in Simulator.supported_solvers['cupsoda']._integrator_options_allowed:
+            solver_options.update({'timeout': 60})
+    elif solver_name == 'scipyode':
+        solver_options = {'integrator': 'lsoda'}
+        integrator_options = {'mxstep': 2**20}
+    else:
+        solver_options = {'atol': 1e-12}
+        integrator_options = {}
+    sim_ = Simulator(model=model, param_values=extrinsic_noise_params, tspan=time_axis, solver=solver_name,
+                     solver_options=solver_options, integrator_options=integrator_options)
+    sim_.run()
+
+    return sim_
+
+
+sim_results = sim.run()
+results = sim_results.opt2q_dataframe.reset_index().rename(columns={'index': 'time'})
+
+
+# Measurement model attributes
+# ============ Create tBID dynamics etc. features ============
+def pre_processing(sim_res):
+    obs = 'tBID_obs'
+
+    ddx = ScaleGroups(columns=[obs], groupby='simulation', scale_fn=derivative) \
+        .transform(sim_res[[obs, 'Unrelated_Signal', 'cPARP_obs', 'time', 'simulation', 'TRAIL_conc']])
+    t_at_max = ScaleGroups(groupby='simulation', scale_fn=where_max, **{'var': obs}).transform(ddx)
+
+    if t_at_max['time'].max() > 0.95 * sim_res['time'].max():
+        # Enforce BID truncation rate maximization to occur within 5.6 hours.
+        # This is consistent with our knowledge of the apoptosis system.
+        return None
+
+    log_max_ddx = Scale(columns='tBID_obs', scale_fn='log10').transform(t_at_max)
+    standardized_features = Standardize(columns=['tBID_obs', 'time', 'Unrelated_Signal']).transform(log_max_ddx)
+    return standardized_features
+
+
+std_tbid_features = pre_processing(results)
+
+
+# ============ Classify tBID into survival and death cell-fates =======
+# Setup supervised ML classifier using a small proxy dataset
+def set_up_classifier():
+    tbid_0s_1s = pd.DataFrame({'apoptosis': [0, 1, 0, 1],
+                               'TRAIL_conc': ['50ng/mL', '50ng/mL', '10ng/mL', '10ng/mL'],
+                               'simulation': [48, 49, 50, 51]})
+    tbid_classifier = LogisticClassifier(tbid_0s_1s,
+                                         column_groups={'apoptosis': ['tBID_obs', 'time', 'Unrelated_Signal']},
+                                         classifier_type='nominal')
+    tbid_classifier.transform(std_tbid_features.iloc[48:52].reset_index(drop=True)
+                              [['simulation', 'tBID_obs', 'time', 'Unrelated_Signal', 'TRAIL_conc']])
+
+    # Simulate Cell death outcomes based on tBID features
+    tbid_classifier.set_params(**{'do_fit_transform': False})  # Manually set ML parameters
+    tbid_classifier.transform(std_tbid_features[['simulation', 'tBID_obs', 'time', 'Unrelated_Signal', 'TRAIL_conc']])
+    return tbid_classifier
+
+
+# Plot Dataset Simulation and Pre-processing
 if __name__ == '__main__':
+    from matplotlib import pyplot as plt
+    from matplotlib.lines import Line2D
+
+    # plot heterogeneous population of dataset
+    cm = plt.get_cmap('tab10')
+    x = extrinsic_noise_params[(extrinsic_noise_params.TRAIL_conc == '10ng/mL') & (synth_data.apoptosis == 0)]['kc0']
+    y = np.random.random(len(x))
+    plt.scatter(x * 1e5, y, color=cm.colors[7], marker='o', alpha=0.5, label='surviving cells 10ng/mL TRAIL')
+
+    x = extrinsic_noise_params[(extrinsic_noise_params.TRAIL_conc == '10ng/mL') & (synth_data.apoptosis == 1)]['kc0']
+    y = np.random.random(len(x))
+    plt.scatter(x * 1e5, y, color=cm.colors[7], marker='x', alpha=0.5, label='apoptotic cells 10ng/mL TRAIL')
+
+    x = extrinsic_noise_params[(extrinsic_noise_params.TRAIL_conc == '50ng/mL') & (synth_data.apoptosis == 0)]['kc0']
+    y = np.random.random(len(x))
+    plt.scatter(x * 1e5, y, color=cm.colors[1], marker='o', alpha=0.5, label='surviving cell 50ng/mL TRAIL')
+
+    x = extrinsic_noise_params[(extrinsic_noise_params.TRAIL_conc == '50ng/mL') & (synth_data.apoptosis == 1)]['kc0']
+    y = np.random.random(len(x))
+    plt.scatter(x * 1e5, y, color=cm.colors[1], marker='x', alpha=0.5, label='apoptotic cells 50ng/mL TRAIL')
+    # plt.xlim(0.95 * min(x * 1e5), 1.05 * max(x * 1e5))
+    plt.title('Dataset relating Initial Conditions to Apoptosis vs Survival Outcome')
+    plt.ylim(0.85 * min(y), 1.15 * max(y))
+    plt.xlabel('DISC Initial Conditions')
+    plt.legend()
+    plt.show()
+
     cm = plt.get_cmap('tab10')
 
     # plot extrinsic noise parameters
@@ -125,42 +199,7 @@ if __name__ == '__main__':
         plt.title(f'Simulated extrinsic noise on {p} shifted and scaled \n to new mean and standard deviation')
         plt.show()
 
-
-# ------- Simulations -------
-# fluorescence data as reference
-file_path = os.path.join(script_dir, '../fluorescence_data_calibration/fluorescence_data.csv')
-raw_fluorescence_data = pd.read_csv(file_path)
-time_axis = np.linspace(0, raw_fluorescence_data['# Time'].max()*60, 100)
-
-sim = Simulator(model=model, param_values=extrinsic_noise_params, tspan=time_axis, solver='cupsoda',
-                integrator_options={'vol': 4.0e-15, 'max_steps': 2**20})
-
-
-def set_up_simulator(solver_name):
-    # 'cupsoda', dae_solver' and 'scipydoe' are valid solver names
-    if solver_name == 'cupsoda':
-        integrator_options = {'vol': 4.0e-15, 'max_steps': 2**20}
-        solver_options = dict()
-        if 'timeout' in Simulator.supported_solvers['cupsoda']._integrator_options_allowed:
-            solver_options.update({'timeout': 60})
-    elif solver_name == 'scipyode':
-        solver_options = {'integrator': 'lsoda'}
-        integrator_options = {'mxstep': 2**20}
-    else:
-        solver_options = {'atol': 1e-12}
-        integrator_options = {}
-    sim_ = Simulator(model=model, param_values=extrinsic_noise_params, tspan=time_axis, solver=solver_name,
-                     solver_options=solver_options, integrator_options=integrator_options)
-    sim_.run()
-
-    return sim_
-
-
-sim_results = sim.run()
-results = sim_results.opt2q_dataframe.reset_index().rename(columns={'index': 'time'})
-
-# plot simulations
-if __name__ == '__main__':
+    # Set up simulation
     from opt2q_examples.generate_synthetic_cell_death_dataset import results_lg, labels
 
     for k, v in labels.items():
@@ -197,28 +236,7 @@ if __name__ == '__main__':
         plt.ylabel('copies per cell')
         plt.show()
 
-
-# Measurement model attributes
-# ============ Create tBID dynamics etc. features ============
-def pre_processing(sim_res):
-    obs = 'tBID_obs'
-
-    ddx = ScaleGroups(columns=[obs], groupby='simulation', scale_fn=derivative) \
-        .transform(sim_res[[obs, 'Unrelated_Signal', 'cPARP_obs', 'time', 'simulation', 'TRAIL_conc']])
-    t_at_max = ScaleGroups(groupby='simulation', scale_fn=where_max, **{'var': obs}).transform(ddx)
-
-    if t_at_max['time'].max() > 0.95 * sim_res['time'].max():
-        # Enforce BID truncation rate maximization to occur within 5.6 hours.
-        # This is consistent with our knowledge of the apoptosis system.
-        return None
-
-    log_max_ddx = Scale(columns='tBID_obs', scale_fn='log10').transform(t_at_max)
-    standardized_features = Standardize(columns=['tBID_obs', 'time', 'Unrelated_Signal']).transform(log_max_ddx)
-    return standardized_features
-
-
-# plot preprocessing
-if __name__ == '__main__':
+    # plot preprocessing
     cm = plt.get_cmap('tab10')
     k = 'tBID'
     idx, obs = labels[k]
@@ -264,38 +282,3 @@ if __name__ == '__main__':
     plt.xlabel('time [seconds]')
     plt.ylabel('copies per cell')
     plt.show()
-
-std_tbid_features = pre_processing(results)
-
-
-# ============ Classify tBID into survival and death cell-fates =======
-# Setup supervised ML classifier using a small proxy dataset
-def set_up_classifier():
-    tbid_0s_1s = pd.DataFrame({'apoptosis': [0, 1, 0, 1],
-                               'TRAIL_conc': ['50ng/mL', '50ng/mL', '10ng/mL', '10ng/mL'],
-                               'simulation': [48, 49, 50, 51]})
-    tbid_classifier = LogisticClassifier(tbid_0s_1s,
-                                         column_groups={'apoptosis': ['tBID_obs', 'time', 'Unrelated_Signal']},
-                                         classifier_type='nominal')
-    tbid_classifier.transform(std_tbid_features.iloc[48:52].reset_index(drop=True)
-                              [['simulation', 'tBID_obs', 'time', 'Unrelated_Signal', 'TRAIL_conc']])
-
-    # Simulate Cell death outcomes based on tBID features
-    tbid_classifier.set_params(**{'do_fit_transform': False})  # Manually set ML parameters
-    tbid_classifier.transform(std_tbid_features[['simulation', 'tBID_obs', 'time', 'Unrelated_Signal', 'TRAIL_conc']])
-    return tbid_classifier
-
-
-# ============== Timeout exception ==========================
-# Useful for stopping likelihood evaluations that take too long.
-
-class TimeoutException(RuntimeError):
-    """ Time out occurred! """
-    pass
-
-
-def handle_timeouts(signum, frame):
-    print('took too long. moving on!')
-    raise TimeoutException()
-
-

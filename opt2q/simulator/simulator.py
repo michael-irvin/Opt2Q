@@ -20,13 +20,6 @@ try:
 except Exception:
     do_not_use_cupsoda = True
 
-try:
-    from pysb.simulator import DaeSimulator
-    do_not_use_dae = False
-except ImportError:
-    DaeSimulator = None
-    do_not_use_dae = True
-
 
 class Simulator(object):
     """
@@ -98,7 +91,7 @@ class Simulator(object):
         If True check new parameter and initials objects for compatibility with the solver, etc. Defaults to True
     """
 
-    supported_solvers = {'scipyode': ScipyOdeSimulator, 'cupsoda': CupSodaSimulator, 'daesolver': DaeSimulator}
+    supported_solvers = {'scipyode': ScipyOdeSimulator, 'cupsoda': CupSodaSimulator}
 
     def __init__(self, model, tspan=None, param_values=None, initials=None, solver='scipyode', solver_options=None,
                  integrator_options=None, **kwargs):
@@ -160,20 +153,6 @@ class Simulator(object):
 
             return self.supported_solvers['scipyode']
 
-        if do_not_use_dae and _solver is 'daesolver':
-            warnings.warn("You cannot use the 'daesolver' solver. "
-                          "The DaeSimulator is not installed. Install PySB from the 'dae' branch."
-                          "The 'scipyode' solver will be used instead and may take longer for simulation.",
-                          category=DaeSimulatorNotInstalledWarning)
-            # move solver options ('atol' and 'rtol') to integrator_options (as in scipyode)
-            self.solver_kwargs['integrator_options'].update({k: v for k, v in self.solver_kwargs.items() if k in ['atol', 'rtol']})
-            for k in ['atol', 'rtol']:
-                self.solver_kwargs.pop(k)
-            return self.supported_solvers['scipyode']
-        elif _solver is 'daesolver':
-            self.solver_kwargs.update(self.solver_kwargs['integrator_options'])
-            self.solver_kwargs.pop('integrator_options')
-
         try:
             return self.supported_solvers[_solver]
         except KeyError:
@@ -232,10 +211,6 @@ class Simulator(object):
             except (AssertionError, KeyError):
                 raise ValueError("The experimental conditions columns of 'initials' and 'param_values' DataFrames"
                                  "must be equal")
-            # if not checked_params[list(params_not_in_model | {'simulation'})].equals(
-            #         checked_initials[list(initials_not_in_model | {'simulation'})]):
-            #     raise ValueError("The experimental conditions columns of 'initials' and 'param_values' DataFrames"
-            #                      "must be equal")
         if params_are_compatible:
             self._exp_conditions_columns = list(params_not_in_model|{'simulation'})
         elif initials_are_compatible:
@@ -461,9 +436,9 @@ class Simulator(object):
 
         Notes
         -----
-            Currently, ``param_values`` and ``initials`` must have identical experimental indices.  Todo: Make a function completes these indices.
+            Currently, ``param_values`` and ``initials`` must have identical experimental indices.
 
-            The :class:`~pysb.simulator.SimulationResult` object that gets returned does not save/load ``results.opt2q_dataframe``. Todo: Write a save and load methods to add to the `SimulationResult`.
+            The :class:`~pysb.simulator.SimulationResult` object that gets returned does not save/load ``results.opt2q_dataframe``.
         """
         if 'affinitize_to' in run_kwargs:
             target_cpu_id = run_kwargs.pop('affinitize_to')

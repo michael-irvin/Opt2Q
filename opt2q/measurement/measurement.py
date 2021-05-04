@@ -80,181 +80,181 @@ class WesternBlot(MeasurementModel):
                                           observables=observables,
                                           time_points=time_points,
                                           experimental_conditions=experimental_conditions, **kwargs)
-        if observables is None:
-            self._observables = set()  # Ignore default_observables not mentioned in the measured variables
-        _measured_values, _process_observables = self._check_measured_values_dict(measured_values, dataset)
-        self._measured_values_dict = _measured_values
-        self._process_observables = _process_observables
-
-        self.interpolation_ds = Interpolate('time',
-                                            list(_process_observables),
-                                            self._dataset_experimental_conditions_df,
-                                            groupby='simulation')
-        self.interpolation = Interpolate('time',
-                                         list(_process_observables),
-                                         self.experimental_conditions_df,
-                                         groupby='simulation')
-
-        self.process = Pipeline(
-            steps=[('sample_average', SampleAverage(columns=list(_process_observables), drop_columns='simulation',
-                                                    groupby=list(set(
-                                                        self.experimental_conditions_df.columns) - {'simulation'}),
-                                                    apply_noise=True,
-                                                    variances=0.0,
-                                                    sample_size=10000)),  # models sample prep
-                   ('log_scale', Scale(columns=list(_process_observables), scale_fn='log10')),
-                   ('standardize', Standardize(columns=list(_process_observables), groupby=None)),
-                   ('classifier', LogisticClassifier(self._dataset, column_groups=_measured_values,
-                                                     do_fit_transform=False, classifier_type='ordinal_eoc'))])
-        self.results = None
-        self._results_cols = list(set(_process_observables) | (set(self.experimental_conditions_df.columns)) |
-                                  {'time', 'simulation'})
-
-    def _check_that_measured_values_is_dict(self, measured_values):
-        if isinstance(measured_values, dict):
-            return self._check_that_dict_items_are_vector_like(measured_values)
-        else:
-            raise ValueError("'measured_values' must be a dict.")
-
-    @staticmethod
-    def _check_that_dict_items_are_vector_like(dict_in):
-        dict_out = dict()
-        for k, v in dict_in.items():
-            dict_out.update({k: _convert_vector_like_to_list(v)} if _is_vector_like(v) else {k:[v]})
-        return dict_out
-
-    def _check_measured_values_dict(self, measured_values_dict, dataset) -> (dict, set):
-        """
-        Check that measured_values keys are in the dataset.measured_variables.
-
-        Look for observables mentioned in measured_values_dict that are not in self.observables, and add them.
-        """
-        obs = self.observables  # set
-        # Todo: change to: obs = set() if self._observables is None else self._observables  # set
-        data_cols = [k for k, v, in dataset.measured_variables.items() if v in ('default', 'ordinal')]
-
-        for k, v in measured_values_dict.items():
-            if k not in data_cols: raise ValueError(
-                "'measured_values' contains a variable, '{}', not mentioned as an ordinal variable in the 'dataset'."
-                .format(k))
-
-            if _is_vector_like(v):  # look for the v in the default_observables
-                measured_obs = _convert_vector_like_to_list(v)
-                for i in measured_obs:  # if v is an observable mentioned in i
-                    if isinstance(i, str):
-                        mentioned_obs = i.split('__')[0]
-                        obs |= {mentioned_obs} if mentioned_obs in self._default_observables else set()
-            else:
-                raise ValueError("'measured_values' must be a dict of list")
-
-        return measured_values_dict, obs
-
-    def run(self, use_dataset=True):
-        """
-        Run the measurement transform process
-
-        Parameters
-        ----------
-        use_dataset: bool
-            When true, it will run the simulation and return values for all the experiments mentioned in the dataset_fluorescence.
-            Otherwise, it will return values for all the experiments specified in the ``experimental_conditions``
-            argument or in the simulation result whether it is mentioned in the data or not (This is useful for out
-            of sample calculations).
-        """
-
-        if use_dataset:
-            x_ds = self.interpolation_ds.transform(self.simulation_result_df[self._results_cols])
-            result_ds = self.process.transform(x_ds)
-            self.results = result_ds
-            return self.results
-
-        else:
-            original_do_fit_transform_settings = {k: v for k, v in self.process.get_params().items()
-                                                  if 'do_fit_transform' in k}
-            do_not_do_fit_transform = {k: False for k in self.process.get_params().keys()
-                                       if 'do_fit_transform' in k}
-
-            self.process.set_params(**do_not_do_fit_transform)
-            x = self.interpolation.transform(self.simulation_result_df[self._results_cols])
-            self.results = self.process.transform(x)
-            self.process.set_params(**original_do_fit_transform_settings)
-
-            return self.results
-
-    def likelihood(self, use_all_dataset_obs=True, use_all_dataset_exp_cond=True):
-        """
-        Return scalar value of the negative log likelihood.
-
-        Parameters
-        ----------
-        use_all_dataset_obs: bool (optional)
-            If observables are supplied via the ``observables`` argument and a :class:`~opt2q.data.DataSet`, the
-            likelihood, by default, uses *all* the observables mentioned in the dataset_fluorescence (even if they are absent from
-            the ``observables`` argument).
-
-            If False, the likelihood uses only  the subset of observables mentioned in both the DataSet and the
-            ``observables`` arguments.
-
-        use_all_dataset_exp_cond: bool (optional)
-            If experimental conditions are supplied via the ``experimental_conditions`` argument and a
-            :class:`~opt2q.data.DataSet`, the likelihood uses, by default, *all* the experimental conditions mentioned
-            in the dataset_fluorescence (even if they are absent from the ``experimental_conditions`` argument).
-
-            If False, the likelihood uses only the subset of observables mentioned in both the DataSet and the
-            ``experimental_conditions`` arguments.
-        """
-
-        self.results = self.run(use_dataset=True)
-        ordinal_errors = self._dataset.ordinal_errors_df
-
-        exp_conditions_cols = list(self._dataset.experimental_conditions.columns)
-        columns_for_merge = exp_conditions_cols + ['simulation']
-
-        # The sample average step drops the 'simulation' column and changes the number of rows.
-        # Add the 'simulation' column back to the results dataframe so that it can merge with the _ordinal_errors_df
-        if 'simulation' not in self.results.columns:  # sample_average drops 'simulation' column
-            sample_avr_step = [y[1] for y in self.process.steps if y[0] == 'sample_average'][0]
-            sims = range(sample_avr_step.sample_size) if sample_avr_step._apply_noise else [0]
-            sims_repeats = int(self.results.shape[0]/len(sims))
-
-            self.results = self.results.assign(simulation=np.tile(sims, sims_repeats))
-
-        # Duplicate rows of _ordinal_errors_df to match self.results (which can have many simulations per data-point).
-        category_names = ordinal_errors.filter(regex='__').columns
-        ordinal_category_dist = ordinal_errors.merge(self.results, how='outer',
-                                                     on=exp_conditions_cols).drop_duplicates().reset_index(drop=True)
-
-        results = ordinal_category_dist[columns_for_merge+[cat_col + '_y' for cat_col in category_names]]
-        results = results.rename(columns={cat_col + '_y': cat_col for cat_col in category_names})
-
-        drop_results_cols = [cat_col + '_y' for cat_col in category_names]
-        rename_data_cols = {cat_col + '_x': cat_col for cat_col in category_names}
-        ordinal_category_dist = ordinal_category_dist.drop(columns=drop_results_cols)
-        ordinal_category_dist = ordinal_category_dist.rename(columns=rename_data_cols)
-
-        # Probability of the predictions and the data referencing the same ordinal category
-        likelihood_per_category_and_simulation = pd.DataFrame(
-            results[category_names].values*ordinal_category_dist[category_names].values,
-            columns=category_names)
-        likelihood_per_category_and_simulation[columns_for_merge] = ordinal_category_dist[columns_for_merge]
-
-        # Marginal probability estimates. Average probability for the simulations assigned to a particular data-point.
-        likelihood_per_category = likelihood_per_category_and_simulation.\
-            groupby(list(self._dataset.experimental_conditions.columns)).\
-            mean().reset_index().drop(['simulation'], axis=1)
-
-        # Sum probabilities of the categories mentioned for a particular measured variable
-        transposed_likelihoods = likelihood_per_category.transpose().reset_index()
-        transposed_likelihoods['index'] = [this.split("__")[0] for this in transposed_likelihoods['index']]
-        likelihoods = transposed_likelihoods.groupby('index').sum(numeric_only=True).transpose()
-
-        # Sum neg-log likelihood
-        return np.sum(-np.log(np.array(
-                likelihoods[
-                    likelihoods.columns.difference(list(self._dataset.experimental_conditions.columns))]
-                .values)
-                .astype(float)
-               ))
+    #     if observables is None:
+    #         self._observables = set()  # Ignore default_observables not mentioned in the measured variables
+    #     _measured_values, _process_observables = self._check_measured_values_dict(measured_values, dataset)
+    #     self._measured_values_dict = _measured_values
+    #     self._process_observables = _process_observables
+    #
+    #     self.interpolation_ds = Interpolate('time',
+    #                                         list(_process_observables),
+    #                                         self._dataset_experimental_conditions_df,
+    #                                         groupby='simulation')
+    #     self.interpolation = Interpolate('time',
+    #                                      list(_process_observables),
+    #                                      self.experimental_conditions_df,
+    #                                      groupby='simulation')
+    #
+    #     self.process = Pipeline(
+    #         steps=[('sample_average', SampleAverage(columns=list(_process_observables), drop_columns='simulation',
+    #                                                 groupby=list(set(
+    #                                                     self.experimental_conditions_df.columns) - {'simulation'}),
+    #                                                 apply_noise=True,
+    #                                                 variances=0.0,
+    #                                                 sample_size=10000)),  # models sample prep
+    #                ('log_scale', Scale(columns=list(_process_observables), scale_fn='log10')),
+    #                ('standardize', Standardize(columns=list(_process_observables), groupby=None)),
+    #                ('classifier', LogisticClassifier(self._dataset, column_groups=_measured_values,
+    #                                                  do_fit_transform=False, classifier_type='ordinal_eoc'))])
+    #     self.results = None
+    #     self._results_cols = list(set(_process_observables) | (set(self.experimental_conditions_df.columns)) |
+    #                               {'time', 'simulation'})
+    #
+    # def _check_that_measured_values_is_dict(self, measured_values):
+    #     if isinstance(measured_values, dict):
+    #         return self._check_that_dict_items_are_vector_like(measured_values)
+    #     else:
+    #         raise ValueError("'measured_values' must be a dict.")
+    #
+    # @staticmethod
+    # def _check_that_dict_items_are_vector_like(dict_in):
+    #     dict_out = dict()
+    #     for k, v in dict_in.items():
+    #         dict_out.update({k: _convert_vector_like_to_list(v)} if _is_vector_like(v) else {k:[v]})
+    #     return dict_out
+    #
+    # def _check_measured_values_dict(self, measured_values_dict, dataset) -> (dict, set):
+    #     """
+    #     Check that measured_values keys are in the dataset.measured_variables.
+    #
+    #     Look for observables mentioned in measured_values_dict that are not in self.observables, and add them.
+    #     """
+    #     obs = self.observables  # set
+    #     # Todo: change to: obs = set() if self._observables is None else self._observables  # set
+    #     data_cols = [k for k, v, in dataset.measured_variables.items() if v in ('default', 'ordinal')]
+    #
+    #     for k, v in measured_values_dict.items():
+    #         if k not in data_cols: raise ValueError(
+    #             "'measured_values' contains a variable, '{}', not mentioned as an ordinal variable in the 'dataset'."
+    #             .format(k))
+    #
+    #         if _is_vector_like(v):  # look for the v in the default_observables
+    #             measured_obs = _convert_vector_like_to_list(v)
+    #             for i in measured_obs:  # if v is an observable mentioned in i
+    #                 if isinstance(i, str):
+    #                     mentioned_obs = i.split('__')[0]
+    #                     obs |= {mentioned_obs} if mentioned_obs in self._default_observables else set()
+    #         else:
+    #             raise ValueError("'measured_values' must be a dict of list")
+    #
+    #     return measured_values_dict, obs
+    #
+    # def run(self, use_dataset=True):
+    #     """
+    #     Run the measurement transform process
+    #
+    #     Parameters
+    #     ----------
+    #     use_dataset: bool
+    #         When true, it will run the simulation and return values for all the experiments mentioned in the dataset_fluorescence.
+    #         Otherwise, it will return values for all the experiments specified in the ``experimental_conditions``
+    #         argument or in the simulation result whether it is mentioned in the data or not (This is useful for out
+    #         of sample calculations).
+    #     """
+    #
+    #     if use_dataset:
+    #         x_ds = self.interpolation_ds.transform(self.simulation_result_df[self._results_cols])
+    #         result_ds = self.process.transform(x_ds)
+    #         self.results = result_ds
+    #         return self.results
+    #
+    #     else:
+    #         original_do_fit_transform_settings = {k: v for k, v in self.process.get_params().items()
+    #                                               if 'do_fit_transform' in k}
+    #         do_not_do_fit_transform = {k: False for k in self.process.get_params().keys()
+    #                                    if 'do_fit_transform' in k}
+    #
+    #         self.process.set_params(**do_not_do_fit_transform)
+    #         x = self.interpolation.transform(self.simulation_result_df[self._results_cols])
+    #         self.results = self.process.transform(x)
+    #         self.process.set_params(**original_do_fit_transform_settings)
+    #
+    #         return self.results
+    #
+    # def likelihood(self, use_all_dataset_obs=True, use_all_dataset_exp_cond=True):
+    #     """
+    #     Return scalar value of the negative log likelihood.
+    #
+    #     Parameters
+    #     ----------
+    #     use_all_dataset_obs: bool (optional)
+    #         If observables are supplied via the ``observables`` argument and a :class:`~opt2q.data.DataSet`, the
+    #         likelihood, by default, uses *all* the observables mentioned in the dataset_fluorescence (even if they are absent from
+    #         the ``observables`` argument).
+    #
+    #         If False, the likelihood uses only  the subset of observables mentioned in both the DataSet and the
+    #         ``observables`` arguments.
+    #
+    #     use_all_dataset_exp_cond: bool (optional)
+    #         If experimental conditions are supplied via the ``experimental_conditions`` argument and a
+    #         :class:`~opt2q.data.DataSet`, the likelihood uses, by default, *all* the experimental conditions mentioned
+    #         in the dataset_fluorescence (even if they are absent from the ``experimental_conditions`` argument).
+    #
+    #         If False, the likelihood uses only the subset of observables mentioned in both the DataSet and the
+    #         ``experimental_conditions`` arguments.
+    #     """
+    #
+    #     self.results = self.run(use_dataset=True)
+    #     ordinal_errors = self._dataset.ordinal_errors_df
+    #
+    #     exp_conditions_cols = list(self._dataset.experimental_conditions.columns)
+    #     columns_for_merge = exp_conditions_cols + ['simulation']
+    #
+    #     # The sample average step drops the 'simulation' column and changes the number of rows.
+    #     # Add the 'simulation' column back to the results dataframe so that it can merge with the _ordinal_errors_df
+    #     if 'simulation' not in self.results.columns:  # sample_average drops 'simulation' column
+    #         sample_avr_step = [y[1] for y in self.process.steps if y[0] == 'sample_average'][0]
+    #         sims = range(sample_avr_step.sample_size) if sample_avr_step._apply_noise else [0]
+    #         sims_repeats = int(self.results.shape[0]/len(sims))
+    #
+    #         self.results = self.results.assign(simulation=np.tile(sims, sims_repeats))
+    #
+    #     # Duplicate rows of _ordinal_errors_df to match self.results (which can have many simulations per data-point).
+    #     category_names = ordinal_errors.filter(regex='__').columns
+    #     ordinal_category_dist = ordinal_errors.merge(self.results, how='outer',
+    #                                                  on=exp_conditions_cols).drop_duplicates().reset_index(drop=True)
+    #
+    #     results = ordinal_category_dist[columns_for_merge+[cat_col + '_y' for cat_col in category_names]]
+    #     results = results.rename(columns={cat_col + '_y': cat_col for cat_col in category_names})
+    #
+    #     drop_results_cols = [cat_col + '_y' for cat_col in category_names]
+    #     rename_data_cols = {cat_col + '_x': cat_col for cat_col in category_names}
+    #     ordinal_category_dist = ordinal_category_dist.drop(columns=drop_results_cols)
+    #     ordinal_category_dist = ordinal_category_dist.rename(columns=rename_data_cols)
+    #
+    #     # Probability of the predictions and the data referencing the same ordinal category
+    #     likelihood_per_category_and_simulation = pd.DataFrame(
+    #         results[category_names].values*ordinal_category_dist[category_names].values,
+    #         columns=category_names)
+    #     likelihood_per_category_and_simulation[columns_for_merge] = ordinal_category_dist[columns_for_merge]
+    #
+    #     # Marginal probability estimates. Average probability for the simulations assigned to a particular data-point.
+    #     likelihood_per_category = likelihood_per_category_and_simulation.\
+    #         groupby(list(self._dataset.experimental_conditions.columns)).\
+    #         mean().reset_index().drop(['simulation'], axis=1)
+    #
+    #     # Sum probabilities of the categories mentioned for a particular measured variable
+    #     transposed_likelihoods = likelihood_per_category.transpose().reset_index()
+    #     transposed_likelihoods['index'] = [this.split("__")[0] for this in transposed_likelihoods['index']]
+    #     likelihoods = transposed_likelihoods.groupby('index').sum(numeric_only=True).transpose()
+    #
+    #     # Sum neg-log likelihood
+    #     return np.sum(-np.log(np.array(
+    #             likelihoods[
+    #                 likelihoods.columns.difference(list(self._dataset.experimental_conditions.columns))]
+    #             .values)
+    #             .astype(float)
+    #            ))
 
 
 class WesternBlotPTM(WesternBlot):

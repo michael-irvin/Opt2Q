@@ -4,7 +4,7 @@ import os
 import numpy as np
 import pandas as pd
 import datetime as dt
-from scipy.stats import expon, uniform, cauchy
+from scipy.stats import expon
 from pydream.core import run_dream
 from pydream.convergence import Gelman_Rubin
 from pydream.parameters import SampledParam
@@ -20,15 +20,12 @@ script_dir = os.path.dirname(__file__)
 parent_dir = os.path.dirname(script_dir)
 true_params = np.load('true_params.npy')
 
-param_names = ['kf0', 'kr0', 'kc0', 'kf1', 'kr1', 'kc1', 'kf2', 'kr2', 'kc2', 'kf3', 'kr3', 'kc3',
-               'kf4', 'kr4', 'kc4', 'kf5', 'kr5', 'kc5', 'kf6', 'kr6', 'kc6', 'kr7', 'kf7', 'kc7',
-               'kf8', 'kr8', 'kc8', 'kc9']
 param_names = [p.name for p in model.parameters_rules()]
 params = pd.DataFrame({'value': [10**p for p in true_params], 'param': param_names})
 parameters = NoiseModel(params).run()
 
 # ------- Simulations -------
-sim = Simulator(model=model, param_values=parameters, solver='cupsoda')
+sim = Simulator(model=model, param_values=parameters, solver='scipyode')
 sim_results = sim.run(np.linspace(0, synthetic_immunoblot_data.data.time.max(), 100))
 
 results = sim_results.opt2q_dataframe.reset_index().rename(columns={'index': 'time'})
@@ -38,7 +35,7 @@ wb = WesternBlot(simulation_result=sim_results,
                  measured_values={'tBID_blot': ['tBID_obs'], 'cPARP_blot': ['cPARP_obs']},
                  observables=['tBID_obs', 'cPARP_obs'])
 
-wb.process = Pipeline(steps=[('x_scaled',ScaleToMinMax(columns=['tBID_obs', 'cPARP_obs'])),
+wb.process = Pipeline(steps=[('x_scaled', ScaleToMinMax(columns=['tBID_obs', 'cPARP_obs'])),
                              ('x_int', Interpolate(
                                  'time',
                                  ['tBID_obs', 'cPARP_obs'],
@@ -71,35 +68,12 @@ sampled_params_0 = [SampledParam(expon, loc=0.0, scale=100.0),      # coefficien
                     SampledParam(expon, loc=0.0, scale=0.25),       # coefficients__cPARP_blot__theta_4 float
                     ]
 
-# sampled_params_0 = [
-#                     SampledParam(uniform, loc=0.0, scale=100.0),          # coefficients__tBID_blot__coef_    float
-#                     SampledParam(uniform, loc=0.0, scale=1.0),           # coefficients__tBID_blot__theta_1  float
-#                     SampledParam(uniform, loc=0.0, scale=1.0),           # coefficients__tBID_blot__theta_2  float
-#                     SampledParam(uniform, loc=0.0, scale=1.0),           # coefficients__tBID_blot__theta_3  float
-#                     SampledParam(uniform, loc=0.0, scale=1.0),           # coefficients__tBID_blot__theta_4  float
-#                     SampledParam(uniform, loc=0.0, scale=100.0),          # coefficients__cPARP_blot__coef_   float
-#                     SampledParam(uniform, loc=0.0, scale=1.0),           # coefficients__cPARP_blot__theta_1 float
-#                     SampledParam(uniform, loc=0.0, scale=1.0),           # coefficients__cPARP_blot__theta_2 float
-#                     SampledParam(uniform, loc=0.0, scale=1.0),           # coefficients__cPARP_blot__theta_3 float
-#                     ]
-
-sampled_params_0 = [
-                    SampledParam(cauchy, loc=50.0, scale=1.0),          # coefficients__tBID_blot__coef_    float
-                    SampledParam(cauchy, loc=0.2, scale=0.005),           # coefficients__tBID_blot__theta_1  float
-                    SampledParam(cauchy, loc=0.2, scale=0.005),           # coefficients__tBID_blot__theta_2  float
-                    SampledParam(cauchy, loc=0.2, scale=0.005),           # coefficients__tBID_blot__theta_3  float
-                    SampledParam(cauchy, loc=0.2, scale=0.005),           # coefficients__tBID_blot__theta_4  float
-                    SampledParam(cauchy, loc=50.0, scale=1.0),          # coefficients__cPARP_blot__coef_   float
-                    SampledParam(cauchy, loc=0.25, scale=0.005),           # coefficients__cPARP_blot__theta_1 float
-                    SampledParam(cauchy, loc=0.25, scale=0.005),           # coefficients__cPARP_blot__theta_2 float
-                    SampledParam(cauchy, loc=0.25, scale=0.005),           # coefficients__cPARP_blot__theta_3 float
-                    ]
 n_chains = 4
 n_iterations = 10000  # iterations per file-save
 burn_in_len = 5000   # number of iterations during burn-in
 max_iterations = 10000
 now = dt.datetime.now()
-model_name = f'immunoblot_classifier_calibration_005_cauchy_priors_{now.year}{now.month}{now.day}'
+model_name = f'immunoblot_classifier_calibration_{now.year}{now.month}{now.day}'
 
 
 # ------- Likelihood Function ------

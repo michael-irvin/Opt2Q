@@ -29,7 +29,8 @@ parameters = pd.DataFrame([[10**p for p in true_params]], columns=param_names)
 
 # ------- Simulations -------
 # sim = Simulator(model=model, param_values=parameters, solver='cupsoda', integrator_options={'vol': 4.0e-15})
-sim = Simulator(model=model, param_values=parameters, solver='scipyode', solver_options={'integrator': 'lsoda'})
+sim = Simulator(model=model, param_values=parameters, solver='scipyode', solver_options={'integrator': 'lsoda'},
+                integrator_options={'mx_step': 2**20})  # effort to speed-up solver
 
 sim_results = sim.run(np.linspace(0, synthetic_immunoblot_data.data.time.max(), 100))
 

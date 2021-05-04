@@ -3,8 +3,6 @@ from pysb.bng import generate_equations
 from pysb.testing import *
 from opt2q.simulator import Simulator
 from opt2q.utils import UnsupportedSimulatorError, IncompatibleFormatWarning, CupSodaNotInstalledWarning
-from examples import plot_simple_dynamics_simulation
-from matplotlib import pyplot as plt
 from nose.tools import *
 import numpy as np
 import pandas as pd
@@ -548,34 +546,6 @@ class TestSolver(TestSolverModel, unittest.TestCase):
                                       check_less_precise=True,
                                       check_index_type=False,
                                       check_column_type=False)
-
-    def test_plot_simple_dynamics(self):
-        ax = plot_simple_dynamics_simulation.ax
-        cm = plt.get_cmap('tab10')
-
-        data = plot_simple_dynamics_simulation.results_df[['Product', 'condition']]
-        y = [data.loc[data['condition'] == 'fast']['Product'].values,
-             data.loc[data['condition'] == 'normal']['Product'].values,
-             data.loc[data['condition'] == 'slow']['Product'].values]
-        x = np.linspace(0, 50, 50)
-
-        legend = ['(1, fast)', '(1, normal)', '(1, slow)']
-
-        for i, cxn in enumerate(ax.lines):
-            # colors
-            test_color = cxn.get_color()[:3]
-            target_color = cm.colors[i][:]
-            np.testing.assert_array_equal(test_color, target_color)
-            # data
-            target_x, target_y = cxn.get_xydata().T
-            test_x = x
-            test_y = y[i]
-            np.testing.assert_array_equal(target_x.reshape((50, 1)), test_x.reshape((50, 1)))
-            np.testing.assert_array_equal(target_y.reshape((50, 1)), test_y.reshape((50, 1)))
-            # legend
-            test_text = ax.get_legend().get_texts()[i].get_text()
-            target_text = legend[i]
-            self.assertEqual(test_text, target_text)
 
     def test_check_solver_when_cupsoda_is_not_installed(self):
         try:

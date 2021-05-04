@@ -109,6 +109,9 @@ def load_gelman_rubin_values(script_dir, cal_folder, cal_date, cal_tag):
                                     os.listdir(os.path.join(script_dir, cal_folder))
                                     if cal_date in f and 'parameters' in f and cal_tag in f])
     file_order = sorted(list(set(int(re.findall(r'\d+', file_name)[-1]) for file_name in parameter_file_paths_)))
+    print(sorted([os.path.join(script_dir, cal_folder, f) for f in
+                      os.listdir(os.path.join(script_dir, cal_folder))
+                      if cal_date in f and str(file_order[-1]) in f and '.txt' in f and cal_tag in f]))
     gr_file = sorted([os.path.join(script_dir, cal_folder, f) for f in
                       os.listdir(os.path.join(script_dir, cal_folder))
                       if cal_date in f and str(file_order[-1]) in f and '.txt' in f and cal_tag in f])[0]

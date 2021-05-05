@@ -5,7 +5,6 @@ import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 from scipy.stats import norm
-from opt2q.noise import NoiseModel
 from opt2q.simulator import Simulator
 from opt2q.data import DataSet
 from opt2q.measurement import Fluorescence
@@ -33,16 +32,11 @@ dataset.measurement_error_df = fluorescence_data[['nrm_var_IC-RP', 'nrm_var_EC-R
                     'nrm_var_EC-RP': 'norm_EC-RP__error'})  # DataSet expects error columns to have "__error" suffix
 
 # ------- Starting Parameters -------
-# param_names = ['kf0', 'kr0', 'kc0', 'kf1', 'kr1', 'kc1', 'kf2', 'kr2', 'kc2', 'kf3', 'kr3', 'kc3',
-#                'kf4', 'kr4', 'kc4', 'kf5', 'kr5', 'kc5', 'kf6', 'kr6', 'kc6', 'kf7', 'kr7', 'kc7',
-#                'kf8', 'kr8', 'kc8', 'kc9']
-
 param_names = [p.name for p in model.parameters_rules()][:-6]
 
 true_params = np.load('true_params.npy')[:len(param_names)]
 
-params = pd.DataFrame({'value': [10**p for p in true_params], 'param': param_names})
-parameters = NoiseModel(params).run()
+parameters = pd.DataFrame([[10**p for p in true_params]], columns=param_names)
 
 
 # ------- Simulations -------
@@ -143,11 +137,6 @@ lc.set_params(** {'coefficients__cPARP_blot__coef_': np.array([a]),
                   'coefficients__cPARP_blot__theta_': np.array([0.03,  0.20, 0.97])*a,
                   'coefficients__tBID_blot__coef_': np.array([a]),
                   'coefficients__tBID_blot__theta_': np.array([0.03,  0.4,  0.82, 0.97])*a})
-
-# lc.set_params(** {'coefficients__cPARP_blot__coef_': np.array([a]),
-#                   'coefficients__cPARP_blot__theta_': np.array([0.00,  0.5, 1.0])*a,
-#                   'coefficients__tBID_blot__coef_': np.array([a]),
-#                   'coefficients__tBID_blot__theta_': np.array([0.00,  0.37,  0.67, 1.0])*a})
 
 
 # plot classifier

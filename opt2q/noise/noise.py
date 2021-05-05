@@ -90,7 +90,8 @@ class NoiseModel(object):
         `value` (column): `float`
             value (or average value, when noise is applied) for the parameter
         `apply_noise` (column): `bool` (optional)
-            When True, this parameter is drawn from a underlying probability distribution. False by default, unless the parameter (and experimental condition) is also mentioned in the `covariance`.
+            When True, this parameter is drawn from a underlying probability distribution. False by default, unless the
+            parameter (and experimental condition) is also mentioned in the `covariance`.
         `num_sims`(column): `int` (optional)
             Sample size of the parameters.
             A :attr:`default_sample_size <opt2q.noise.NoiseModel.default_sample_size>` of 50 is used if this
@@ -121,7 +122,7 @@ class NoiseModel(object):
                 Each unique row, in these additional columns, designates a different experimental condition. If no
                 additional columns are present, a single unnamed experimental condition is provided by default.
 
-        **Pending code** (Todo): Currently num_sims column is not read as part of the covariance dataframe. Add that option.
+        **Pending code** (Todo): Currently num_sims column is not read as part of the covariance dataframe. Add that option?
 
     model: `PySB` :class:`~pysb.core.Model` (optional)
 
@@ -146,7 +147,7 @@ class NoiseModel(object):
         Dictionary of supported noise simulator names and functions
     """
     supported_noise_simulators = {'multivariate_log_norm': multivariate_log_normal_fn}
-    required_columns = {'param_mean':{'param', 'value'}, 'param_covariance': {'param_i', 'param_j', 'value'}}
+    required_columns = {'param_mean': {'param', 'value'}, 'param_covariance': {'param_i', 'param_j', 'value'}}
     other_useful_columns = {'simulation', 'num_sims', 'apply_noise'}
 
     default_param_values = None  # Use dict to designated defaults for 'param' and 'value'.

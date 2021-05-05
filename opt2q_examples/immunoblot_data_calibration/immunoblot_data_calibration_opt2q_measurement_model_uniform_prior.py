@@ -6,8 +6,7 @@ import os
 import numpy as np
 import pandas as pd
 import datetime as dt
-from scipy.stats import norm, expon, uniform
-from opt2q.noise import NoiseModel
+from scipy.stats import norm, uniform
 from opt2q.simulator import Simulator
 from opt2q.measurement import WesternBlot
 from opt2q.measurement.base.transforms import Pipeline, ScaleToMinMax, Interpolate, LogisticClassifier
@@ -203,5 +202,3 @@ if __name__ == '__main__':
 
             if np.all(GR < 1.2):
                 converged = True
-
-

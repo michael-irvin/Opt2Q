@@ -10,7 +10,6 @@ from pydream.convergence import Gelman_Rubin
 from pydream.parameters import SampledParam
 from opt2q.calibrator import objective_function
 from opt2q.simulator import Simulator
-from opt2q.noise import NoiseModel
 from opt2q.measurement import WesternBlot
 from opt2q.measurement.base.transforms import Pipeline, ScaleToMinMax, Interpolate, LogisticClassifier
 from opt2q_examples.apoptosis_model import model

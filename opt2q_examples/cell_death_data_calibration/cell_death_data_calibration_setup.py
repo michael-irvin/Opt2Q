@@ -13,11 +13,11 @@ from opt2q.utils import _list_the_errors as list_items
 script_dir = os.path.dirname(__file__)
 
 file_path = os.path.join(script_dir, 'synthetic_tbid_dependent_apoptosis_data_large.csv')
-synth_data = pd.read_csv(file_path).iloc[::2].reset_index(drop=True)  # Remove half dataset to relieve load on solvers
+synth_data = pd.read_csv(file_path)
 synth_data['simulation'] = range(len(synth_data))
 
 file_path = os.path.join(script_dir, 'true_params_extrinsic_noise_large.csv')
-extrinsic_noise_params = pd.read_csv(file_path).iloc[::2].reset_index(drop=True)  # Remove half parameters as with data
+extrinsic_noise_params = pd.read_csv(file_path)
 extrinsic_noise_params['simulation'] = range(len(extrinsic_noise_params))
 
 # ------- Starting Point ----

@@ -55,6 +55,7 @@ wb.process = Pipeline(steps=[('x_scaled', ScaleToMinMax(columns=['tBID_obs', 'cP
 wb.run()
 
 a = 50
+# Case 1
 # wb.process.get_step('classifier')\
 #     .set_params(** {'coefficients__cPARP_blot__coef_': np.array([a]),  # incorrect thresholds
 #                     'coefficients__cPARP_blot__theta_': np.array([0.00,  0.5, 1.0])*a,
@@ -62,6 +63,7 @@ a = 50
 #                     'coefficients__tBID_blot__theta_': np.array([0.00,  0.37,  0.67, 1.0])*a,
 #                     'do_fit_transform': False})
 
+# Case 2
 wb.process.get_step('classifier')\
     .set_params(** {'coefficients__cPARP_blot__coef_': np.array([a]),  # incorrect thresholds
                     'coefficients__cPARP_blot__theta_': np.array([0.25,  0.5, 0.75])*a,

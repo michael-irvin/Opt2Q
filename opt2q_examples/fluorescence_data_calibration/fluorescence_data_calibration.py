@@ -4,7 +4,8 @@ import pandas as pd
 import numpy as np
 import datetime as dt
 from opt2q.simulator import Simulator
-from opt2q.measurement import Fluorescence
+from opt2q.measurement.base.likelihood import normal_pdf_empirical_var_likelihood as likelihood
+from opt2q.measurement.base.transforms import Pipeline, Interpolate, ScaleToMinMax
 from opt2q.data import DataSet
 from opt2q.calibrator import objective_function
 from pydream.parameters import SampledParam
@@ -46,24 +47,24 @@ parameters = pd.DataFrame([[10**p for p in true_params]], columns=[p.name for p 
 # ------- Dynamics -------
 sim = Simulator(model=model, param_values=parameters, solver='scipyode',
                 solver_options={'integrator': 'lsoda'},
-                integrator_options={'mx_step': 2**20})  # effort to speed-up solver
+                integrator_options={'mxstep': 2**20})  # effort to speed-up solver
 
 # sim = Simulator(model=model, param_values=parameters, solver='cupsoda', integrator_options={'vol': 4.0e-15})
-results = sim.run(np.linspace(0, fluorescence_data.time.max(), 100))
-
+sim_results = sim.run(np.linspace(0, fluorescence_data.time.max(), 100))
+results = sim_results.opt2q_dataframe.reset_index().rename(columns={'index': 'time'})
 
 # ------- Measurement -------
-fl = Fluorescence(results,
-                  dataset=dataset,
-                  measured_values={'norm_IC-RP': ['tBID_obs'],
-                                   'norm_EC-RP': ['cPARP_obs']},
-                  observables=['tBID_obs', 'cPARP_obs'])
-measurement_results = fl.run()
-fl.likelihood()
+measurement_model = Pipeline(
+    steps=[('interpolate', Interpolate('time', ['cPARP_obs', 'tBID_obs'], dataset.data['time'])),
+           ('normalize', ScaleToMinMax(feature_range=(0, 1), columns=['cPARP_obs', 'tBID_obs']))
+           ])
+
+p = measurement_model.transform(results[['tBID_obs', 'cPARP_obs', 'time']])
+print(likelihood(p, dataset, {'norm_IC-RP': ['tBID_obs'], 'norm_EC-RP': ['cPARP_obs']}))
 
 
 # ------- Likelihood Function ------
-@objective_function(simulator=sim, measurement_model=fl, return_results=False, evals=0)
+@objective_function(simulator=sim, measurement=measurement_model, likelihood=likelihood, return_results=False, evals=0)
 def likelihood_fn(x):
     new_params = pd.DataFrame([[10**p for p in x]],
                               columns=[p.name for p in model.parameters_rules()])
@@ -74,25 +75,25 @@ def likelihood_fn(x):
         # process_id = current_process().ident % 4
         # likelihood.simulator.sim.gpu = [process_id]
         likelihood_fn.simulator.sim.gpu = 0
-    sim_results = likelihood_fn.simulator.run()
+    results_ = likelihood_fn.simulator.run().opt2q_dataframe.reset_index().rename(columns={'index': 'time'})
 
     # measurement
-    likelihood_fn.measurement_model.update_simulation_result(sim_results)
+    prediction = likelihood_fn.measurement.transform(results_[['tBID_obs', 'cPARP_obs', 'time']])
     likelihood_fn.evals += 1
 
     try:
-        ll = -likelihood_fn.measurement_model.likelihood()
+        ll = -likelihood_fn.likelihood(prediction, dataset, measured_values={'norm_IC-RP': ['tBID_obs'],
+                                                                             'norm_EC-RP': ['cPARP_obs']})
     except (ValueError, ZeroDivisionError):
         return -1e10
 
-    if np.isnan(ll):
+    if not np.isfinite(ll):
         return -1e10
     else:
         print(likelihood_fn.evals)
         print(x)
         print(ll)
         return ll
-
 
 # -------- Calibration -------
 # Model Inference via PyDREAM

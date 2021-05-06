@@ -7,8 +7,7 @@ from matplotlib import pyplot as plt
 from scipy.stats import norm
 from opt2q.simulator import Simulator
 from opt2q.data import DataSet
-from opt2q.measurement import Fluorescence
-from opt2q.measurement.base import LogisticClassifier, Interpolate, ScaleToMinMax
+from opt2q.measurement.base import LogisticClassifier, Interpolate, ScaleToMinMax, Pipeline
 from opt2q_examples.apoptosis_model import model
 
 
@@ -57,12 +56,12 @@ if __name__ == '__main__':
 
 # ------- Fluorescence -------
 # The "true parameters" are based on best fit to these data.
-fl = Fluorescence(sim_results,
-                  dataset=dataset,
-                  measured_values={'norm_IC-RP': ['tBID_obs'],
-                                   'norm_EC-RP': ['cPARP_obs']},
-                  observables=['tBID_obs', 'cPARP_obs'])
-measurement_results = fl.run()
+measurement_model = Pipeline(
+    steps=[('interpolate', Interpolate('time', ['cPARP_obs', 'tBID_obs'], dataset.data['time'])),
+           ('normalize', ScaleToMinMax(feature_range=(0, 1), columns=['cPARP_obs', 'tBID_obs']))
+           ])
+
+measurement_results = measurement_model.transform(results[['tBID_obs', 'cPARP_obs', 'time']])
 
 if __name__ == '__main__':
     plt.plot(measurement_results['time'], measurement_results['cPARP_obs'], label=f'simulated PARP cleavage')

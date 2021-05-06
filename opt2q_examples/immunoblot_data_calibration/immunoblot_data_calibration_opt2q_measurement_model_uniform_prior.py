@@ -8,14 +8,17 @@ import pandas as pd
 import datetime as dt
 from scipy.stats import norm, uniform
 from opt2q.simulator import Simulator
-from opt2q.measurement import WesternBlot
+from opt2q.measurement.base.likelihood import categorical_dist_likelihood as likelihood
 from opt2q.measurement.base.transforms import Pipeline, ScaleToMinMax, Interpolate, LogisticClassifier
 from opt2q.calibrator import objective_function
 from pydream.parameters import SampledParam
 from pydream.core import run_dream
 from pydream.convergence import Gelman_Rubin
-from opt2q_examples.immunoblot_data_calibration.generate_synthetic_immunoblot_dataset import synthetic_immunoblot_data
 from opt2q_examples.apoptosis_model import model
+import pickle
+
+with open(f'synthetic_WB_dataset_60s_2020_12_7.pkl', 'rb') as data_input:
+    synthetic_immunoblot_data = pickle.load(data_input)
 
 param_names = [p.name for p in model.parameters_rules()][:-6]
 num_params = len(param_names)
@@ -35,23 +38,17 @@ sim_results = sim.run(np.linspace(0, synthetic_immunoblot_data.data.time.max(), 
 
 results = sim_results.opt2q_dataframe.reset_index().rename(columns={'index': 'time'})
 
-wb = WesternBlot(simulation_result=sim_results,
-                 dataset=synthetic_immunoblot_data,
-                 measured_values={'tBID_blot': ['tBID_obs'], 'cPARP_blot': ['cPARP_obs']},
-                 observables=['tBID_obs', 'cPARP_obs'])
-
-wb.process = Pipeline(steps=[('x_scaled', ScaleToMinMax(columns=['tBID_obs', 'cPARP_obs'])),
-                             ('x_int', Interpolate(
-                                 'time',
-                                 ['tBID_obs', 'cPARP_obs'],
-                                 synthetic_immunoblot_data.data['time'])),
-                             ('classifier', LogisticClassifier(
-                                 synthetic_immunoblot_data,
-                                 column_groups={'tBID_blot': ['tBID_obs'], 'cPARP_blot': ['cPARP_obs']},
-                                 do_fit_transform=False,
-                                 classifier_type='ordinal_eoc'))])
-
-wb.run()
+# ------- Measurement -------
+measurement_model = Pipeline(steps=[('x_scaled', ScaleToMinMax(columns=['tBID_obs', 'cPARP_obs'])),
+                                    ('x_int', Interpolate('time', ['tBID_obs', 'cPARP_obs'],
+                                                          synthetic_immunoblot_data.data['time'])),
+                                    ('classifier', LogisticClassifier(
+                                     synthetic_immunoblot_data,
+                                     column_groups={'tBID_blot': ['tBID_obs'], 'cPARP_blot': ['cPARP_obs']},
+                                     do_fit_transform=False,
+                                     classifier_type='ordinal_eoc'))])
+processed_results = measurement_model.transform(results[['time', 'tBID_obs', 'cPARP_obs']])
+print(likelihood(processed_results, synthetic_immunoblot_data))
 
 
 # -------- Calibration -------
@@ -78,7 +75,7 @@ model_name = f'apoptosis_params_and_immunoblot_classifier_calibration_uniform_pr
 
 
 # ------- Likelihood Function ------
-@objective_function(simulator=sim, immunoblot_model=wb, return_results=False, evals=0)
+@objective_function(simulator=sim, measurement=measurement_model, likelihood=likelihood, return_results=False, evals=0)
 def likelihood_fn(x):
     new_params = pd.DataFrame([[10 ** p for p in x[:num_params]]], columns=param_names)
 
@@ -100,22 +97,22 @@ def likelihood_fn(x):
         likelihood_fn.simulator.sim.gpu = [0]
 
     # dynamics
-    new_results = likelihood_fn.simulator.run()
+    new_results = likelihood_fn.simulator.run().opt2q_dataframe.reset_index().rename(columns={'index': 'time'})
 
     # measurement
-    likelihood_fn.immunoblot_model.update_simulation_result(new_results)
-    likelihood_fn.immunoblot_model.process.get_step('classifier').set_params(
+    likelihood_fn.measurement.get_step('classifier').set_params(
         **{'coefficients__tBID_blot__coef_': np.array([c0]),
            'coefficients__tBID_blot__theta_': np.array([t1, t2, t3, t4]) * c0,
            'coefficients__cPARP_blot__coef_': np.array([c5]),
            'coefficients__cPARP_blot__theta_': np.array([t6, t7, t8]) * c5})
+    prediction = likelihood_fn.measurement.transform(new_results[['time', 'tBID_obs', 'cPARP_obs']])
 
     print(likelihood_fn.evals)
     print(x)
     likelihood_fn.evals += 1
 
     try:
-        ll = -likelihood_fn.immunoblot_model.likelihood()
+        ll = -likelihood_fn.likelihood(prediction, synthetic_immunoblot_data)
     except (ValueError, ZeroDivisionError):
         return -1e10
 
@@ -131,7 +128,6 @@ if __name__ == '__main__':
     gamma_levels = 8
     p_gamma_unity = 0.1
     print(ncr, gamma_levels, p_gamma_unity)
-    print(wb.process.get_step('classifier').get_params())
 
     # Run DREAM sampling.  Documentation of DREAM options is in Dream.py.
     converged = False

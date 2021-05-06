@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 from opt2q.simulator import Simulator
-from opt2q.measurement import WesternBlot
 from opt2q.measurement.base import Pipeline, ScaleToMinMax, Interpolate, LogisticClassifier
 
 
@@ -16,22 +15,17 @@ def set_up_simulator(model):
 
 
 def set_up_immunoblot(sim, dataset):
-    # res = sim.run().opt2q_dataframe.reset_index().rename(columns={'index': 'time'})
-    sim_res = sim.run()
-    wb = WesternBlot(simulation_result=sim_res, dataset=dataset,
-                     measured_values={'IC_DISC_localization': ['C8_DISC_recruitment_obs']},
-                     observables=['C8_DISC_recruitment_obs'])
-    wb.process = Pipeline(steps=[('x_scaled', ScaleToMinMax(columns=['C8_DISC_recruitment_obs'])),
-                                 ('x_int', Interpolate('time', ['C8_DISC_recruitment_obs'], dataset.data['time'])),
-                                 ('classifier', LogisticClassifier(
-                                     dataset,
-                                     column_groups={'IC_DISC_localization': ['C8_DISC_recruitment_obs']},
-                                     do_fit_transform=False,
-                                     classifier_type='ordinal_eoc'))
-                                 ]
-                          )
-    wb.run()
-    return wb
+    results = sim.run().opt2q_dataframe.reset_index().rename(columns={'index': 'time'})
+
+    measurement_model = Pipeline(steps=[('x_scaled', ScaleToMinMax(columns=['C8_DISC_recruitment_obs'])),
+                                        ('x_int', Interpolate('time', ['C8_DISC_recruitment_obs'], dataset.data['time'])),
+                                        ('classifier', LogisticClassifier(
+                                            dataset,
+                                            column_groups={'IC_DISC_localization': ['C8_DISC_recruitment_obs']},
+                                            do_fit_transform=False,
+                                            classifier_type='ordinal_eoc'))])
+    measurement_model.transform(results[['time', 'C8_DISC_recruitment_obs']])
+    return measurement_model
 
 
 if __name__ == '__main__':

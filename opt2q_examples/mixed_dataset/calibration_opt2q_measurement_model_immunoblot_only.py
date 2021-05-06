@@ -6,6 +6,7 @@ from scipy.stats import norm, expon
 from opt2q_examples.mixed_dataset.calibration_setup import set_up_simulator as immunoblot_set_up_sim, set_up_immunoblot
 from opt2q_examples.apoptosis_model import model
 from opt2q.calibrator import objective_function
+from opt2q.measurement.base.likelihood import categorical_dist_likelihood as likelihood_f
 from pydream.core import run_dream
 from pydream.convergence import Gelman_Rubin
 import pickle
@@ -64,24 +65,24 @@ def likelihood(x):
             likelihood.sim_wb.sim.gpu = [0]
 
         # dynamics
-        new_results = likelihood.sim_wb.run()
+        new_results = likelihood.sim_wb.run().opt2q_dataframe.reset_index().rename(columns={'index': 'time'})
         likelihood.new_results_immuno = new_results
         # measurement
-        likelihood.immunoblot_model.update_simulation_result(new_results)
-        likelihood.immunoblot_model.process.get_step('classifier').set_params(
+        likelihood.immunoblot_model.get_step('classifier').set_params(
             **{'coefficients__IC_DISC_localization__coef_': np.array([c0]),
                'coefficients__IC_DISC_localization__theta_': np.array([t1, t2, t3]) * c0})
+        prediction_im = likelihood.immunoblot_model.transform(new_results[['time', 'C8_DISC_recruitment_obs']])
 
         print(likelihood.evals)
         print(x)
         likelihood.evals += 1
 
-        ll += -likelihood.immunoblot_model.likelihood()
+        ll += -likelihood_f(prediction_im, immunoblot_dataset)
 
     except (ValueError, ZeroDivisionError, TypeError):
         return -1e10
 
-    if np.isnan(ll):
+    if not np.isfinite(ll):
         return -1e10
 
     else:

@@ -10,10 +10,13 @@ from pydream.convergence import Gelman_Rubin
 from pydream.parameters import SampledParam
 from opt2q.calibrator import objective_function
 from opt2q.simulator import Simulator
-from opt2q.measurement import WesternBlot
+from opt2q.measurement.base.likelihood import categorical_dist_likelihood as likelihood
 from opt2q.measurement.base.transforms import Pipeline, ScaleToMinMax, Interpolate, LogisticClassifier
 from opt2q_examples.apoptosis_model import model
-from opt2q_examples.immunoblot_data_calibration.generate_synthetic_immunoblot_dataset import synthetic_immunoblot_data
+import pickle
+
+with open(f'synthetic_WB_dataset_60s_2020_12_7.pkl', 'rb') as data_input:
+    synthetic_immunoblot_data = pickle.load(data_input)
 
 script_dir = os.path.dirname(__file__)
 parent_dir = os.path.dirname(script_dir)
@@ -25,34 +28,29 @@ parameters = pd.DataFrame([[10**p for p in true_params]], columns=param_names)
 
 # ------- Simulations -------
 sim = Simulator(model=model, param_values=parameters, solver='scipyode', solver_options={'integrator': 'lsoda'},
-                integrator_options={'mx_step': 2**20})  # effort to speed-up solver
+                integrator_options={'mxstep': 2**20})  # effort to speed-up solver
 sim_results = sim.run(np.linspace(0, synthetic_immunoblot_data.data.time.max(), 100))
 
 results = sim_results.opt2q_dataframe.reset_index().rename(columns={'index': 'time'})
 
-wb = WesternBlot(simulation_result=sim_results,
-                 dataset=synthetic_immunoblot_data,
-                 measured_values={'tBID_blot': ['tBID_obs'], 'cPARP_blot': ['cPARP_obs']},
-                 observables=['tBID_obs', 'cPARP_obs'])
-
-wb.process = Pipeline(steps=[('x_scaled', ScaleToMinMax(columns=['tBID_obs', 'cPARP_obs'])),
-                             ('x_int', Interpolate(
-                                 'time',
-                                 ['tBID_obs', 'cPARP_obs'],
-                                 synthetic_immunoblot_data.data['time'])),
-                             ('classifier', LogisticClassifier(
-                                 synthetic_immunoblot_data,
-                                 column_groups={'tBID_blot': ['tBID_obs'], 'cPARP_blot': ['cPARP_obs']},
-                                 do_fit_transform=False,
-                                 classifier_type='ordinal_eoc'))])
+# ------- Measurement -------
+measurement_model = Pipeline(steps=[('x_scaled', ScaleToMinMax(columns=['tBID_obs', 'cPARP_obs'])),
+                                    ('x_int', Interpolate('time', ['tBID_obs', 'cPARP_obs'],
+                                                          synthetic_immunoblot_data.data['time'])),
+                                    ('classifier', LogisticClassifier(
+                                     synthetic_immunoblot_data,
+                                     column_groups={'tBID_blot': ['tBID_obs'], 'cPARP_blot': ['cPARP_obs']},
+                                     do_fit_transform=False,
+                                     classifier_type='ordinal_eoc'))])
 
 a = 50
-wb.process.get_step('classifier'). \
+measurement_model.get_step('classifier'). \
     set_params(**{'coefficients__cPARP_blot__coef_': np.array([a]),
                   'coefficients__cPARP_blot__theta_': np.array([0.03, 0.20, 0.97]) * a,
                   'coefficients__tBID_blot__coef_': np.array([a]),
                   'coefficients__tBID_blot__theta_': np.array([0.03, 0.4, 0.82, 0.97]) * a})
-wb.run()
+processed_results = measurement_model.transform(results[['time', 'tBID_obs', 'cPARP_obs']])
+print(likelihood(processed_results, synthetic_immunoblot_data))
 
 # -------- Calibration -------
 # Model Inference via PyDREAM
@@ -77,8 +75,8 @@ model_name = f'immunoblot_classifier_calibration_{now.year}{now.month}{now.day}'
 
 
 # ------- Likelihood Function ------
-@objective_function(immunoblot_model=wb, return_results=False, evals=0)
-def likelihood(x):
+@objective_function(measurement=measurement_model, likelihood=likelihood, return_results=False, evals=0)
+def likelihood_fn(x):
     if any(xi <= 0 for xi in x):
         return -10000000.0
 
@@ -94,16 +92,19 @@ def likelihood(x):
     t7 = t6 + x[7]
     t8 = t7 + x[8]
 
-    print(likelihood.evals)
+    print(likelihood_fn.evals)
     print(x)
 
-    likelihood.immunoblot_model.process.get_step('classifier').set_params(
+    # measurement
+    likelihood_fn.measurement.get_step('classifier').set_params(
         **{'coefficients__tBID_blot__coef_': np.array([c0]),
            'coefficients__tBID_blot__theta_': np.array([t1, t2, t3, t4]) * c0,
            'coefficients__cPARP_blot__coef_': np.array([c5]),
-           'coefficients__cPARP_blot__theta_': np.array([t6, t7, t8]) * c5})
-    likelihood.evals += 1
-    ll = -likelihood.immunoblot_model.likelihood()
+           'coefficients__cPARP_blot__theta_': np.array([t6, t7, t8]) * c5})  # update classifer parameters
+    prediction = likelihood_fn.measurement.transform(results[['time', 'tBID_obs', 'cPARP_obs']])
+
+    likelihood_fn.evals += 1
+    ll = -likelihood_fn.likelihood(prediction, synthetic_immunoblot_data)
     print(ll)
     return ll
 
@@ -114,7 +115,7 @@ if __name__ == '__main__':
     converged = False
     total_iterations = n_iterations
     sampled_params, log_ps = run_dream(parameters=sampled_params_0,
-                                       likelihood=likelihood,
+                                       likelihood=likelihood_fn,
                                        niterations=n_iterations,
                                        nchains=n_chains,
                                        multitry=False,
@@ -147,7 +148,7 @@ if __name__ == '__main__':
 
             total_iterations += n_iterations
             sampled_params, log_ps = run_dream(parameters=sampled_params_0,
-                                               likelihood=likelihood,
+                                               likelihood=likelihood_fn,
                                                niterations=n_iterations,
                                                nchains=n_chains,
                                                multitry=False,

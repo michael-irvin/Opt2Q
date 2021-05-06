@@ -480,8 +480,7 @@ class NoiseModel(object):
 
     def _update_param_mean(self, param_mean):
         """
-        Updates the param_mean DataFrame with values from a similarly shaped column (i.e. same columns). This method is
-        intended for the :class:`~opt2q.calibrator.ObjectiveFunction`, primarily.
+        Updates the param_mean DataFrame with values from a similarly shaped column (i.e. same columns).
         """
         index_for_update = list((self._exp_con_cols | {'param'}).intersection(set(param_mean.columns)))
         old_means = self._param_mean.set_index(index_for_update)

@@ -2,9 +2,7 @@ language: python
 sudo: false
 python:
   - '3.6'
-branches:
-  only:
-  - manunscript
+
 
 before_install:
   - wget http://repo.continuum.io/miniconda/Miniconda${TRAVIS_PYTHON_VERSION:0:1}-latest-Linux-x86_64.sh -O miniconda.sh

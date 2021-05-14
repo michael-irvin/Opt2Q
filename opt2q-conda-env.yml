@@ -11,15 +11,15 @@ dependencies:
     - scipy==1.1.0
     - scikit-learn==0.19.1
   - pip:
-    - deap==1.2.2
-    - mord==0.6
-    - pathos==0.2.3
-    - pox==0.2.5
-    - ppft==1.6.4.9
-    - pprofile==2.0.2
-    - pydream==2.0.0
-    - python-fastpip==1.2
-    - sphinx-gallery==0.2.0
-    - spotpy==1.5.8
+      - deap==1.2.2
+      - mord==0.6
+      - pathos==0.2.3
+      - pox==0.2.5
+      - ppft==1.6.4.9
+      - pprofile==2.0.2
+      - pydream==2.0.0
+      - python-fastpip==1.2
+      - sphinx-gallery==0.2.0
+      - spotpy==1.5.8
 prefix: /Users/michaelirvin/anaconda2/envs/Opt2Q_py366
 

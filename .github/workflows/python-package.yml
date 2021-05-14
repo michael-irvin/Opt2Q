@@ -1,0 +1,27 @@
+name: Opt2q Package
+on:
+  push:
+    branches: [ manunscript ]
+  pull_request:
+    branches: [ manunscript ]
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    strategy:
+        python-version: ["3.6"]
+    steps:
+    - uses: actions/checkout@v2
+    - uses: conda-incubator/setup-miniconda@v2
+      with:
+        auto-update-conda: true
+        python-version: ${{ matrix.python-version }}
+        environment-file: opt2q-conda-env.yml
+        activate-environment: opt2q
+    - name: Conda environment info
+      run: |
+        conda info
+        conda list
+    - name: Install PySB
+      run: conda install -n opt2q -c alubbock pysb
+    - name: Run Tests
+      run: nosetests Opt2Q/test

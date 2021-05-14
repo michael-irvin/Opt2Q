@@ -22,4 +22,4 @@ jobs:
     - name: Install PySB
       run: conda install -n opt2q -c alubbock pysb
     - name: Run Tests
-      run: nosetests Opt2Q/test
+      run: nosetests /test

@@ -572,15 +572,3 @@ class TestSolver(TestSolverModel, unittest.TestCase):
         res = sim.run(tspan=np.linspace(0, 10, 5))
         pd_testing.assert_frame_equal(target, res.dataframe, check_dtype=False)
 
-    def test_base_run_daesolver_option(self):
-        target = pd.DataFrame(
-            np.array([[0,     0,     0,       0,       0,           0],
-                      [1,     1,   249,       1,       1,         249],
-                      [1,     1,   499,       1,       1,         499],
-                      [1,     1,   749,       1,       1,         749],
-                      [1,     1,   999,       1,       1,         999]]),
-            columns=[u'__s0', u'__s1', u'__s2', u'A_free', u'B_free', u'AB_complex'],
-            index=pd.Index([0.0, 2.5, 5.0, 7.5, 10.0], name='time'))
-        sim = Simulator(self.model, solver='daesolver', solver_options={'rtol': 1e-6, 'atol': 1e-6})
-        res = sim.run(tspan=np.linspace(0, 10, 5))
-        pd_testing.assert_frame_equal(target, res.dataframe, check_dtype=False)

@@ -96,21 +96,6 @@ class TestMeasurementModel(TestSolverModel, unittest.TestCase):
             mm._check_dataset('ds')
         self.assertTrue(error.exception.args[0] == "'dataset' must be an Opt2Q DataSet.")
 
-    def test_get_obs_from_dataset(self):
-        ds = DataSet(pd.DataFrame(), [])
-        ds.experimental_conditions = pd.DataFrame(columns=['condition', 'experiment'])
-        ds.observables = ['AB_complex', 'Nonexistent_Obs']
-        mm = MeasurementModel(self.sim_result)
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            test = mm._get_obs_from_dataset(ds, mm._default_observables)
-            print(w[-1].message)
-            assert str(w[0].message) == 'The supplied dataset has observables not present in the simulation result. ' \
-                                         'They will be ignored.'
-        target = {'AB_complex'}
-        self.assertSetEqual(mm._get_required_observables({'A', 'B'}, None), {'A', 'B'})
-        self.assertSetEqual(test, target)
-
     def test_check_observables(self):
         mm = MeasurementModel(self.sim_result)
         with warnings.catch_warnings(record=True) as w:

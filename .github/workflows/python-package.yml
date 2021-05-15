@@ -23,7 +23,7 @@ jobs:
         conda list
     - name: Run Tests
       run: |
-        cd $CONDA/envs/opt2q
+        cd $CONDA/envs/opt2q/bin
         ls
 #      run: |
 #        conda info

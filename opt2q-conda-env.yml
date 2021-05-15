@@ -1,4 +1,4 @@
-name: Opt2Q_py366
+name: opt2q
 channels:
   - alubbock
   - defaults
@@ -10,6 +10,7 @@ dependencies:
   - seaborn==0.9.0
   - scipy==1.1.0
   - scikit-learn==0.19.1
+  - pip
   - pip:
     - deap==1.2.2
     - mord==0.6

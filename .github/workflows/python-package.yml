@@ -18,6 +18,7 @@ jobs:
     - name: Conda info
       shell: bash -l {0}
       run: |
+        conda install -n opt2q -c alubbock pysb
         conda info
         conda list
 #    - name: Conda environment info

@@ -9,12 +9,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-#    - uses: conda-incubator/setup-miniconda@v2
-#      with:
+    - uses: conda-incubator/setup-miniconda@v2
+      with:
 #        auto-update-conda: true
 #        python-version: ${{ matrix.python-version }}
 #        environment-file: opt2q-conda-env.yml
-#        activate-environment: opt2q
+        activate-environment: opt2q
 #    - name: Conda environment info
 #      run: |
 #        conda info

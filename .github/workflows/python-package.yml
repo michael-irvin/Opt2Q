@@ -21,11 +21,11 @@ jobs:
         conda install -n opt2q -c alubbock pysb
         conda info
         conda list
+    - name: Run Tests
+        run: $CONDA/bin/unittest discover -s test -p "test_*.py"
 #    - name: Conda environment info
 #      run: |
 #        conda info
 #        conda list
-#    - name: Install PySB
-#      run: conda install -n opt2q -c alubbock pysb
 #    - name: Run Tests
 #      run: python -m unittest discover -s test -p "test_*.py"

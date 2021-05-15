@@ -17,7 +17,9 @@ jobs:
         activate-environment: opt2q
     - name: Conda info
       shell: bash -l {0}
-      run: conda info
+      run: |
+        conda info
+        conda list
 #    - name: Conda environment info
 #      run: |
 #        conda info

@@ -1,7 +1,5 @@
 from pysb.examples.michment import model as pysb_model
 from opt2q.noise import NoiseModel
-from opt2q.utils import MissingParametersErrors, DuplicateParameterError, UnsupportedSimulator
-from nose.tools import *
 import numpy as np
 from numpy.testing import assert_array_almost_equal, assert_array_equal
 import pandas.util.testing as pd_testing
@@ -162,11 +160,6 @@ class TestNoise(unittest.TestCase):
         test = nm._combine_param_i_j(cov_)
         pd_testing.assert_frame_equal(test, target)
 
-    @raises(AttributeError)
-    def test_combine_experimental_conditions(self):
-        nm = NoiseModel()
-        nm._combine_experimental_conditions(pd.DataFrame(), {'a', 'b'}, pd.DataFrame(), {'a'})
-
     def test_add_params_from_param_covariance_empty_mean_and_cov(self):
         mean = pd.DataFrame()
         cov_ = pd.DataFrame()
@@ -305,16 +298,6 @@ class TestNoise(unittest.TestCase):
                                       test.sort_values(by=cols).reset_index(drop=True)[cols],
                                       check_dtype=False)
 
-    @raises(MissingParametersErrors)
-    def test_missing_parameters_error_raised(self):
-        mean = pd.DataFrame([['a', 1],
-                             ['b', 1],
-                             ['c', 1]], columns=['param', 'value'])
-        cov_ = pd.DataFrame([['a', 'a', 1, 'ec1'],
-                             ['b', 'c', 1, 'ec1'],
-                             ['c', 'd', 1, 'ec2']], columns=['param_i', 'param_j', 'value', 'ec'])
-        NoiseModel(mean, cov_)  # d is missing
-
     def test_add_missing_params(self):
         mean_ = pd.DataFrame([['a', 1,      True, 'ec1'],
                               ['b', 1,      True, 'ec1'],
@@ -441,28 +424,6 @@ class TestNoise(unittest.TestCase):
                               columns=['param', 'value', 'ec', 'apply_noise', 'num_sims'])
         pd_testing.assert_frame_equal(test[test.columns], target[test.columns], check_dtype=False)
 
-    @raises(ValueError)
-    def test_param_mean_bad_update(self):
-        mean_values = pd.DataFrame([['A', 1.0, 'KO'], ['B', 1.0, 'WT'], ['A', 1.0, 'WT']],
-                                   columns=['param', 'value', 'ec'])
-        noise_model = NoiseModel(param_mean=mean_values)
-        noise_model.update_values(param_mean=pd.DataFrame([['C', 2]], columns=['param', 'value']))
-
-    @raises(ValueError)
-    def test_param_mean_bad_update_2(self):
-        mean_values = pd.DataFrame([['A', 1.0, 'KO'], ['B', 1.0, 'WT'], ['A', 1.0, 'WT']],
-                                   columns=['param', 'value', 'ec'])
-        noise_model = NoiseModel(param_mean=mean_values)
-        noise_model.update_values(param_mean=pd.DataFrame([['A', 2, 'a']], columns=['param', 'value', 'ec2']))
-
-    @raises(DuplicateParameterError)
-    def test_duplicate_param_error_mean(self):
-        mean_values = pd.DataFrame([['A', 1.0, 3],
-                                    ['B', 1.0, 1],
-                                    ['A', 1.0, 1]],
-                                   columns=['param', 'value', 'num_sims'])
-        NoiseModel(param_mean=mean_values)
-
     def test_param_mean_update_with_num_sims(self):
         mean_values = pd.DataFrame([['A', 1.0, 3],
                                     ['B', 1.0, 1]],
@@ -557,10 +518,6 @@ class TestNoise(unittest.TestCase):
                                   columns=['exp_condition',  'num_sims'])
         test_exp = noise_model_1.experimental_conditions_dataframe
         pd_testing.assert_frame_equal(test_exp[test_exp.columns], target_exp[test_exp.columns])
-
-    @raises(UnsupportedSimulator)
-    def test_unsupported_simulator_error(self):
-        NoiseModel(noise_simulator="an unsupported simulator")
 
     def test_simulate_exp_empty_param_mean_no_cov(self):
         nm = NoiseModel()

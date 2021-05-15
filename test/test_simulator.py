@@ -2,8 +2,7 @@ from pysb import Monomer, Parameter, Initial, Observable, Rule
 from pysb.bng import generate_equations
 from pysb.testing import *
 from opt2q.simulator import Simulator
-from opt2q.utils import UnsupportedSimulatorError, IncompatibleFormatWarning, CupSodaNotInstalledWarning
-from nose.tools import *
+from opt2q.utils import IncompatibleFormatWarning, CupSodaNotInstalledWarning
 import numpy as np
 import pandas as pd
 import pandas.testing as pd_testing
@@ -54,9 +53,6 @@ class TestSolverModel(object):
 
 class TestSolver(TestSolverModel, unittest.TestCase):
     """test solver"""
-    @raises(UnsupportedSimulatorError)
-    def test_solver_exception(self):
-        Simulator(self.model, solver='unsupported_solver')
 
     def test_get_solver_kwargs(self):
         sim = Simulator(self.model)
@@ -126,12 +122,6 @@ class TestSolver(TestSolverModel, unittest.TestCase):
         target = var_in
         target['simulation'] = np.arange(target.shape[0])
         pd_testing.assert_frame_equal(test, target)
-
-    @raises(ValueError)
-    def test_add_simulation_column_case_3(self):
-        sim = Simulator(self.model)
-        var_in = pd.DataFrame(np.arange(1, 5), columns=['simulation'])
-        sim._add_simulations_column(var_in)
 
     def test_params_for_run_none(self):
         sim = Simulator(self.model)
@@ -251,24 +241,12 @@ class TestSolver(TestSolverModel, unittest.TestCase):
                                                  self.model.species[1]: [2, 4]})
         assert sim._initials_are_compatible is True
 
-    @raises(ValueError)
-    def test_check_components_o2_df_o2_df_mismatch_exp_conditions(self):
-        initials = pd.DataFrame([[1, 2], [3, 4]], columns=self.model.species[0:2])
-        initials['ec'] = 'a'
-        params_df = pd.DataFrame([[1, 2, 'a'], [0, 1, 'b']], columns=['ksynthA', 'ksynthB', 'ec'])
-        sim = Simulator(self.model, param_values=params_df, initials=initials)
-
     def test_check_updates(self):
         sim = Simulator(self.model)
         self.assertEqual(sim._update_components_w_check, sim._update_components)
         sim.check_updates = False
         assert sim.check_updates is False
         self.assertEqual(sim._update_components_wo_check, sim._update_components)
-
-    @raises(ValueError)
-    def test_check_updates_bad_input(self):
-        sim = Simulator(self.model)
-        sim.check_updates = 8
 
     def test_param_update_o2_df_o2_df(self):
         params_df = pd.DataFrame([[1, 2, 'a'], [0, 1, 'a']], columns=['ksynthA', 'ksynthB', 'ec'])
@@ -289,14 +267,6 @@ class TestSolver(TestSolverModel, unittest.TestCase):
         self.assertDictEqual(sim._initials_run, {self.model.species[0]: [1, 3],
                                                  self.model.species[1]: [2, 4]})
         assert sim._initials_are_compatible is True
-
-    @raises(ValueError)
-    def test_initials_update_w_check(self):
-        initials = pd.DataFrame([[1, 2], [3, 4]], columns=self.model.species[0:2])
-        initials['ec'] = 'a'
-        params_df = pd.DataFrame([[1, 2, 'a'], [0, 1, 'b']], columns=['ksynthA', 'ksynthB', 'ec'])
-        sim = Simulator(self.model, param_values=params_df)
-        sim.initials = initials
 
     def test_params_wo_check(self):
         initials = pd.DataFrame([[1, 2], [3, 4]], columns=self.model.species[0:2])

@@ -21,5 +21,7 @@ jobs:
         conda list
     - name: Install PySB
       run: conda install -n opt2q -c alubbock pysb
+    - name: Set up nosetests
+      run: python setup.py nosetests
     - name: Run Tests
       run: nosetests /test

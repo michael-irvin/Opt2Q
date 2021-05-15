@@ -13,7 +13,7 @@ jobs:
       with:
 #        auto-update-conda: true
 #        python-version: ${{ matrix.python-version }}
-#        environment-file: opt2q-conda-env.yml
+        environment-file: opt2q-conda-env.yml
         activate-environment: opt2q
 #    - name: Conda environment info
 #      run: |

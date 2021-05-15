@@ -15,6 +15,9 @@ jobs:
 #        python-version: ${{ matrix.python-version }}
         environment-file: opt2q-conda-env.yml
         activate-environment: opt2q
+    - name: Conda info
+        shell: bash -l {0}
+        run: conda info
 #    - name: Conda environment info
 #      run: |
 #        conda info

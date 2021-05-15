@@ -22,5 +22,4 @@ dependencies:
     - sphinx-gallery==0.2.0
     - spotpy==1.5.8
     - nose==1.3.7
-prefix: /Users/michaelirvin/anaconda2/envs/Opt2Q_py366
 

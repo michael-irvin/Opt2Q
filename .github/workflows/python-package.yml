@@ -22,8 +22,7 @@ jobs:
         conda info
         conda list
     - name: Run Tests
-        run: $CONDA/bin/unittest discover -s test -p "test_*.py"
-#    - name: Conda environment info
+        run: python -m unittest discover -s test -p "test_*.py"
 #      run: |
 #        conda info
 #        conda list

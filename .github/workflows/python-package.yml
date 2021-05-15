@@ -21,7 +21,8 @@ jobs:
         conda list
     - name: Install PySB
       run: conda install -n opt2q -c alubbock pysb
-    - name: Run Tests
+    - uses: conda-incubator/setup-miniconda@v2
       with:
         activate-environment: opt2q
+    - name: Run Tests
         run: python -m unittest discover -s test -p "test_*.py"
